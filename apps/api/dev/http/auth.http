@@ -1,0 +1,119 @@
+### AO3 Tracker API - Authentication
+### Uses Better Auth (https://www.better-auth.com)
+
+### ============================================================================
+### Email/Password Authentication
+### ============================================================================
+
+### Sign Up (new user)
+# @name signUp
+# @no-cookie-jar
+POST {{baseUrl}}/auth/sign-up/email
+Content-Type: application/json
+
+{
+    "email": "{{email}}",
+    "password": "{{password}}",
+    "name": "{{name}}"
+}
+
+### Sign In (email/password)
+### After running, copy set-auth-token header to http-client.private.env.json
+# @name signIn
+# @no-cookie-jar
+POST {{baseUrl}}/auth/sign-in/email
+Content-Type: application/json
+
+{
+    "email": "{{email}}",
+    "password": "{{password}}"
+}
+
+> {%
+    client.global.set("bearerToken", response.headers.valueOf("set-auth-token"));
+%}
+
+### Get Session (check if logged in)
+# @name getSession
+# @no-cookie-jar
+GET {{baseUrl}}/auth/get-session
+Authorization: Bearer {{bearerToken}}
+
+### ============================================================================
+### Bearer Token (for API clients)
+### ============================================================================
+
+### Generate Bearer Token (requires active session)
+# @name generateToken
+# @no-cookie-jar
+POST {{baseUrl}}/auth/token/generate
+Content-Type: application/json
+Authorization: Bearer {{bearerToken}}
+
+{
+    "name": "API Client Token",
+    "expiresIn": 2592000
+}
+
+### List Bearer Tokens
+# @no-cookie-jar
+GET {{baseUrl}}/auth/token/list
+Authorization: Bearer {{bearerToken}}
+
+### Revoke Bearer Token
+# @no-cookie-jar
+POST {{baseUrl}}/auth/token/revoke
+Content-Type: application/json
+Authorization: Bearer {{bearerToken}}
+
+{
+    "token": "{{bearerToken}}"
+}
+
+### ============================================================================
+### Password Reset
+### ============================================================================
+
+### Request Password Reset
+# @no-cookie-jar
+POST {{baseUrl}}/auth/forget-password
+Content-Type: application/json
+
+{
+    "email": "test@example.com",
+    "redirectTo": "http://localhost:3000/reset-password"
+}
+
+### Reset Password (use token from email)
+# @no-cookie-jar
+POST {{baseUrl}}/auth/reset-password
+Content-Type: application/json
+
+{
+    "newPassword": "newSecurePassword123!",
+    "token": "RESET_TOKEN_FROM_EMAIL"
+}
+
+### ============================================================================
+### Email Verification
+### ============================================================================
+
+### Resend Verification Email
+# @no-cookie-jar
+POST {{baseUrl}}/auth/send-verification-email
+Content-Type: application/json
+Authorization: Bearer {{bearerToken}}
+
+{
+    "email": "{{email}}",
+    "callbackURL": "http://localhost:3000/verify"
+}
+
+### ============================================================================
+### Sign Out
+### ============================================================================
+
+### Sign Out
+# @no-cookie-jar
+POST {{baseUrl}}/auth/sign-out
+Authorization: Bearer {{bearerToken}}

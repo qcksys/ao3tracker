@@ -1,0 +1,148 @@
+{
+    "$schema": "node_modules/wrangler/config-schema.json",
+    "account_id": "923e3a86a572d6d6d05230ccadbbbe34",
+    "main": "src/index.ts",
+    "compatibility_date": "2025-11-18",
+    "compatibility_flags": ["nodejs_compat"],
+    "placement": {
+        "mode": "smart"
+    },
+    "observability": {
+        "logs": {
+            "enabled": true,
+            "head_sampling_rate": 1
+        }
+    },
+    "preview_urls": false,
+    "workers_dev": false,
+    "r2_buckets": [
+        {
+            "binding": "WORK_BACKUPS_BUCKET",
+            "bucket_name": "ao3tracker-work-backups-dev",
+            "remote": true
+        }
+    ],
+    "queues": {
+        "producers": [
+            {
+                "binding": "NOTIFICATION_QUEUE",
+                "queue": "ao3tracker-notifications-dev",
+                "remote": false
+            }
+        ],
+        "consumers": [
+            {
+                "queue": "ao3tracker-notifications-dev",
+                "max_batch_size": 10,
+                "max_batch_timeout": 30,
+                "max_retries": 3,
+                "dead_letter_queue": "ao3tracker-notifications-dlq-dev"
+            }
+        ]
+    },
+    "vars": {
+        "BETTER_AUTH_URL": "https://qcksys-ao3tracker-api-local.ta2.dev",
+        "ENVIRONMENT": "local",
+        "SYSTEM_EMAIL_ADDRESS": "ao3tracker-local@qcksys.com",
+        "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups-dev.qcksys.app"
+    },
+    "triggers": {
+        "crons": ["*/5 * * * *"]
+    },
+    "env": {
+        "dev": {
+            "name": "ao3tracker-api-dev",
+            "r2_buckets": [
+                {
+                    "binding": "WORK_BACKUPS_BUCKET",
+                    "bucket_name": "ao3tracker-work-backups-dev"
+                }
+            ],
+            "queues": {
+                "producers": [
+                    {
+                        "binding": "NOTIFICATION_QUEUE",
+                        "queue": "ao3tracker-notifications-dev"
+                    }
+                ],
+                "consumers": [
+                    {
+                        "queue": "ao3tracker-notifications-dev",
+                        "max_batch_size": 10,
+                        "max_batch_timeout": 30,
+                        "max_retries": 3,
+                        "dead_letter_queue": "ao3tracker-notifications-dlq-dev"
+                    }
+                ]
+            },
+            "routes": [
+                {
+                    "pattern": "ao3tracker-dev.qcksys.app",
+                    "custom_domain": true
+                }
+            ],
+            "triggers": {
+                "crons": ["*/5 * * * *"]
+            },
+            "observability": {
+                "logs": {
+                    "enabled": true,
+                    "head_sampling_rate": 1
+                }
+            },
+            "vars": {
+                "BETTER_AUTH_URL": "https://ao3tracker-dev.qcksys.app",
+                "ENVIRONMENT": "dev",
+                "SYSTEM_EMAIL_ADDRESS": "ao3tracker-dev@qcksys.com",
+                "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups-dev.qcksys.app"
+            }
+        },
+        "prod": {
+            "name": "ao3tracker-api-prod",
+            "r2_buckets": [
+                {
+                    "binding": "WORK_BACKUPS_BUCKET",
+                    "bucket_name": "ao3tracker-work-backups-prod"
+                }
+            ],
+            "queues": {
+                "producers": [
+                    {
+                        "binding": "NOTIFICATION_QUEUE",
+                        "queue": "ao3tracker-notifications-prod"
+                    }
+                ],
+                "consumers": [
+                    {
+                        "queue": "ao3tracker-notifications-prod",
+                        "max_batch_size": 10,
+                        "max_batch_timeout": 30,
+                        "max_retries": 3,
+                        "dead_letter_queue": "ao3tracker-notifications-dlq-prod"
+                    }
+                ]
+            },
+            "routes": [
+                {
+                    "pattern": "ao3tracker.qcksys.app",
+                    "custom_domain": true
+                }
+            ],
+            "triggers": {
+                "crons": ["*/5 * * * *"]
+            },
+            "observability": {
+                "logs": {
+                    "enabled": true,
+                    "head_sampling_rate": 1
+                }
+            },
+            "vars": {
+                "BETTER_AUTH_URL": "https://ao3tracker.qcksys.app",
+                "ENVIRONMENT": "prod",
+                "SYSTEM_EMAIL_ADDRESS": "ao3tracker@qcksys.com",
+                "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups.qcksys.app"
+            }
+        }
+    }
+}

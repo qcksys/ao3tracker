@@ -1,0 +1,220 @@
+### AO3 Tracker API - Sync Endpoints
+### Requires authentication (use auth.http to get a session or bearer token first)
+
+### ============================================================================
+### GET /api/track/sync - Fetch server tracking data
+### ============================================================================
+
+### Full Sync (first sync, no cursor)
+# @name fullSync
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+
+### Incremental Sync (fetch changes since last sync)
+# @name incrementalSync
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync?lastSyncedAt=2025-01-01T00:00:00.000Z
+Authorization: Bearer {{bearerToken}}
+
+### Paginated Sync (continue fetching with cursor)
+# Use nextWorkCursor from previous response
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync?workCursor=12345678
+Authorization: Bearer {{bearerToken}}
+
+### Paginated Incremental Sync
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync?lastSyncedAt=2025-01-01T00:00:00.000Z&workCursor=12345678
+Authorization: Bearer {{bearerToken}}
+
+### Custom Limit (default: 50, max: 50)
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync?limit=10
+Authorization: Bearer {{bearerToken}}
+
+### ============================================================================
+### POST /api/track/sync - Send client tracking data
+### ============================================================================
+
+### Sync a single work (track new work)
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 12345678,
+            "lastReadAt": "2025-12-15T12:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": false,
+            "deleted": false
+        }
+    ]
+}
+
+### Sync work with chapters
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 12345678,
+            "lastReadAt": "2025-12-15T12:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": false,
+            "deleted": false
+        }
+    ],
+    "chapters": [
+        {
+            "workId": 12345678,
+            "chapterId": 98765432,
+            "lastReadAt": "2025-12-15T12:00:00.000Z",
+            "markedCompleteAt": null,
+            "readProgress": 0.75
+        },
+        {
+            "workId": 12345678,
+            "chapterId": 98765433,
+            "lastReadAt": "2025-12-15T11:30:00.000Z",
+            "markedCompleteAt": "2025-12-15T11:30:00.000Z",
+            "readProgress": 1.0
+        }
+    ]
+}
+
+### Mark work as complete
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 12345678,
+            "lastReadAt": "2025-12-15T14:00:00.000Z",
+            "markedCompleteAt": "2025-12-15T14:00:00.000Z",
+            "private": false,
+            "deleted": false
+        }
+    ]
+}
+
+### Untrack a work (soft delete)
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 12345678,
+            "lastReadAt": "2025-12-15T15:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": false,
+            "deleted": true
+        }
+    ]
+}
+
+### Track a private work (requires AO3 login)
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 87654321,
+            "lastReadAt": "2025-12-15T12:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": true,
+            "deleted": false
+        }
+    ]
+}
+
+### Sync multiple works at once (batch, max 50)
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 11111111,
+            "lastReadAt": "2025-12-15T10:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": false,
+            "deleted": false
+        },
+        {
+            "workId": 22222222,
+            "lastReadAt": "2025-12-15T11:00:00.000Z",
+            "markedCompleteAt": "2025-12-15T11:00:00.000Z",
+            "private": false,
+            "deleted": false
+        },
+        {
+            "workId": 33333333,
+            "lastReadAt": "2025-12-15T12:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": true,
+            "deleted": false
+        }
+    ]
+}
+
+### ============================================================================
+### Complete Sync Flow Example
+### ============================================================================
+
+### Step 1: Get all server data (full sync)
+# @name step1_fullSync
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+
+### Step 2: Continue if hasMore is true (use nextWorkCursor from step 1)
+# @name step2_paginate
+# @no-cookie-jar
+GET {{baseUrl}}/api/track/sync?workCursor={{step1_fullSync.response.body.nextWorkCursor}}
+Authorization: Bearer {{bearerToken}}
+
+### Step 3: Send client changes (only items where lastReadAt > serverLastUpdated)
+# @name step3_sendChanges
+# @no-cookie-jar
+POST {{baseUrl}}/api/track/sync
+Authorization: Bearer {{bearerToken}}
+Content-Type: application/json
+
+{
+    "works": [
+        {
+            "workId": 12345678,
+            "lastReadAt": "2025-12-15T16:00:00.000Z",
+            "markedCompleteAt": null,
+            "private": false,
+            "deleted": false
+        }
+    ],
+    "chapters": [
+        {
+            "workId": 12345678,
+            "chapterId": 98765432,
+            "lastReadAt": "2025-12-15T16:00:00.000Z",
+            "markedCompleteAt": null,
+            "readProgress": 0.5
+        }
+    ]
+}

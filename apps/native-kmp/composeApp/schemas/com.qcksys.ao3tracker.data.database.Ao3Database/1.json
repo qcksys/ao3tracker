@@ -1,0 +1,431 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "334c9c3a9b6593bf7d5e5a8fcf4c81ae",
+    "entities": [
+      {
+        "tableName": "works",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `title` TEXT, `author` TEXT, `authorUrl` TEXT, `summary` TEXT, `language` TEXT, `wordCount` INTEGER, `currentChapters` INTEGER, `totalChapters` INTEGER, `hits` INTEGER, `kudos` INTEGER, `bookmarks` INTEGER, `comments` INTEGER, `published` INTEGER, `lastUpdated` INTEGER, `lastRefreshed` INTEGER, `downloadPath` TEXT, `downloadUpdatedAt` TEXT, `isPrivate` INTEGER NOT NULL, `lastRead` INTEGER, `markedCompleteAt` INTEGER, `rowCreatedAt` INTEGER NOT NULL, `rowUpdatedAt` INTEGER NOT NULL, `rowDeletedAt` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "author",
+            "columnName": "author",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "authorUrl",
+            "columnName": "authorUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "summary",
+            "columnName": "summary",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "language",
+            "columnName": "language",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "wordCount",
+            "columnName": "wordCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "currentChapters",
+            "columnName": "currentChapters",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "totalChapters",
+            "columnName": "totalChapters",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "hits",
+            "columnName": "hits",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "kudos",
+            "columnName": "kudos",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "bookmarks",
+            "columnName": "bookmarks",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "comments",
+            "columnName": "comments",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "published",
+            "columnName": "published",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastUpdated",
+            "columnName": "lastUpdated",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "lastRefreshed",
+            "columnName": "lastRefreshed",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "downloadPath",
+            "columnName": "downloadPath",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "downloadUpdatedAt",
+            "columnName": "downloadUpdatedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isPrivate",
+            "columnName": "isPrivate",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastRead",
+            "columnName": "lastRead",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "markedCompleteAt",
+            "columnName": "markedCompleteAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rowCreatedAt",
+            "columnName": "rowCreatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowUpdatedAt",
+            "columnName": "rowUpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowDeletedAt",
+            "columnName": "rowDeletedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_works_title",
+            "unique": false,
+            "columnNames": [
+              "title"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_title` ON `${TABLE_NAME}` (`title`)"
+          },
+          {
+            "name": "index_works_author",
+            "unique": false,
+            "columnNames": [
+              "author"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_author` ON `${TABLE_NAME}` (`author`)"
+          },
+          {
+            "name": "index_works_language",
+            "unique": false,
+            "columnNames": [
+              "language"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_language` ON `${TABLE_NAME}` (`language`)"
+          },
+          {
+            "name": "index_works_wordCount",
+            "unique": false,
+            "columnNames": [
+              "wordCount"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_wordCount` ON `${TABLE_NAME}` (`wordCount`)"
+          },
+          {
+            "name": "index_works_published",
+            "unique": false,
+            "columnNames": [
+              "published"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_published` ON `${TABLE_NAME}` (`published`)"
+          },
+          {
+            "name": "index_works_lastUpdated",
+            "unique": false,
+            "columnNames": [
+              "lastUpdated"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_lastUpdated` ON `${TABLE_NAME}` (`lastUpdated`)"
+          },
+          {
+            "name": "index_works_rowCreatedAt",
+            "unique": false,
+            "columnNames": [
+              "rowCreatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_rowCreatedAt` ON `${TABLE_NAME}` (`rowCreatedAt`)"
+          },
+          {
+            "name": "index_works_rowUpdatedAt",
+            "unique": false,
+            "columnNames": [
+              "rowUpdatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_rowUpdatedAt` ON `${TABLE_NAME}` (`rowUpdatedAt`)"
+          },
+          {
+            "name": "index_works_rowDeletedAt",
+            "unique": false,
+            "columnNames": [
+              "rowDeletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_works_rowDeletedAt` ON `${TABLE_NAME}` (`rowDeletedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "chapters",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workId` INTEGER NOT NULL, `chapterId` INTEGER NOT NULL, `number` INTEGER, `title` TEXT, `dateUpdated` INTEGER, `readProgress` REAL, `lastReadAt` INTEGER, `markedCompleteAt` INTEGER, `rowCreatedAt` INTEGER NOT NULL, `rowUpdatedAt` INTEGER NOT NULL, `rowDeletedAt` INTEGER, PRIMARY KEY(`workId`, `chapterId`), FOREIGN KEY(`workId`) REFERENCES `works`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "workId",
+            "columnName": "workId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chapterId",
+            "columnName": "chapterId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "number",
+            "columnName": "number",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dateUpdated",
+            "columnName": "dateUpdated",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "readProgress",
+            "columnName": "readProgress",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "lastReadAt",
+            "columnName": "lastReadAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "markedCompleteAt",
+            "columnName": "markedCompleteAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "rowCreatedAt",
+            "columnName": "rowCreatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowUpdatedAt",
+            "columnName": "rowUpdatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowDeletedAt",
+            "columnName": "rowDeletedAt",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workId",
+            "chapterId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_chapters_workId",
+            "unique": false,
+            "columnNames": [
+              "workId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapters_workId` ON `${TABLE_NAME}` (`workId`)"
+          },
+          {
+            "name": "index_chapters_rowCreatedAt",
+            "unique": false,
+            "columnNames": [
+              "rowCreatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapters_rowCreatedAt` ON `${TABLE_NAME}` (`rowCreatedAt`)"
+          },
+          {
+            "name": "index_chapters_rowUpdatedAt",
+            "unique": false,
+            "columnNames": [
+              "rowUpdatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapters_rowUpdatedAt` ON `${TABLE_NAME}` (`rowUpdatedAt`)"
+          },
+          {
+            "name": "index_chapters_rowDeletedAt",
+            "unique": false,
+            "columnNames": [
+              "rowDeletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_chapters_rowDeletedAt` ON `${TABLE_NAME}` (`rowDeletedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "works",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "tags",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`workId` INTEGER NOT NULL, `tag` TEXT NOT NULL, `href` TEXT NOT NULL, `typeId` INTEGER NOT NULL, `rowCreatedAt` INTEGER NOT NULL, PRIMARY KEY(`workId`, `tag`), FOREIGN KEY(`workId`) REFERENCES `works`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "workId",
+            "columnName": "workId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tag",
+            "columnName": "tag",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "href",
+            "columnName": "href",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "typeId",
+            "columnName": "typeId",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rowCreatedAt",
+            "columnName": "rowCreatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "workId",
+            "tag"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_tags_typeId",
+            "unique": false,
+            "columnNames": [
+              "typeId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tags_typeId` ON `${TABLE_NAME}` (`typeId`)"
+          },
+          {
+            "name": "index_tags_rowCreatedAt",
+            "unique": false,
+            "columnNames": [
+              "rowCreatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_tags_rowCreatedAt` ON `${TABLE_NAME}` (`rowCreatedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "works",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "workId"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '334c9c3a9b6593bf7d5e5a8fcf4c81ae')"
+    ]
+  }
+}

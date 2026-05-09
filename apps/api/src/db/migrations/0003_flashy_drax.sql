@@ -1,0 +1,2 @@
+CREATE INDEX `idx_track_chapter_user_lastReadAt` ON `ao3track__track_chapter` (`userId`,`lastReadAt`);--> statement-breakpoint
+CREATE INDEX `idx_track_work_user_lastReadAt` ON `ao3track__track_work` (`userId`,`lastReadAt`);

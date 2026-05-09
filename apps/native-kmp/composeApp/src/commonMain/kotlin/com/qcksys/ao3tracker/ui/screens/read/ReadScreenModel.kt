@@ -1,0 +1,229 @@
+package com.qcksys.ao3tracker.ui.screens.read
+
+import cafe.adriel.voyager.core.model.ScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
+import com.qcksys.ao3tracker.data.model.DataException
+import com.qcksys.ao3tracker.data.model.ScrollProgressEvent
+import com.qcksys.ao3tracker.data.model.WebViewMessage
+import com.qcksys.ao3tracker.data.model.WorkChapterIndexEvent
+import com.qcksys.ao3tracker.data.model.WorkInfoEvent
+import com.qcksys.ao3tracker.data.model.WorkTagsEvent
+import com.qcksys.ao3tracker.data.repository.Ao3Repository
+import com.qcksys.ao3tracker.util.AppLogger
+import com.qcksys.ao3tracker.util.JsonConfig
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+class ReadScreenModel(
+    private val repository: Ao3Repository
+) : ScreenModel {
+
+    private val _currentUrl = MutableStateFlow("https://archiveofourown.org")
+    val currentUrl: StateFlow<String> = _currentUrl.asStateFlow()
+
+    private val _canGoBack = MutableStateFlow(false)
+    val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
+
+    private val _canGoForward = MutableStateFlow(false)
+    val canGoForward: StateFlow<Boolean> = _canGoForward.asStateFlow()
+
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _scrollProgress = MutableStateFlow(0f)
+    val scrollProgress: StateFlow<Float> = _scrollProgress.asStateFlow()
+
+    // Cache for work info until we have all the data
+    private var pendingWorkInfo: WorkInfoEvent? = null
+    private var pendingWorkTags: WorkTagsEvent? = null
+
+    // Track the previous chapter to mark as read when navigating to next chapter
+    private data class ChapterLocation(val workId: Long, val chapterId: Long)
+    private var previousChapter: ChapterLocation? = null
+
+    companion object {
+        private const val TAG = "ReadScreenModel"
+    }
+
+    fun updateNavigationState(canGoBack: Boolean, canGoForward: Boolean) {
+        _canGoBack.value = canGoBack
+        _canGoForward.value = canGoForward
+    }
+
+    fun updateLoadingState(isLoading: Boolean) {
+        _isLoading.value = isLoading
+    }
+
+    fun updateCurrentUrl(url: String) {
+        _currentUrl.value = url
+    }
+
+    fun handleWebViewMessage(messageJson: String) {
+        screenModelScope.launch {
+            try {
+                val message = parseWebViewMessage(messageJson)
+                processMessage(message)
+            } catch (e: SerializationException) {
+                AppLogger.e("Failed to parse WebView message", TAG, e)
+            } catch (e: DataException) {
+                AppLogger.w("Invalid WebView message: ${e.message}", TAG, e)
+            } catch (e: Exception) {
+                AppLogger.e("Unexpected error handling WebView message", TAG, e)
+            }
+        }
+    }
+
+    private fun parseWebViewMessage(messageJson: String): WebViewMessage {
+        val jsonElement = JsonConfig.json.parseToJsonElement(messageJson)
+        val type = jsonElement.jsonObject["type"]?.jsonPrimitive?.content
+
+        return when (type) {
+            "workInfo" -> WebViewMessage.WorkInfo(
+                JsonConfig.json.decodeFromString<WorkInfoEvent>(messageJson)
+            )
+            "workTags" -> WebViewMessage.WorkTags(
+                JsonConfig.json.decodeFromString<WorkTagsEvent>(messageJson)
+            )
+            "workChapterIndex" -> WebViewMessage.ChapterIndex(
+                JsonConfig.json.decodeFromString<WorkChapterIndexEvent>(messageJson)
+            )
+            "scrollProgress" -> WebViewMessage.ScrollProgress(
+                JsonConfig.json.decodeFromString<ScrollProgressEvent>(messageJson)
+            )
+            else -> {
+                AppLogger.w("Unknown WebView message type: $type", TAG)
+                WebViewMessage.Unknown(type, messageJson)
+            }
+        }
+    }
+
+    private suspend fun processMessage(message: WebViewMessage) {
+        when (message) {
+            is WebViewMessage.WorkInfo -> {
+                pendingWorkInfo = message.event
+                tryToSaveWork()
+            }
+            is WebViewMessage.WorkTags -> {
+                pendingWorkTags = message.event
+                tryToSaveWork()
+            }
+            is WebViewMessage.ChapterIndex -> {
+                repository.saveChapterIndex(message.event)
+            }
+            is WebViewMessage.ScrollProgress -> {
+                _scrollProgress.value = message.event.scrollPercentage / 100f
+                repository.updateScrollProgress(message.event)
+            }
+            is WebViewMessage.Unknown -> {
+                // Already logged in parseWebViewMessage
+            }
+        }
+    }
+
+    private suspend fun tryToSaveWork() {
+        val workInfo = pendingWorkInfo ?: return
+        val workTags = pendingWorkTags
+
+        // Save work with whatever tags we have (tags may come in separate message)
+        repository.saveWorkFromWebView(workInfo, workTags)
+
+        // Mark previous chapter as read if we navigated to a different chapter of the same work
+        markPreviousChapterAsReadIfNeeded(workInfo)
+
+        // Clear cache after saving
+        if (workTags != null) {
+            pendingWorkInfo = null
+            pendingWorkTags = null
+        }
+    }
+
+    /**
+     * Mark the previous chapter as fully read when navigating to the next chapter of the same work.
+     * This assumes that if you're moving to the next chapter, you've finished reading the current one.
+     */
+    private suspend fun markPreviousChapterAsReadIfNeeded(currentWorkInfo: WorkInfoEvent) {
+        val currentWorkId = extractWorkIdFromUrl(currentWorkInfo.url) ?: return
+        val currentChapterId = currentWorkInfo.chapterId?.toLongOrNull()
+            ?: extractChapterIdFromUrl(currentWorkInfo.url)
+            ?: return
+
+        val prev = previousChapter
+
+        // Update the tracked chapter to current
+        previousChapter = ChapterLocation(currentWorkId, currentChapterId)
+
+        // If we have a previous chapter on the same work but different chapter, mark it as read
+        if (prev != null && prev.workId == currentWorkId && prev.chapterId != currentChapterId) {
+            AppLogger.d("Marking previous chapter ${prev.chapterId} as read (navigated to chapter $currentChapterId)", TAG)
+            repository.markChapterAsRead(prev.chapterId, prev.workId)
+        }
+    }
+
+    private fun extractWorkIdFromUrl(url: String): Long? {
+        val regex = Regex("/works/(\\d+)")
+        return regex.find(url)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    private fun extractChapterIdFromUrl(url: String): Long? {
+        val regex = Regex("/chapters/(\\d+)")
+        return regex.find(url)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    fun navigateToUrl(url: String) {
+        // Reset scroll progress when navigating to a new page
+        _scrollProgress.value = 0f
+        // Add #chapters fragment for work URLs to auto-scroll to content
+        _currentUrl.value = addChaptersFragment(url)
+    }
+
+    fun navigateToHome() {
+        _scrollProgress.value = 0f
+        _currentUrl.value = "https://archiveofourown.org"
+    }
+
+    fun isOnHomePage(): Boolean {
+        val url = _currentUrl.value
+        return url == "https://archiveofourown.org" ||
+               url == "https://archiveofourown.org/" ||
+               url.startsWith("https://archiveofourown.org/#")
+    }
+
+    @OptIn(ExperimentalTime::class)
+    fun navigateToUrlWithScroll(url: String, scrollProgress: Float) {
+        // Build URL with scrollTo param and timestamp to force reload
+        val timestamp = Clock.System.now().toEpochMilliseconds()
+        val scrollPercent = (scrollProgress * 100).toInt()
+
+        // Add query params first, then fragment (fragments must come last in URL)
+        val urlWithParams = if (url.contains("?")) {
+            "$url&scrollTo=$scrollPercent&_t=$timestamp"
+        } else {
+            "$url?scrollTo=$scrollPercent&_t=$timestamp"
+        }
+        // Add #chapters fragment at the end for auto-scroll to content area
+        _currentUrl.value = addChaptersFragment(urlWithParams)
+    }
+
+    /**
+     * Add #chapters fragment to work URLs to auto-scroll to content
+     */
+    private fun addChaptersFragment(url: String): String {
+        // Only add fragment for work URLs that don't already have one
+        if (url.contains("#")) return url
+
+        // Check if it's a work URL (contains /works/ followed by a number)
+        val workPattern = Regex("/works/\\d+")
+        return if (workPattern.containsMatchIn(url)) {
+            "$url#chapters"
+        } else {
+            url
+        }
+    }
+}

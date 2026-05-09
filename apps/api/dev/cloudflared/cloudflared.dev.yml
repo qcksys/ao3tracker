@@ -1,0 +1,7 @@
+tunnel: 1436f5de-b87f-42de-8fe3-cbbbc527d9c4
+credentials-file: dev/cloudflared/secret.json
+
+ingress:
+  - hostname: qcksys-ao3tracker-api-local.ta2.dev
+    service: http://localhost:8787
+  - service: http_status:404

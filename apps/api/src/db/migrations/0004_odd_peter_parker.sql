@@ -1,0 +1,1 @@
+ALTER TABLE `ao3track__track_chapter` MODIFY COLUMN `chapterId` int unsigned NOT NULL DEFAULT 0;

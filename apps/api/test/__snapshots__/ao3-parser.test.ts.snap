@@ -1,0 +1,618 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ao3-parser > parseChapterIndex > should handle empty chapter list 1`] = `
+{
+  "authorUrl": null,
+  "chapters": [],
+}
+`;
+
+exports[`ao3-parser > parseChapterIndex > should handle missing author 1`] = `
+{
+  "authorUrl": null,
+  "chapters": [
+    {
+      "chapterDate": "(2024-01-01)",
+      "chapterNumber": "1. Chapter One",
+      "chapterUrl": "/works/12345/chapters/11111",
+    },
+  ],
+}
+`;
+
+exports[`ao3-parser > parseChapterIndex > should parse chapter index page 1`] = `
+{
+  "authorUrl": "/users/Xabiar/pseuds/Xabiar",
+  "chapters": [
+    {
+      "chapterDate": "(2017-05-05)",
+      "chapterNumber": "1. Introduction",
+      "chapterUrl": "/works/10828137/chapters/24029673",
+    },
+    {
+      "chapterDate": "(2017-05-05)",
+      "chapterNumber": "2. Prologue - The Last Command",
+      "chapterUrl": "/works/10828137/chapters/24029694",
+    },
+    {
+      "chapterDate": "(2017-05-15)",
+      "chapterNumber": "3. Unification Day",
+      "chapterUrl": "/works/10828137/chapters/24258660",
+    },
+  ],
+}
+`;
+
+exports[`ao3-parser > parseWorkPage > should handle minimal HTML without errors 1`] = `
+{
+  "chapters": [],
+  "workInfo": {
+    "authorName": null,
+    "authorUrl": null,
+    "bookmarks": null,
+    "chapterName": null,
+    "chapterNumber": null,
+    "comments": null,
+    "downloadPath": null,
+    "downloadUpdatedAt": null,
+    "hits": null,
+    "kudos": null,
+    "language": null,
+    "summary": null,
+    "totalChapters": null,
+    "wordCount": null,
+    "workLastUpdated": null,
+    "workName": null,
+  },
+  "workTags": {
+    "category": [],
+    "character": [],
+    "fandom": [],
+    "freeform": [],
+    "rating": null,
+    "relationship": [],
+    "warning": [],
+    "workLastUpdated": null,
+  },
+}
+`;
+
+exports[`ao3-parser > parseWorkPage > should parse full work page > chapters 1`] = `
+[
+  {
+    "chapterId": 24029673,
+    "chapterTitle": "1. Introduction",
+  },
+  {
+    "chapterId": 24029694,
+    "chapterTitle": "2. Prologue - The Last Command",
+  },
+  {
+    "chapterId": 24258660,
+    "chapterTitle": "3. Unification Day",
+  },
+  {
+    "chapterId": 24441714,
+    "chapterTitle": "4. Brought to Light",
+  },
+  {
+    "chapterId": 24652917,
+    "chapterTitle": "5. Envisioning the Future",
+  },
+  {
+    "chapterId": 24896364,
+    "chapterTitle": "6. To Serve and Protect",
+  },
+  {
+    "chapterId": 25307289,
+    "chapterTitle": "7. Battleground: Japan",
+  },
+  {
+    "chapterId": 25567017,
+    "chapterTitle": "8. A Crystal Ball",
+  },
+  {
+    "chapterId": 25749687,
+    "chapterTitle": "9. Research and Engineering VII",
+  },
+  {
+    "chapterId": 26002041,
+    "chapterTitle": "10. March of the Battlemaster",
+  },
+  {
+    "chapterId": 26208042,
+    "chapterTitle": "11. Tenuous Diplomacy",
+  },
+  {
+    "chapterId": 26450721,
+    "chapterTitle": "12. Vitakar",
+  },
+  {
+    "chapterId": 26648280,
+    "chapterTitle": "13. Trials and Templars",
+  },
+  {
+    "chapterId": 26827638,
+    "chapterTitle": "14. The March Unrelenting",
+  },
+  {
+    "chapterId": 27074646,
+    "chapterTitle": "15. Demands of Necessity",
+  },
+  {
+    "chapterId": 27392226,
+    "chapterTitle": "16. The Final Crusade",
+  },
+  {
+    "chapterId": 27651708,
+    "chapterTitle": "17. Little Storm",
+  },
+  {
+    "chapterId": 27987795,
+    "chapterTitle": "18. Annexation: Canada",
+  },
+  {
+    "chapterId": 28392452,
+    "chapterTitle": "19. Preparing the Future",
+  },
+  {
+    "chapterId": 28744404,
+    "chapterTitle": "20. Against the Titans",
+  },
+  {
+    "chapterId": 29017599,
+    "chapterTitle": "21. The Coming Storm",
+  },
+  {
+    "chapterId": 29344068,
+    "chapterTitle": "22. Subversion",
+  },
+  {
+    "chapterId": 29935230,
+    "chapterTitle": "23. Research and Engineering VIII",
+  },
+  {
+    "chapterId": 30474207,
+    "chapterTitle": "24. Counterattack: United States of America",
+  },
+  {
+    "chapterId": 30764040,
+    "chapterTitle": "25. Asaru",
+  },
+  {
+    "chapterId": 31095351,
+    "chapterTitle": "26. Crackdown",
+  },
+  {
+    "chapterId": 31463073,
+    "chapterTitle": "27. The Guardians",
+  },
+  {
+    "chapterId": 31837938,
+    "chapterTitle": "28. Operation: Sherman",
+  },
+  {
+    "chapterId": 32215065,
+    "chapterTitle": "29. Siege: North America",
+  },
+  {
+    "chapterId": 32617413,
+    "chapterTitle": "30. Downfall",
+  },
+  {
+    "chapterId": 32940831,
+    "chapterTitle": "31. Escalation",
+  },
+  {
+    "chapterId": 33305274,
+    "chapterTitle": "32. A Modest Request",
+  },
+  {
+    "chapterId": 33566697,
+    "chapterTitle": "33. The Imperator",
+  },
+  {
+    "chapterId": 34183784,
+    "chapterTitle": "34. Autopsy",
+  },
+  {
+    "chapterId": 34580039,
+    "chapterTitle": "35. Research and Engineering IX",
+  },
+  {
+    "chapterId": 34957667,
+    "chapterTitle": "36. For God and Country",
+  },
+  {
+    "chapterId": 35382687,
+    "chapterTitle": "37. Screaming",
+  },
+  {
+    "chapterId": 35824161,
+    "chapterTitle": "38. Paradise",
+  },
+  {
+    "chapterId": 36265644,
+    "chapterTitle": "39. Slurry",
+  },
+  {
+    "chapterId": 36685284,
+    "chapterTitle": "40. Creating the Future",
+  },
+  {
+    "chapterId": 37082763,
+    "chapterTitle": "41. Cracked Foundations",
+  },
+  {
+    "chapterId": 37483253,
+    "chapterTitle": "42. Playing With Fire",
+  },
+  {
+    "chapterId": 37875233,
+    "chapterTitle": "43. Phantom",
+  },
+  {
+    "chapterId": 38252774,
+    "chapterTitle": "44. The Broken and Defiant",
+  },
+  {
+    "chapterId": 38709056,
+    "chapterTitle": "45. Miridian",
+  },
+  {
+    "chapterId": 39469072,
+    "chapterTitle": "46. Harbinger",
+  },
+  {
+    "chapterId": 40117400,
+    "chapterTitle": "47. The Darkening Skies",
+  },
+  {
+    "chapterId": 40776827,
+    "chapterTitle": "48. Voice of the Dread Lord",
+  },
+  {
+    "chapterId": 41362814,
+    "chapterTitle": "49. March of the Dread Lord",
+  },
+  {
+    "chapterId": 41983031,
+    "chapterTitle": "50. Dream of the Dread Lord",
+  },
+  {
+    "chapterId": 42839045,
+    "chapterTitle": "51. Reign of the Dread Lord",
+  },
+  {
+    "chapterId": 43459862,
+    "chapterTitle": "52. After the Terror",
+  },
+  {
+    "chapterId": 44031157,
+    "chapterTitle": "53. Enter the Harbinger",
+  },
+  {
+    "chapterId": 44428927,
+    "chapterTitle": "54. Interlude - Wrath of the Deep",
+  },
+  {
+    "chapterId": 44749120,
+    "chapterTitle": "55. A Strangled Paradise",
+  },
+  {
+    "chapterId": 45481801,
+    "chapterTitle": "56. Ashes of the Avatar",
+  },
+  {
+    "chapterId": 46886152,
+    "chapterTitle": "57. Battleground: Florida",
+  },
+  {
+    "chapterId": 47685670,
+    "chapterTitle": "58. Siege: Tampa",
+  },
+  {
+    "chapterId": 48375364,
+    "chapterTitle": "59. Enemy Lines",
+  },
+  {
+    "chapterId": 49205354,
+    "chapterTitle": "60. Black Earth, Purple Sky",
+  },
+  {
+    "chapterId": 50246687,
+    "chapterTitle": "61. Conspiracies and Coronations",
+  },
+  {
+    "chapterId": 51918691,
+    "chapterTitle": "62. Research and Engineering X",
+  },
+  {
+    "chapterId": 53327818,
+    "chapterTitle": "63. Godkiller",
+  },
+  {
+    "chapterId": 53854636,
+    "chapterTitle": "64. Streets of Blood, Storms of Ice",
+  },
+  {
+    "chapterId": 55438492,
+    "chapterTitle": "65. Wills of Steel, Hearts of Stone",
+  },
+  {
+    "chapterId": 57028897,
+    "chapterTitle": "66. Sever the Head",
+  },
+  {
+    "chapterId": 58385494,
+    "chapterTitle": "67. The Vow and the Wish",
+  },
+  {
+    "chapterId": 60206926,
+    "chapterTitle": "68. An Army of Crystal",
+  },
+  {
+    "chapterId": 61938601,
+    "chapterTitle": "69. Under the Black Sun",
+  },
+  {
+    "chapterId": 63741322,
+    "chapterTitle": "70. A Falling Star",
+  },
+  {
+    "chapterId": 66147628,
+    "chapterTitle": "71. The Battle of the Hiveship",
+  },
+  {
+    "chapterId": 68230658,
+    "chapterTitle": "72. Revenant",
+  },
+  {
+    "chapterId": 70668519,
+    "chapterTitle": "73. For Our Own",
+  },
+  {
+    "chapterId": 73222722,
+    "chapterTitle": "74. Angel of Ruin",
+  },
+  {
+    "chapterId": 77257100,
+    "chapterTitle": "75. Absolute",
+  },
+  {
+    "chapterId": 77651540,
+    "chapterTitle": "76. Precipice",
+  },
+  {
+    "chapterId": 82208392,
+    "chapterTitle": "77. Defining the Future",
+  },
+  {
+    "chapterId": 87088999,
+    "chapterTitle": "78. Crescendo's Approach",
+  },
+  {
+    "chapterId": 113155465,
+    "chapterTitle": "79. Bringing the Rapture",
+  },
+  {
+    "chapterId": 119813236,
+    "chapterTitle": "80. Operation: Jericho",
+  },
+  {
+    "chapterId": 135055228,
+    "chapterTitle": "81. Daggers to the Hearts - Part I",
+  },
+  {
+    "chapterId": 135185161,
+    "chapterTitle": "82. Daggers to the Hearts - Part II",
+  },
+  {
+    "chapterId": 135299392,
+    "chapterTitle": "83. Daggers to the Hearts - Part III",
+  },
+  {
+    "chapterId": 146344447,
+    "chapterTitle": "84. Visions of Ruin, Armies of Zeal - Part I",
+  },
+  {
+    "chapterId": 146490391,
+    "chapterTitle": "85. Visions of Ruin, Armies of Zeal - Part II",
+  },
+  {
+    "chapterId": 146620384,
+    "chapterTitle": "86. Visions of Ruin, Armies of Zeal - Part III",
+  },
+  {
+    "chapterId": 146762578,
+    "chapterTitle": "87. Visions of Ruin, Armies of Zeal - Part IV",
+  },
+]
+`;
+
+exports[`ao3-parser > parseWorkPage > should parse full work page > workInfo 1`] = `
+{
+  "authorName": "Xabiar",
+  "authorUrl": "/users/Xabiar/pseuds/Xabiar",
+  "bookmarks": "50",
+  "chapterName": null,
+  "chapterNumber": "chapter-1",
+  "comments": "461",
+  "downloadPath": "XCOM_The_Advent",
+  "downloadUpdatedAt": 2024-11-11T20:19:43.000Z,
+  "hits": "21145",
+  "kudos": "193",
+  "language": "English",
+  "summary": "Test Summary Content Goes Here",
+  "totalChapters": "87/?",
+  "wordCount": "2000503",
+  "workLastUpdated": "2024-07-26",
+  "workName": "XCOM: The Advent Directive",
+}
+`;
+
+exports[`ao3-parser > parseWorkPage > should parse full work page > workTags 1`] = `
+{
+  "category": [
+    {
+      "href": "/tags/F*s*M/works",
+      "tag": "F/M",
+    },
+  ],
+  "character": [
+    {
+      "href": "/tags/The%20Commander%20(Male)/works",
+      "tag": "The Commander (Male)",
+    },
+    {
+      "href": "/tags/Moira%20Vahlen/works",
+      "tag": "Moira Vahlen",
+    },
+    {
+      "href": "/tags/Raymond%20Shen/works",
+      "tag": "Raymond Shen",
+    },
+    {
+      "href": "/tags/Shaojie%20Zhang/works",
+      "tag": "Shaojie Zhang",
+    },
+    {
+      "href": "/tags/The%20Imperator/works",
+      "tag": "The Imperator",
+    },
+    {
+      "href": "/tags/OC%20-%20Character/works",
+      "tag": "OC - Character",
+    },
+  ],
+  "fandom": [
+    {
+      "href": "/tags/XCOM:%20Enemy%20Within/works",
+      "tag": "XCOM: Enemy Within",
+    },
+  ],
+  "freeform": [
+    {
+      "href": "/tags/War/works",
+      "tag": "War",
+    },
+    {
+      "href": "/tags/Alien%20Culture/works",
+      "tag": "Alien Culture",
+    },
+    {
+      "href": "/tags/Alien%20Invasion/works",
+      "tag": "Alien Invasion",
+    },
+    {
+      "href": "/tags/Alien%20Technology/works",
+      "tag": "Alien Technology",
+    },
+    {
+      "href": "/tags/XCOM%20-%20freeform/works",
+      "tag": "XCOM - freeform",
+    },
+    {
+      "href": "/tags/Advent/works",
+      "tag": "Advent",
+    },
+    {
+      "href": "/tags/EXALT%20-%20Freeform/works",
+      "tag": "EXALT - Freeform",
+    },
+    {
+      "href": "/tags/Espionage/works",
+      "tag": "Espionage",
+    },
+    {
+      "href": "/tags/Violence/works",
+      "tag": "Violence",
+    },
+    {
+      "href": "/tags/Experimentation/works",
+      "tag": "Experimentation",
+    },
+    {
+      "href": "/tags/Psionics/works",
+      "tag": "Psionics",
+    },
+    {
+      "href": "/tags/totalitarianism/works",
+      "tag": "totalitarianism",
+    },
+    {
+      "href": "/tags/Government/works",
+      "tag": "Government",
+    },
+    {
+      "href": "/tags/Politics/works",
+      "tag": "Politics",
+    },
+    {
+      "href": "/tags/Peacekeepers/works",
+      "tag": "Peacekeepers",
+    },
+    {
+      "href": "/tags/Police/works",
+      "tag": "Police",
+    },
+    {
+      "href": "/tags/Democracy/works",
+      "tag": "Democracy",
+    },
+    {
+      "href": "/tags/Cover%20Art/works",
+      "tag": "Cover Art",
+    },
+  ],
+  "rating": {
+    "href": "/tags/Mature/works",
+    "tag": "Mature",
+  },
+  "relationship": [],
+  "warning": [
+    {
+      "href": "/tags/Choose%20Not%20To%20Use%20Archive%20Warnings/works",
+      "tag": "Creator Chose Not To Use Archive Warnings",
+    },
+  ],
+  "workLastUpdated": "2024-07-26",
+}
+`;
+
+exports[`ao3-parser > parseWorkPage > should use published date when no status date exists 1`] = `
+{
+  "chapters": [],
+  "workInfo": {
+    "authorName": "TestAuthor",
+    "authorUrl": "/users/TestAuthor/pseuds/TestAuthor",
+    "bookmarks": null,
+    "chapterName": null,
+    "chapterNumber": null,
+    "comments": null,
+    "downloadPath": null,
+    "downloadUpdatedAt": null,
+    "hits": "500",
+    "kudos": "100",
+    "language": "English",
+    "summary": null,
+    "totalChapters": "1/1",
+    "wordCount": "5000",
+    "workLastUpdated": "2024-03-10",
+    "workName": "A Short Story",
+  },
+  "workTags": {
+    "category": [],
+    "character": [],
+    "fandom": [],
+    "freeform": [],
+    "rating": {
+      "href": "/tags/General%20Audiences/works",
+      "tag": "General Audiences",
+    },
+    "relationship": [],
+    "warning": [],
+    "workLastUpdated": "2024-03-10",
+  },
+}
+`;
