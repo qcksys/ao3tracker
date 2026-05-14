@@ -14,8 +14,11 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "lib": ["ES2022", "DOM", "DOM.Iterable"]
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "paths": {
+            "~/*": ["./src/*"]
+        }
     },
-    "include": ["src/**/*"],
+    "include": ["src/**/*", "vite.config.ts"],
     "exclude": ["node_modules", "dist"]
 }

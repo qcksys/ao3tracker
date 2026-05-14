@@ -11,15 +11,21 @@ This is a pnpm monorepo. Top-level tooling is Vite+ (the `vp` CLI), but most app
 | Path | Stack | Per-app guide |
 |---|---|---|
 | [apps/api/](apps/api/) | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale MySQL, Better Auth, Vitest | [apps/api/AGENTS.md](apps/api/AGENTS.md) |
-| [apps/browser-extension/](apps/browser-extension/) | WXT, React 19, Tailwind 4, react-router | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
-| [apps/native-kmp/](apps/native-kmp/) | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM), bun+vitest for embedded WebView scripts | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md) |
+| [apps/browser-extension/](apps/browser-extension/) | WXT, React 19, Tailwind 4, shadcn/ui (Base UI variant), react-router | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
+| [apps/native-kmp/](apps/native-kmp/) | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM); embedded WebView scripts use pnpm+vitest | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md) |
+| [packages/ao3-core/](packages/ao3-core/) | Shared AO3 DOM extraction + zod wire schemas (consumed by browser-extension and native-kmp/webview-scripts) | — |
+| [packages/ao3-sync-client/](packages/ao3-sync-client/) | Typed sync/auth client for the `/api/track/sync` and Better Auth endpoints | — |
 
-Workspace config: [pnpm-workspace.yaml](pnpm-workspace.yaml) (`apps/*`). Lockfile: [pnpm-lock.yaml](pnpm-lock.yaml). Changesets: [.changeset/](.changeset/).
+Workspace config: [pnpm-workspace.yaml](pnpm-workspace.yaml) (`apps/*`, `apps/native-kmp/webview-scripts`, `packages/*`). Lockfile: [pnpm-lock.yaml](pnpm-lock.yaml). Changesets: [.changeset/](.changeset/).
+
+### Shared packages
+
+Both clients (browser extension and native KMP app) ingest AO3 pages and sync to the same api. To prevent the extraction logic from drifting, it lives in `packages/ao3-core` and is consumed via workspace `:*` deps. Subpath imports matter: prefer `@qcksys/ao3tracker-core/dom`, `@qcksys/ao3tracker-core/badges`, `@qcksys/ao3tracker-core/schemas` over the package root so consumers don't pull `zod` into bundles that don't need it (the native WebView IIFE is a 7 kB bundle today; importing the root would balloon it to ~330 kB).
 
 ## When you make a change
 
 1. **Identify which app you're in.** If your edits are inside `apps/<name>/`, follow `apps/<name>/AGENTS.md` — it overrides anything generic. If you're touching tooling shared across apps (workspace files, root scripts, changesets), this file is the guide.
-2. **Use the app's own build commands**, not generic ones. The api uses pnpm; the browser-extension uses pnpm + wxt; native-kmp uses Gradle, with a nested bun toolchain inside `webview-scripts/`. Don't run `pnpm install` at the root expecting it to drive Gradle.
+2. **Use the app's own build commands**, not generic ones. The api uses pnpm; the browser-extension uses pnpm + wxt; native-kmp uses Gradle, with a nested pnpm workspace package inside `webview-scripts/` (formerly bun-based; migrated to pnpm + esbuild). Don't run `pnpm install` at the root expecting it to drive Gradle.
 3. **When a change spans apps** (e.g. an API contract change that affects both `apps/api` and a client), update the corresponding AGENTS.md sections so the contract stays documented in both places.
 
 ## Root-level commands
@@ -37,7 +43,7 @@ For app-specific commands (running dev servers, deploying, building a single pla
 
 ## Conventions that apply everywhere
 
-- **Package manager**: pnpm. Don't introduce `npm`/`yarn` lockfiles. Native-kmp's `webview-scripts/` is the only exception — it uses bun, which is intentional (the Gradle build invokes `bun run`).
+- **Package manager**: pnpm everywhere, including `apps/native-kmp/webview-scripts/`. Don't introduce `npm`/`yarn`/`bun` lockfiles. The Gradle build at [apps/native-kmp/composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts) invokes `pnpm install` at the workspace root before `pnpm run build` in `webview-scripts/`.
 - **Don't commit secrets**: `.env`, `.dev.vars`, `local.properties`, `release.keystore` are all gitignored — keep it that way.
 - **No root-level `CLAUDE.md` content**: this file (`AGENTS.md`) is the source of truth; `CLAUDE.md` is a symlink to it. Same pattern in each app. Don't reintroduce the Vite+ template stub.
 
@@ -62,6 +68,8 @@ Skip changesets for: pure refactors with no behaviour change, internal tooling t
 | `@qcksys/ao3tracker-api` | `apps/api` | Cloudflare Worker; no auto-publish |
 | `@qcksys/ao3tracker-browser-extension` | `apps/browser-extension` | WXT build; no auto-publish |
 | `@qcksys/ao3tracker-native-kmp` | `apps/native-kmp` | Kotlin/Gradle. The [package.json](apps/native-kmp/package.json) exists **only** as a changeset versioning anchor — actual build is `./gradlew`. **Bumping the changeset version does not propagate** to the Android `versionName` ([composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts)) or iOS `MARKETING_VERSION` ([iosApp/Configuration/Config.xcconfig](apps/native-kmp/iosApp/Configuration/Config.xcconfig)) — sync those manually before each release. |
+| `@qcksys/ao3tracker-core` | `packages/ao3-core` | Internal workspace package; never published. Consumers reference it as `workspace:*`. |
+| `@qcksys/ao3tracker-sync-client` | `packages/ao3-sync-client` | Internal workspace package; never published. |
 
 ### How to add one
 

@@ -31,13 +31,18 @@ Open `iosApp/` directory in Xcode and run from there.
 ```
 
 ### WebView Scripts
-TypeScript code in `webview-scripts/` compiles to JavaScript injected into WebViews. Auto-compiled during Gradle builds, but can be built manually:
+TypeScript code in `webview-scripts/` compiles to minified IIFE JavaScript injected into WebViews. The package is a pnpm workspace member (formerly bun-based; migrated). It pulls AO3 DOM-extraction logic from `@qcksys/ao3tracker-core` so the same code runs in the browser extension and the native WebView.
+
+Auto-compiled during Gradle builds, but can be built manually:
 ```shell
-cd webview-scripts && bun run build       # Build minified JS
-cd webview-scripts && bun run typecheck   # TypeScript type checking only
-cd webview-scripts && bun run test        # vitest (happy-dom)
-cd webview-scripts && bun run biome:ci    # Lint
+cd webview-scripts && pnpm run build       # Build minified JS (esbuild)
+cd webview-scripts && pnpm run typecheck   # TypeScript type checking only
+cd webview-scripts && pnpm run test        # vitest (happy-dom)
+cd webview-scripts && pnpm run biome:ci    # Lint
 ```
+
+The Gradle build invokes `pnpm install` at the **workspace root** (`../..`) before running `pnpm run build` in `webview-scripts/` — this is required so the `workspace:*` link to `@qcksys/ao3tracker-core` resolves. See [composeApp/build.gradle.kts](composeApp/build.gradle.kts) (`pnpmInstall` and `compileWebviewScripts` tasks).
+
 Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/webview/`.
 
 ## Architecture
@@ -80,7 +85,7 @@ The app embeds AO3 in a WebView and injects JavaScript to:
 - Communicate via `WebViewMessage` JSON protocol
 - Render per-work tracker badges on AO3 list pages (round-trip: see "List-page badges" below)
 
-TypeScript source is in `webview-scripts/src/`. The Gradle build compiles and embeds these scripts as Kotlin string constants. The TS exposes a few functions on `window.__ao3Tracker` so native code can invoke them via `evaluateJavaScript` (currently: `applyListBadges`).
+TypeScript source is in `webview-scripts/src/`. The script imports its DOM extraction helpers from `@qcksys/ao3tracker-core/dom` and badge rendering from `@qcksys/ao3tracker-core/badges` — both subpath imports avoid pulling zod into the IIFE bundle (which would balloon it to ~330 kB). The Gradle build compiles and embeds these scripts as Kotlin string constants. The TS exposes a few functions on `window.__ao3Tracker` so native code can invoke them via `evaluateJavaScript` (currently: `applyListBadges`).
 
 **Native→JS injection channel**: `ReadScreenModel.jsInjectionFlow` is a `SharedFlow<String>` of JS source strings. The `Ao3WebView` actuals collect from it and call `evaluateJavascript`/`evaluateJavaScript`. Use `ReadScreenModel.jsStringLiteral(...)` when embedding user-controlled text inside an injected script — it escapes `\`, `'`, newlines, and the U+2028/U+2029 line-terminators that would otherwise break a JS string literal.
 
@@ -97,7 +102,7 @@ When the WebView loads an AO3 list page (anything with `<li id="work_{id}">` blu
 3. The model emits a JS injection string to `jsInjectionFlow`. The WebView evaluates it, calling `window.__ao3Tracker.applyListBadges(payloadJson)`.
 4. `applyListBadges` renders an absolutely-positioned `.ao3-tracker-badge` element inside each blurb.
 
-The status string set MUST stay in sync between `WorkBadgePayload` (Kotlin) and `WorkBadgeData` (TypeScript) — any new status needs an entry in `formatBadge`'s `switch` and a clause in `buildBadgePayload`.
+The status string set MUST stay in sync between `WorkBadgePayload` (Kotlin) and `WorkBadgeData` (TypeScript, defined in [`packages/ao3-core/src/badges.ts`](../../packages/ao3-core/src/badges.ts)) — any new status needs an entry in `formatBadge`'s `switch` and a clause in `buildBadgePayload`. The same status set is consumed by the browser extension's content script.
 
 ### Favourite tag filters
 Long-pressing a tag chip in the filter sheet pins it to the top of its section. State lives in [FavouriteTagRepository](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/repository/FavouriteTagRepository.kt) on top of a Room table (`FavouriteTagEntity` in [Entities.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/database/Entities.kt)). The UI consumes `observeFavourites(): Flow<Set<String>>` where each entry is `"${tagType.id}\t$tag"` (tab-separated, matches the historical format).

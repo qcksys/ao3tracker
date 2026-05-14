@@ -1,6 +1,6 @@
 {
   "name": "@qcksys/ao3tracker-browser-extension",
-  "description": "manifest.json description",
+  "description": "AO3 Tracker browser extension (Chrome/Firefox, Manifest V3 via WXT).",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -15,31 +15,32 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "@base-ui/react": "^1.4.0",
     "@hookform/resolvers": "^4.1.3",
-    "@radix-ui/react-label": "^2.1.8",
-    "@radix-ui/react-navigation-menu": "^1.2.14",
-    "@radix-ui/react-slot": "^1.2.4",
+    "@qcksys/ao3tracker-core": "workspace:*",
+    "@qcksys/ao3tracker-sync-client": "workspace:*",
     "@tailwindcss/vite": "^4.3.0",
     "@wxt-dev/storage": "^1.2.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
+    "next-themes": "catalog:",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-hook-form": "^7.75.0",
     "react-router": "^7.15.0",
+    "sonner": "catalog:",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.0",
-    "tailwindcss-animate": "^1.0.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.42",
-    "@types/node": "^22.19.19",
+    "@types/node": "catalog:",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.2.2",
-    "typescript": "^6.0.3",
+    "typescript": "catalog:",
     "vite-tsconfig-paths": "^5.1.4",
     "wxt": "^0.20.26"
   }

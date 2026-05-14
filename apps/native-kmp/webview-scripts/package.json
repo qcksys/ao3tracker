@@ -2,20 +2,28 @@
     "name": "ao3tracker-webview-scripts",
     "version": "1.0.0",
     "private": true,
-    "description": "WebView scripts for AO3 Tracker",
+    "description": "WebView scripts for AO3 Tracker (native KMP app)",
+    "type": "module",
     "scripts": {
-        "build": "bun run build.ts",
-        "build:dev": "bun run build.ts --dev",
+        "build": "vp build --config vite.tracking.config.ts && vp build --config vite.scroll-restore.config.ts",
+        "build:dev": "vp build --mode development --config vite.tracking.config.ts && vp build --mode development --config vite.scroll-restore.config.ts",
         "typecheck": "tsc --noEmit",
-        "test": "vitest run",
-        "test:watch": "vitest",
+        "test": "vp test run",
+        "test:watch": "vp test watch",
         "biome:check:unsafe": "biome check --write --unsafe",
         "biome:ci": "biome ci"
     },
+    "dependencies": {
+        "@qcksys/ao3tracker-core": "workspace:*",
+        "zod": "^4.4.3"
+    },
     "devDependencies": {
         "@biomejs/biome": "^2.3.10",
+        "@types/node": "catalog:",
         "happy-dom": "^20.0.11",
         "typescript": "^5.9.3",
-        "vitest": "^4.0.16"
+        "vite": "catalog:",
+        "vite-plus": "catalog:",
+        "vitest": "catalog:"
     }
 }

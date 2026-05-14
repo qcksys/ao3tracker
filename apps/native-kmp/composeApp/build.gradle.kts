@@ -19,29 +19,29 @@ val webviewScriptsDir = rootProject.file("webview-scripts")
 val webviewScriptsOutputDir = layout.buildDirectory.dir("generated/webview-scripts")
 val generatedKotlinDir = layout.buildDirectory.dir("generated/kotlin/webview")
 
-// Task to install dependencies with bun
-val bunInstall by tasks.registering(Exec::class) {
-    workingDir = webviewScriptsDir
-    commandLine = if (System.getProperty("os.name").lowercase().contains("win")) {
-        listOf("cmd", "/c", "bun", "install")
-    } else {
-        listOf("bun", "install")
-    }
+// pnpm workspace root for installing webview-script dependencies
+val workspaceRoot = rootProject.file("../..")
+val isWindows = System.getProperty("os.name").lowercase().contains("win")
+val pnpmCommand = if (isWindows) listOf("cmd", "/c", "pnpm") else listOf("pnpm")
+
+// Task to install workspace dependencies with pnpm (root install resolves
+// workspace links for @qcksys/ao3tracker-core).
+val pnpmInstall by tasks.registering(Exec::class) {
+    workingDir = workspaceRoot
+    commandLine = pnpmCommand + listOf("install", "--frozen-lockfile=false")
+    inputs.file(workspaceRoot.resolve("pnpm-lock.yaml"))
     inputs.file(webviewScriptsDir.resolve("package.json"))
     outputs.dir(webviewScriptsDir.resolve("node_modules"))
 }
 
-// Task to compile TypeScript
+// Task to compile TypeScript via pnpm script
 val compileWebviewScripts by tasks.registering(Exec::class) {
-    dependsOn(bunInstall)
+    dependsOn(pnpmInstall)
     workingDir = webviewScriptsDir
-    commandLine = if (System.getProperty("os.name").lowercase().contains("win")) {
-        listOf("cmd", "/c", "bun", "run", "build")
-    } else {
-        listOf("bun", "run", "build")
-    }
+    commandLine = pnpmCommand + listOf("run", "build")
     inputs.dir(webviewScriptsDir.resolve("src"))
     inputs.file(webviewScriptsDir.resolve("tsconfig.json"))
+    inputs.file(webviewScriptsDir.resolve("vite.config.ts"))
     outputs.dir(webviewScriptsDir.resolve("dist"))
 }
 

@@ -2,11 +2,9 @@
 
 Canonical guidance for AI coding agents (Claude Code, etc.) working in `apps/browser-extension/`. `CLAUDE.md` next to this file is a symlink to it.
 
-> **Status:** This app is mostly scaffolding right now. The popup UI shell is wired up (router, pages, layouts) but `entrypoints/content.ts` and `entrypoints/background.ts` are placeholder `console.log` stubs — there is no real AO3 integration yet. Expand this doc as features land.
-
 ## Project Overview
 
-AO3 Tracker browser extension. Cross-device tracking for Archive of Our Own: reads the user's scroll position in any work and syncs it via the API. Targets Chrome and Firefox (Manifest V3 via WXT). The popup is a React 19 + Tailwind 4 SPA.
+AO3 Tracker browser extension. Cross-device tracking for Archive of Our Own: a content script extracts work metadata + scroll progress on AO3 pages, the background worker persists the data and syncs it with the [api](../api/AGENTS.md), and the popup surfaces auth/current-work/favourites. Targets Chrome and Firefox (Manifest V3 via WXT).
 
 ## Commands
 
@@ -27,44 +25,62 @@ pnpm compile            # tsc --noEmit (type check only)
 ## Architecture
 
 ### Stack
-- **WXT** ([wxt.config.ts](wxt.config.ts)) — Manifest V3 extension framework. Handles manifest generation, dev reload, and cross-browser builds. `extensionApi: "chrome"` means the `chrome.*` API surface is used everywhere; WXT polyfills it for Firefox.
+- **WXT** ([wxt.config.ts](wxt.config.ts)) — Manifest V3 extension framework. Handles manifest generation, dev reload, cross-browser builds. WXT polyfills the `browser.*` API for Firefox.
 - **React 19 + react-router 7** — popup UI, using `HashRouter` (file:// URLs in extension contexts don't play well with `BrowserRouter`).
-- **Tailwind 4** via `@tailwindcss/vite` plugin.
-- **shadcn/ui** components (style: new-york, base color: zinc) in [components/ui/](components/ui/). [components.json](components.json) configures the CLI.
-- **react-hook-form + zod** for forms.
-- **@wxt-dev/storage** for persistent state (typed wrapper over `chrome.storage`).
+- **Tailwind 4** via `@tailwindcss/vite` plugin. Tokens live inline in [entrypoints/popup/style.css](entrypoints/popup/style.css).
+- **shadcn/ui — Base UI variant** ([components.json](components.json) `style: base-vega`). Primitives ship from `@base-ui/react` (not Radix). Components live in [components/ui/](components/ui/).
+- **react-hook-form + zod** for forms. Form components in [components/ui/form.tsx](components/ui/form.tsx).
+- **@wxt-dev/storage** for persistent state (typed wrapper over `chrome.storage.local`).
+
+### Shared packages
+- [`@qcksys/ao3tracker-core`](../../packages/ao3-core) — AO3 DOM extraction + zod wire schemas. Used by both the content script and (in a different IIFE form) the native KMP app's webview-scripts. Always import via subpaths (`/dom`, `/badges`, `/schemas`) to keep bundles small.
+- [`@qcksys/ao3tracker-sync-client`](../../packages/ao3-sync-client) — typed `fetch` wrapper around `/api/track/sync`, Better Auth flows, and the per-row LWW merge for favourite tags.
 
 ### Entrypoints
 WXT discovers entrypoints from [entrypoints/](entrypoints/):
-- [entrypoints/background.ts](entrypoints/background.ts) — service worker (currently placeholder).
-- [entrypoints/content.ts](entrypoints/content.ts) — content script. **Note:** currently matches `*://*.google.com/*` — wrong for an AO3 extension; update the `matches` array when adding real tracking logic.
-- [entrypoints/popup/](entrypoints/popup/) — toolbar popup React app. Entry is [main.tsx](entrypoints/popup/main.tsx) → [App.tsx](entrypoints/popup/App.tsx).
+- [entrypoints/background.ts](entrypoints/background.ts) — service worker. Owns auth tokens, periodic sync (alarm every 5 min), debounced sync after page events, and message routing.
+- [entrypoints/content.ts](entrypoints/content.ts) — content script. Matches `*://*.archiveofourown.org/*`. Calls into `@qcksys/ao3tracker-core/dom` to extract work info/tags/chapters/scroll and posts `WebViewMessage` payloads to the background. On list pages, requests badge data and renders chips via `@qcksys/ao3tracker-core/badges`.
+- [entrypoints/popup/](entrypoints/popup/) — toolbar popup React app. Entry: [main.tsx](entrypoints/popup/main.tsx) → [App.tsx](entrypoints/popup/App.tsx).
+
+### Local libs ([lib/](lib/))
+- [messaging.ts](lib/messaging.ts) — zod-validated discriminated unions for content↔background and popup↔background messages.
+- [storage.ts](lib/storage.ts) — typed `storage.defineItem(...)` records for auth, tracked works/chapters, metadata, favourite tags.
+- [tracker-repo.ts](lib/tracker-repo.ts) — local mirror of the native app's `Ao3Repository`. Ingests page events, computes badge data, exposes the "current work" summary for the popup.
+- [favourite-tags-repo.ts](lib/favourite-tags-repo.ts) — toggle/apply remote with LWW merge.
+- [sync.ts](lib/sync.ts) — `runSync()`: pull `getFullSync`, merge into local, push pending rows, persist `serverLastUpdated`.
 
 ### Manifest
-Generated by WXT from [wxt.config.ts](wxt.config.ts). Current permissions: `storage`, `activeTab`, `background`. Host permissions: `https://archiveofourown.org/*` and `https://ao3tracker.qcksys.app/*` (the API). Add new permissions there, not in a raw `manifest.json`.
+Generated by WXT from [wxt.config.ts](wxt.config.ts). Permissions: `storage`, `activeTab`, `alarms`. Host permissions: `https://archiveofourown.org/*` and `https://ao3tracker.qcksys.app/*` (the API). Add new permissions there, not in a raw `manifest.json`.
 
 ### Aliases
 - `~popup` → `./entrypoints/popup` (declared in [wxt.config.ts](wxt.config.ts))
-- shadcn aliases (`@/components`, `@/lib/utils`, etc.) are declared in [components.json](components.json) but the `lib/` directory currently only contains [lib/utils.ts](lib/utils.ts).
+- `@` and `~` → browser-extension root (auto-generated by WXT in `.wxt/tsconfig.json`)
 
 ### Popup routes (HashRouter)
-| Path | Component |
-|---|---|
-| `/` | `Tracker` (default) |
-| `/lists` | `Lists` |
-| `/settings` | `Settings` |
-| `/login`, `/register` | `Home` (wrapped in `AuthLayout`) |
+| Path | Component | Notes |
+|---|---|---|
+| `/` | `Tracker` | Default. Shows current work + sync controls when signed in, otherwise prompts sign-in. |
+| `/lists` | `Lists` | Favourite-tag chips grouped by type. |
+| `/settings` | `Settings` | Account + API endpoint override. |
+| `/login`, `/register` | `Login`, `Register` | react-hook-form + zod, talks to Better Auth via the sync client. |
+
+### Sync flow
+1. Content script posts `pageEvent` for every work/scroll change.
+2. Background ingests via `tracker-repo.ingestPageEvent`, marks affected rows `pendingSync = true`, and debounces a sync 2 s later.
+3. `runSync()` pulls full `/sync` (paginated), merges remote rows where remote `lastReadAt >= local`, pushes any `pendingSync` rows in batches of 50 (chapters must reference works in the same request — see `apps/api/AGENTS.md`).
+4. Favourite-tag rows are LWW-merged with `mergeFavouriteTags` and only included on the first POST batch.
 
 ## Conventions
 
 - **Browser API**: use `browser.*` (WXT's cross-browser shim) inside extension code, not `chrome.*` directly — keeps Firefox builds working.
-- **Storage**: prefer `@wxt-dev/storage`'s typed `storage.defineItem(...)` pattern over raw `chrome.storage` calls.
-- **Adding a new entrypoint**: drop a file in `entrypoints/` and WXT will pick it up on the next `pnpm dev`. See [WXT docs](https://wxt.dev/guide/key-concepts/entrypoints.html).
-- **Content-script matches**: keep `matches` patterns as narrow as possible. The current `google.com` matcher is a leftover from the template — replace it with `*://*.archiveofourown.org/*` when real content-script work begins.
-- **No tests yet**: there is no Vitest setup in this app. If you add testable logic (parsers, state machines) consider colocating tests; otherwise rely on `pnpm compile` for type safety.
+- **Storage**: prefer `@wxt-dev/storage`'s typed `storage.defineItem(...)` pattern over raw `chrome.storage` calls. All storage records are declared in [lib/storage.ts](lib/storage.ts).
+- **Messaging**: every message in/out of the background worker must round-trip through a zod schema declared in [lib/messaging.ts](lib/messaging.ts). The background validates incoming, the popup helper validates outgoing responses. No bare `chrome.runtime.sendMessage` without a schema.
+- **shadcn/Base UI**: components in [components/ui/](components/ui/) use `@base-ui/react` primitives (not `@radix-ui`). The Base UI button does NOT support `asChild` — use `buttonVariants(...)` on a router `Link` for navigation buttons, or pass `render={<Link to="..." />}` to the underlying primitive directly.
+- **Content-script matches**: keep `matches` patterns as narrow as possible. Currently `*://*.archiveofourown.org/*`.
+- **Tests**: there is no Vitest setup in this app today. Pure logic should go into `packages/ao3-core` or `packages/ao3-sync-client` (both of which have happy-dom/Node test suites). Otherwise rely on `pnpm compile` for type safety.
 
 ## Cross-app contract
 
-This extension consumes the API at `https://ao3tracker.qcksys.app` ([apps/api/AGENTS.md](../api/AGENTS.md)). When changing sync-related shapes here, check the `/api/track/sync` contract there.
+This extension consumes the API at `https://ao3tracker.qcksys.app` ([apps/api/AGENTS.md](../api/AGENTS.md)). The wire schemas in `@qcksys/ao3tracker-core/schemas` mirror those in [apps/api/src/routes/api.track.ts](../api/src/routes/api.track.ts) — when the server contract changes, update both the api routes AND the schemas package in the same PR.
 
-The native KMP app ([apps/native-kmp/AGENTS.md](../native-kmp/AGENTS.md)) embeds its own TypeScript at `webview-scripts/` for in-app AO3 tracking. The two TS codebases are independent today — if logic is genuinely shared (e.g. parsing helpers) and it's worth the cost, extract a workspace package rather than copy-pasting.
+The native KMP app ([apps/native-kmp/AGENTS.md](../native-kmp/AGENTS.md)) consumes the same DOM extraction + sync wire schemas via the shared workspace packages. Cross-platform changes to the WebViewMessage protocol or badge status enum need to land in `packages/ao3-core` and be verified against the native Kotlin code's `WorkBadgePayload` / `WebViewMessage` types.
