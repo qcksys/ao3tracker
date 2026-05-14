@@ -34,3 +34,31 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         connection.execSQL("ALTER TABLE works ADD COLUMN favouriteUpdatedAt INTEGER DEFAULT NULL")
     }
 }
+
+/**
+ * Migration from version 4 to version 5:
+ * - Adds `favourite_tag` table for cross-device tag-favourite sync. Tombstones-in-place
+ *   (favourited = 0) so concurrent unfavourites propagate via LWW on `updatedAt`.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS favourite_tag (
+                tagType INTEGER NOT NULL,
+                tag TEXT NOT NULL,
+                favourited INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL,
+                pendingSync INTEGER NOT NULL,
+                PRIMARY KEY (tagType, tag)
+            )
+            """.trimIndent()
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_favourite_tag_favourited ON favourite_tag(favourited)"
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_favourite_tag_pendingSync ON favourite_tag(pendingSync)"
+        )
+    }
+}

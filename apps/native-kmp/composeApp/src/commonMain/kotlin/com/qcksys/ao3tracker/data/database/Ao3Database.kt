@@ -6,8 +6,13 @@ import androidx.room.ConstructedBy
 import androidx.room.RoomDatabaseConstructor
 
 @Database(
-    entities = [WorkEntity::class, ChapterEntity::class, TagEntity::class],
-    version = 4,
+    entities = [
+        WorkEntity::class,
+        ChapterEntity::class,
+        TagEntity::class,
+        FavouriteTagEntity::class
+    ],
+    version = 5,
     exportSchema = true
 )
 @ConstructedBy(Ao3DatabaseConstructor::class)
@@ -15,6 +20,7 @@ abstract class Ao3Database : RoomDatabase() {
     abstract fun workDao(): WorkDao
     abstract fun chapterDao(): ChapterDao
     abstract fun tagDao(): TagDao
+    abstract fun favouriteTagDao(): FavouriteTagDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")

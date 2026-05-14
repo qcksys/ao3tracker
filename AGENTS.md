@@ -39,8 +39,65 @@ For app-specific commands (running dev servers, deploying, building a single pla
 
 - **Package manager**: pnpm. Don't introduce `npm`/`yarn` lockfiles. Native-kmp's `webview-scripts/` is the only exception — it uses bun, which is intentional (the Gradle build invokes `bun run`).
 - **Don't commit secrets**: `.env`, `.dev.vars`, `local.properties`, `release.keystore` are all gitignored — keep it that way.
-- **Changesets** ([.changeset/](.changeset/)) are used for versioning. Run `pnpm changeset` to add one when shipping a user-visible change.
 - **No root-level `CLAUDE.md` content**: this file (`AGENTS.md`) is the source of truth; `CLAUDE.md` is a symlink to it. Same pattern in each app. Don't reintroduce the Vite+ template stub.
+
+## Changesets
+
+Versioning and changelog generation use [Changesets](https://github.com/changesets/changesets). Config lives in [.changeset/config.json](.changeset/config.json) — `commit: false` (you commit the changeset with your PR), `access: restricted` (no npm auto-publish, all packages are private/internal), `baseBranch: main`.
+
+### When to write one
+
+Add a changeset for any user-visible change to a tracked package:
+- New features
+- Bug fixes that users would notice
+- Breaking API changes (for `apps/api`)
+- Behaviour changes in the browser extension
+
+Skip changesets for: pure refactors with no behaviour change, internal tooling tweaks, README/AGENTS edits, test-only changes.
+
+### Tracked packages
+
+| Package | Path | Notes |
+|---|---|---|
+| `@qcksys/ao3tracker-api` | `apps/api` | Cloudflare Worker; no auto-publish |
+| `@qcksys/ao3tracker-browser-extension` | `apps/browser-extension` | WXT build; no auto-publish |
+| `@qcksys/ao3tracker-native-kmp` | `apps/native-kmp` | Kotlin/Gradle. The [package.json](apps/native-kmp/package.json) exists **only** as a changeset versioning anchor — actual build is `./gradlew`. **Bumping the changeset version does not propagate** to the Android `versionName` ([composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts)) or iOS `MARKETING_VERSION` ([iosApp/Configuration/Config.xcconfig](apps/native-kmp/iosApp/Configuration/Config.xcconfig)) — sync those manually before each release. |
+
+### How to add one
+
+From the repo root:
+
+```bash
+pnpm changeset           # Interactive: pick packages, bump type, summary
+pnpm changeset status    # Show which packages have pending changesets
+pnpm changeset version   # Apply pending changesets — bumps versions + writes CHANGELOG.md (release time only)
+```
+
+`pnpm changeset` writes a markdown file under [.changeset/](.changeset/) with a random slug like `chilly-rats-clap.md`. Commit it with the PR that introduces the change.
+
+### Bump types
+
+- **patch** — bug fixes, internal-only refactors that fix subtle behaviour
+- **minor** — new features, additive API surface
+- **major** — breaking changes (removed/renamed exports, changed wire formats, removed routes)
+
+For `@qcksys/ao3tracker-api`, treat the `/api/track/sync` request/response shape as the public contract: additive optional fields are minor; removing or renaming fields is major. The KMP app and browser extension are clients, so an api break implies coordinated changesets for those packages in the same PR.
+
+### Changeset file format
+
+```markdown
+---
+"@qcksys/ao3tracker-api": minor
+"@qcksys/ao3tracker-browser-extension": patch
+---
+
+Short imperative summary on one line.
+
+Optional longer body explaining why and any migration notes. Reads as the
+release note for these packages.
+```
+
+You can also hand-write the file instead of running `pnpm changeset` — just match the format above.
 
 <!--VITE PLUS START-->
 

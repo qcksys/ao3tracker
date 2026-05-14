@@ -8,11 +8,15 @@ import {
     getServerLastUpdated,
     getTrackedWorksForSync,
 } from "~/db/queries/track";
+import {
+    batchUpsertFavouriteTags,
+    getFavouriteTagsSince,
+} from "~/db/queries/user-favourite-tag";
 import { sTrackChapterI, sTrackChapterS } from "~/db/schema/track.chapter";
 import { sTrackWorkI, sTrackWorkS } from "~/db/schema/track.work";
 import { sWorkS } from "~/db/schema/work";
 import { sWorkChapterS } from "~/db/schema/work.chapter";
-import { sWorkTagS, tagTypes } from "~/db/schema/work.tag";
+import { sWorkTagS, type TTagTypeId, tagTypes } from "~/db/schema/work.tag";
 import type { TRouterEnvAuthReq } from "~/middleware/requireAuthMw";
 
 // ============================================================================
@@ -251,6 +255,38 @@ const trackChapterInputSchema = sTrackChapterI
         }),
     });
 
+/** Valid tag type IDs (matches `tagTypes` values) */
+const tagTypeIdSchema = z
+    .number()
+    .int()
+    .refine(
+        (n): n is TTagTypeId => Object.values(tagTypes).includes(n as TTagTypeId),
+        { message: "Unknown tagType id" },
+    )
+    .openapi({
+        description: "Tag type ID (0=unknown, 1=rating, ... 7=freeform)",
+        example: 7,
+    });
+
+/** Favourite-tag wire row — used in both GET response and POST request/response */
+const favouriteTagItemSchema = z
+    .object({
+        tagType: tagTypeIdSchema,
+        tag: z.string().min(1).max(191).openapi({
+            description: "Tag string as it appears on AO3",
+            example: "Fluff",
+        }),
+        favourited: z.boolean().openapi({
+            description:
+                "true = pinned/favourited; false = tombstone (was favourited but unpinned)",
+        }),
+        updatedAt: dateToIsoString.openapi({
+            description:
+                "ISO 8601 timestamp of the last add/remove. Used for LWW.",
+        }),
+    })
+    .openapi({ description: "Favourite-tag entry for sync" });
+
 // ============================================================================
 // GET /sync - Fetch server data
 // ============================================================================
@@ -349,6 +385,13 @@ const getSyncResponseSchema = z.object({
             "ISO 8601 timestamp of most recent work lastReadAt, or null if user has no tracked works. Use this to filter which works to send to server.",
         example: "2025-11-30T12:00:00.000Z",
     }),
+    favouriteTags: z
+        .array(favouriteTagItemSchema)
+        .optional()
+        .openapi({
+            description:
+                "Favourite tag filter entries updated since `lastSyncedAt`. Includes tombstones (`favourited=false`) for unfavourites so other devices converge. Returns only live (favourited=true) entries when `lastSyncedAt` is omitted (snapshot mode for fresh clients).",
+        }),
 });
 
 const getSyncRoute = createRoute({
@@ -429,6 +472,14 @@ const postSyncRequestSchema = z
             description:
                 "Chapters to sync (must reference works in this request)",
         }),
+        favouriteTags: z
+            .array(favouriteTagItemSchema)
+            .max(500)
+            .optional()
+            .openapi({
+                description:
+                    "Favourite tag filter changes to push. Each row is LWW-merged independently using its `updatedAt`. Tombstones (favourited=false) are accepted.",
+            }),
     })
     .refine(
         (data) => {
@@ -460,6 +511,15 @@ const chapterSyncResultSchema = z.object({
     status: syncItemStatus,
 });
 
+const favouriteTagSyncResultSchema = z.object({
+    tagType: tagTypeIdSchema,
+    tag: z.string(),
+    status: z.enum(["accepted", "ignored"]).openapi({
+        description:
+            "Sync result: accepted (LWW chose client) or ignored (server has equal-or-newer)",
+    }),
+});
+
 const postSyncResponseSchema = z.object({
     works: z.array(workSyncResultSchema).openapi({
         description: "Sync status for each submitted work",
@@ -467,6 +527,13 @@ const postSyncResponseSchema = z.object({
     chapters: z.array(chapterSyncResultSchema).openapi({
         description: "Sync status for each submitted chapter",
     }),
+    favouriteTags: z
+        .array(favouriteTagSyncResultSchema)
+        .optional()
+        .openapi({
+            description:
+                "Sync status for each submitted favourite-tag row. Omitted if no favouriteTags were sent.",
+        }),
     syncedAt: dateToIsoString.openapi({
         description:
             "ISO 8601 timestamp when sync completed. Save this for next sync.",
@@ -585,11 +652,19 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
         const since = lastSyncedAt ? new Date(lastSyncedAt) : undefined;
         const actualLimit = limit ?? DEFAULT_SYNC_LIMIT;
 
+        // Only return favouriteTags on the first page of a sync run (workCursor not
+        // set). Subsequent paginated pages don't need to re-send the same set.
+        const includeFavouriteTags = workCursor === undefined;
+
         // Get server's most recent lastReadAt values for reference
-        const [serverLastUpdated, latestWorkLastReadAt] = await Promise.all([
-            getServerLastUpdated(c.var.db, userId),
-            getLatestWorkLastReadAt(c.var.db, userId),
-        ]);
+        const [serverLastUpdated, latestWorkLastReadAt, favouriteTags] =
+            await Promise.all([
+                getServerLastUpdated(c.var.db, userId),
+                getLatestWorkLastReadAt(c.var.db, userId),
+                includeFavouriteTags
+                    ? getFavouriteTagsSince(c.var.db, userId, since ?? null)
+                    : Promise.resolve([]),
+            ]);
 
         // Get tracked works and chapters (pagination only on works)
         const {
@@ -620,6 +695,7 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
             workMetadataCount: workMetadata.length,
             chapterMetadataCount: chapterMetadata.length,
             tagMetadataCount: tagMetadata.length,
+            favouriteTagsCount: favouriteTags.length,
             hasMore: hasMoreWorks,
             nextWorkCursor,
         });
@@ -693,6 +769,14 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
             serverLastUpdated:
                 serverLastUpdated?.toISOString() ?? new Date().toISOString(),
             latestWorkLastReadAt: latestWorkLastReadAt?.toISOString() ?? null,
+            favouriteTags: includeFavouriteTags
+                ? favouriteTags.map((f) => ({
+                      tagType: f.tagType,
+                      tag: f.tag,
+                      favourited: f.favourited,
+                      updatedAt: f.updatedAt.toISOString(),
+                  }))
+                : undefined,
         });
     })
     .openapi(postSyncRoute, async (c) => {
@@ -701,13 +785,14 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
             throw new HTTPException(401, { message: "Unauthorized" });
         }
         const userId = user.id;
-        const { works, chapters } = c.req.valid("json");
+        const { works, chapters, favouriteTags } = c.req.valid("json");
 
         console.log({
             message: "POST /sync request",
             userId,
             worksCount: works?.length ?? 0,
             chaptersCount: chapters?.length ?? 0,
+            favouriteTagsCount: favouriteTags?.length ?? 0,
             workIds: works?.map((w) => w.workId) ?? [],
         });
 
@@ -742,11 +827,25 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
                 readProgress: ch.readProgress,
             })) ?? [];
 
-        // Process works and chapters in batch
-        const [workResults, chapterResults] = await Promise.all([
-            batchProcessWorks(c.var.db, userId, worksToProcess),
-            batchProcessChapters(c.var.db, userId, chaptersToProcess),
-        ]);
+        const favouriteTagsToProcess =
+            favouriteTags?.map((f) => ({
+                tagType: f.tagType,
+                tag: f.tag,
+                favourited: f.favourited,
+                updatedAt: new Date(f.updatedAt),
+            })) ?? [];
+
+        // Process works, chapters, and favourite tags in batch
+        const [workResults, chapterResults, favouriteTagResults] =
+            await Promise.all([
+                batchProcessWorks(c.var.db, userId, worksToProcess),
+                batchProcessChapters(c.var.db, userId, chaptersToProcess),
+                batchUpsertFavouriteTags(
+                    c.var.db,
+                    userId,
+                    favouriteTagsToProcess,
+                ),
+            ]);
 
         const workStatusCounts = {
             accepted: workResults.filter((r) => r.status === "accepted").length,
@@ -759,17 +858,27 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
             ignored: chapterResults.filter((r) => r.status === "ignored")
                 .length,
         };
+        const favouriteTagStatusCounts = {
+            accepted: favouriteTagResults.filter(
+                (r) => r.status === "accepted",
+            ).length,
+            ignored: favouriteTagResults.filter((r) => r.status === "ignored")
+                .length,
+        };
 
         console.log({
             message: "POST /sync response",
             userId,
             workResults: workStatusCounts,
             chapterResults: chapterStatusCounts,
+            favouriteTagResults: favouriteTagStatusCounts,
         });
 
         return c.json({
             works: workResults,
             chapters: chapterResults,
+            favouriteTags:
+                favouriteTags === undefined ? undefined : favouriteTagResults,
             syncedAt: new Date().toISOString(),
         });
     });

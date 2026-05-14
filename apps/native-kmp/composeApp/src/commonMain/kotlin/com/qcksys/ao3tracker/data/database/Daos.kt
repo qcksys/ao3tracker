@@ -194,3 +194,38 @@ interface TagDao {
     @Query("DELETE FROM tags")
     suspend fun deleteAllTags()
 }
+
+@Dao
+interface FavouriteTagDao {
+    /**
+     * All currently-favourited rows. The repository layer maps these to the
+     * `"${tagType}\t${tag}"` string set expected by the UI — doing the join in
+     * Kotlin keeps the tab separator out of SQL string literals.
+     */
+    @Query("SELECT * FROM favourite_tag WHERE favourited = 1")
+    fun observeLive(): Flow<List<FavouriteTagEntity>>
+
+    @Query("SELECT * FROM favourite_tag WHERE tagType = :tagType AND tag = :tag")
+    suspend fun getOne(tagType: Int, tag: String): FavouriteTagEntity?
+
+    @Query("SELECT * FROM favourite_tag WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<FavouriteTagEntity>
+
+    @Query("SELECT * FROM favourite_tag")
+    suspend fun getAll(): List<FavouriteTagEntity>
+
+    @Query("SELECT COUNT(*) FROM favourite_tag")
+    suspend fun count(): Int
+
+    @Upsert
+    suspend fun upsert(entity: FavouriteTagEntity)
+
+    @Upsert
+    suspend fun upsertAll(entities: List<FavouriteTagEntity>)
+
+    @Query("UPDATE favourite_tag SET pendingSync = 0 WHERE tagType = :tagType AND tag = :tag")
+    suspend fun clearPending(tagType: Int, tag: String)
+
+    @Query("DELETE FROM favourite_tag")
+    suspend fun deleteAll()
+}

@@ -79,22 +79,11 @@ actual class SettingsStorage {
         prefs.edit().putBoolean(KEY_AUTO_SYNC_ON_OPEN, enabled).apply()
     }
 
-    actual fun getFavouriteTagFilters(): Set<String> {
-        // Newline-delimited; tag values from AO3 never contain newlines.
-        val raw = prefs.getString(KEY_FAVOURITE_TAG_FILTERS, null) ?: return emptySet()
-        return if (raw.isEmpty()) emptySet() else raw.split('\n').toSet()
-    }
-
-    actual fun setFavouriteTagFilters(filters: Set<String>) {
-        prefs.edit().putString(KEY_FAVOURITE_TAG_FILTERS, filters.joinToString("\n")).apply()
-    }
-
     companion object {
         private const val PREFS_FILE_NAME = "ao3_app_settings_encrypted"
         private const val KEY_API_ENVIRONMENT = "api_environment"
         private const val KEY_DEV_MODE = "dev_mode_enabled"
         private const val KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         private const val KEY_AUTO_SYNC_ON_OPEN = "auto_sync_on_open"
-        private const val KEY_FAVOURITE_TAG_FILTERS = "favourite_tag_filters"
     }
 }

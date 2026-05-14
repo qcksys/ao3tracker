@@ -55,7 +55,7 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 
 **Navigation**: Voyager library handles navigation with a tab-based structure (`ReadTab`, `TrackTab`, `SettingsTab`). `MainScreen` is the root navigator.
 
-**Database**: Room database with KSP for code generation. Schema files are in `composeApp/schemas/`. Entities: `WorkEntity`, `ChapterEntity`, `TagEntity`. When modifying the schema:
+**Database**: Room database with KSP for code generation. Schema files are in `composeApp/schemas/`. Entities: `WorkEntity`, `ChapterEntity`, `TagEntity`, `FavouriteTagEntity`. When modifying the schema:
 1. Update entity classes in `data/database/Entities.kt`
 2. Increment database version in `Ao3Database.kt`
 3. Add migration in `Migrations.kt` and register it in `AppModule.kt`
@@ -63,7 +63,7 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 **Platform Abstractions**: Use `expect/actual` pattern for platform-specific code:
 - `DatabaseFactory` - Database instantiation
 - `TokenStorage` - Secure token storage
-- `SettingsStorage` - Preferences storage (incl. favourite tag filters, persisted newline-delimited as `"typeId\ttag"` entries)
+- `SettingsStorage` - Preferences storage (API env, dev mode, last sync timestamp, auto-sync-on-open)
 - `CredentialHelper` - Credential management
 - `Ao3WebView` - WebView component (takes an optional `jsInjectionFlow: SharedFlow<String>` for native→JS evaluation, and `onBackAtRoot` for back-gesture handling when the WebView has no history)
 
@@ -100,7 +100,13 @@ When the WebView loads an AO3 list page (anything with `<li id="work_{id}">` blu
 The status string set MUST stay in sync between `WorkBadgePayload` (Kotlin) and `WorkBadgeData` (TypeScript) — any new status needs an entry in `formatBadge`'s `switch` and a clause in `buildBadgePayload`.
 
 ### Favourite tag filters
-Long-pressing a tag chip in the filter sheet pins it to the top of its section. State lives in `TrackScreenModel.favouriteTagFilters` (`StateFlow<Set<String>>`), persisted via `SettingsStorage.{get,set}FavouriteTagFilters`. Keys are `"${tagType.id}\t$tag"` — using a tab separator so it can never collide with characters AO3 allows in tags. The storage encodes the set as newline-delimited values (newlines are likewise impossible in AO3 tags).
+Long-pressing a tag chip in the filter sheet pins it to the top of its section. State lives in [FavouriteTagRepository](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/repository/FavouriteTagRepository.kt) on top of a Room table (`FavouriteTagEntity` in [Entities.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/database/Entities.kt)). The UI consumes `observeFavourites(): Flow<Set<String>>` where each entry is `"${tagType.id}\t$tag"` (tab-separated, matches the historical format).
+
+**Tombstones in place**: unfavouriting writes `favourited = false` rather than deleting the row, so concurrent unfavourites propagate to other devices via LWW.
+
+**Cross-device sync**: each row has its own `updatedAt`; sync is via the per-row `favouriteTags` block on `/api/track/sync` (see [api/AGENTS.md](../api/AGENTS.md)). Rows with local changes have `pendingSync = true` and are pushed on the next sync; the server LWW-merges and `FavouriteTagRepository.applyRemote` LWW-merges incoming rows locally. Server wins on tie.
+
+**Auto-sync trigger**: toggling a favourite calls `SyncTriggers.notifyFavouriteChanged()`, which debounces 2s before firing `SyncRepository.sync()`. Implemented in [SyncTriggers.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/sync/SyncTriggers.kt). `SyncTriggers` is a `createdAtStart = true` Koin singleton so the debounce subscriber is wired before the first user action.
 
 ## Key Dependencies
 - Compose Multiplatform (UI) with Hot Reload plugin

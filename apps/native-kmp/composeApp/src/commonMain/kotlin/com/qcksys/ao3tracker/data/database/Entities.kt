@@ -109,3 +109,29 @@ data class TagEntity(
     val typeId: Int,
     val rowCreatedAt: Long
 )
+
+/**
+ * Per-user favourite tag filter, used to pin tag chips to the top of the filter
+ * sheet. Synced across devices via /api/track/sync's `favouriteTags` block.
+ *
+ * Tombstones-in-place: unfavouriting sets `favourited = false` rather than deleting,
+ * so concurrent unfavourites propagate to other devices via LWW on `updatedAt`.
+ * The live set is `WHERE favourited = true`. The push set is `WHERE pendingSync = 1`.
+ */
+@Entity(
+    tableName = "favourite_tag",
+    primaryKeys = ["tagType", "tag"],
+    indices = [
+        Index("favourited"),
+        Index("pendingSync")
+    ]
+)
+data class FavouriteTagEntity(
+    val tagType: Int,
+    val tag: String,
+    val favourited: Boolean,
+    /** Epoch millis of the last add/remove. Used for LWW against the server. */
+    val updatedAt: Long,
+    /** True if this row has a local change that hasn't been pushed to the server yet. */
+    val pendingSync: Boolean
+)

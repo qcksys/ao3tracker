@@ -13,8 +13,9 @@ import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
-import com.qcksys.ao3tracker.data.settings.SettingsStorage
+import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,14 +44,20 @@ enum class FilterSection {
 class TrackScreenModel(
     private val repository: Ao3Repository,
     private val syncRepository: SyncRepository,
-    private val settingsStorage: SettingsStorage
+    private val favouriteTagRepository: FavouriteTagRepository,
+    private val syncTriggers: SyncTriggers
 ) : ScreenModel {
 
     private val _filterState = MutableStateFlow(FilterState())
     val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
 
-    private val _favouriteTagFilters = MutableStateFlow(settingsStorage.getFavouriteTagFilters())
-    val favouriteTagFilters: StateFlow<Set<String>> = _favouriteTagFilters.asStateFlow()
+    val favouriteTagFilters: StateFlow<Set<String>> = favouriteTagRepository
+        .observeFavourites()
+        .stateIn(
+            scope = screenModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptySet()
+        )
 
     private val _sortState = MutableStateFlow(SortState())
     val sortState: StateFlow<SortState> = _sortState.asStateFlow()
@@ -355,15 +362,14 @@ class TrackScreenModel(
     }
 
     fun isFavouriteTag(tagType: TagType, tag: String): Boolean {
-        return favouriteKey(tagType, tag) in _favouriteTagFilters.value
+        return favouriteKey(tagType, tag) in favouriteTagFilters.value
     }
 
     fun toggleFavouriteTag(tagType: TagType, tag: String) {
-        val key = favouriteKey(tagType, tag)
-        val current = _favouriteTagFilters.value
-        val updated = if (key in current) current - key else current + key
-        _favouriteTagFilters.value = updated
-        settingsStorage.setFavouriteTagFilters(updated)
+        screenModelScope.launch {
+            favouriteTagRepository.toggleFavourite(tagType, tag)
+            syncTriggers.notifyFavouriteChanged()
+        }
     }
 
     private fun favouriteKey(tagType: TagType, tag: String): String = "${tagType.id}\t$tag"

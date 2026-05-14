@@ -9,9 +9,6 @@ expect class SettingsStorage() {
     fun setLastSyncTimestamp(timestamp: String?)
     fun isAutoSyncOnOpenEnabled(): Boolean
     fun setAutoSyncOnOpenEnabled(enabled: Boolean)
-    /** Favourite tag filters, encoded as "typeId\ttag" entries (tab-separated). */
-    fun getFavouriteTagFilters(): Set<String>
-    fun setFavouriteTagFilters(filters: Set<String>)
 }
 
 expect fun getSettingsStorage(): SettingsStorage

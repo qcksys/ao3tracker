@@ -246,3 +246,14 @@ The sync uses LWW independently for each field group:
 
 This enables multi-device sync where toggling `favourite` on Device A won't be overwritten when Device B syncs reading
 progress. Server wins on timestamp tie. See `src/db/helpers/lww.ts` for the `resolveLWW()` helper.
+
+**Favourite Tag Filters** (per-row sync, separate from per-work `favourite`):
+
+The `tUserFavouriteTag` table stores which filter chips a user has pinned in their Track tab. Schema:
+`(userId, tagType, tag) → (favourited, updatedAt)`. `tagType` is the integer id from the `tagTypes` enum (0=unknown … 7=freeform).
+
+- **Tombstones in place**: unfavouriting sets `favourited = false` rather than deleting. The live set is `WHERE favourited = true`; the sync delta is `WHERE updatedAt > lastSyncedAt`, which naturally carries adds and removes.
+- **LWW per row**: each (tagType, tag) row LWW-merges independently on `updatedAt`. Server wins on tie. Logic lives in `resolveFavouriteTagMerge` (pure helper, unit-tested in `test/user-favourite-tag.test.ts`).
+- **Wire shape**: GET response gains `favouriteTags: Array<{tagType, tag, favourited, updatedAt}>`, returned only on the first page of a paginated sync run (when `workCursor` is not set). POST body accepts the same array (max 500) and the response echoes per-row `accepted`/`ignored` status.
+- **Snapshot vs delta**: GET with no `lastSyncedAt` returns only live (`favourited=true`) rows — fresh devices don't need tombstones. GET with `lastSyncedAt` returns all rows updated since then, including tombstones.
+- Implementation: `src/db/schema/user.favouriteTag.ts`, `src/db/queries/user-favourite-tag.ts`.

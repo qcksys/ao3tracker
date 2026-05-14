@@ -9,6 +9,7 @@ import com.qcksys.ao3tracker.data.database.TagEntity
 import com.qcksys.ao3tracker.data.model.SyncChapterMetadata
 import com.qcksys.ao3tracker.data.model.SyncChapterRequest
 import com.qcksys.ao3tracker.data.model.SyncChapterResponse
+import com.qcksys.ao3tracker.data.model.SyncFavouriteTagItem
 import com.qcksys.ao3tracker.data.model.SyncGetResponse
 import com.qcksys.ao3tracker.data.model.SyncPostRequest
 import com.qcksys.ao3tracker.data.model.SyncResult
@@ -18,6 +19,8 @@ import com.qcksys.ao3tracker.data.model.SyncWorkMetadata
 import com.qcksys.ao3tracker.data.model.SyncWorkRequest
 import com.qcksys.ao3tracker.data.model.SyncWorkResponse
 import com.qcksys.ao3tracker.data.model.TagType
+import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
+import com.qcksys.ao3tracker.data.repository.RemoteFavouriteTag
 import com.qcksys.ao3tracker.data.settings.SettingsStorage
 import com.qcksys.ao3tracker.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
@@ -36,7 +39,8 @@ class SyncRepository(
     private val syncService: SyncService,
     private val database: Ao3Database,
     private val settingsStorage: SettingsStorage,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val favouriteTagRepository: FavouriteTagRepository
 ) {
     private val workDao = database.workDao()
     private val chapterDao = database.chapterDao()
@@ -108,6 +112,18 @@ class SyncRepository(
             applyServerChapterChanges(serverData.chapters) // Creates chapter entries with reading progress
             applyServerChapterMetadata(serverData.chapterMetadata) // Updates existing chapters with titles, etc.
             applyServerTagMetadata(serverData.tagMetadata)
+            if (serverData.favouriteTags.isNotEmpty()) {
+                favouriteTagRepository.applyRemote(
+                    serverData.favouriteTags.map {
+                        RemoteFavouriteTag(
+                            tagType = it.tagType,
+                            tag = it.tag,
+                            favourited = it.favourited,
+                            updatedAt = parseIso8601(it.updatedAt)
+                        )
+                    }
+                )
+            }
 
             // Step 3: Send local changes
             // For full sync (lastSyncedAt was null), send ALL local data
@@ -116,14 +132,39 @@ class SyncRepository(
             val lastSyncTimestamp = lastSyncedAt?.let { parseIso8601(it) }
             val localWorks = getLocalWorkChanges(lastSyncTimestamp)
             val localChapters = getLocalChapterChanges(lastSyncTimestamp)
-            AppLogger.d("Local changes to sync: ${localWorks.size} works, ${localChapters.size} chapters", TAG)
+            val pendingFavouriteEntities = favouriteTagRepository.getPendingSync()
+            val pendingFavouriteTags = pendingFavouriteEntities.map { entity ->
+                SyncFavouriteTagItem(
+                    tagType = entity.tagType,
+                    tag = entity.tag,
+                    favourited = entity.favourited,
+                    updatedAt = toIso8601(entity.updatedAt)
+                )
+            }
+            AppLogger.d(
+                "Local changes to sync: ${localWorks.size} works, ${localChapters.size} chapters, ${pendingFavouriteTags.size} favourite tags",
+                TAG
+            )
 
-            if (localWorks.isNotEmpty() || localChapters.isNotEmpty()) {
-                _syncState.value = _syncState.value.copy(statusMessage = "Sending ${localWorks.size} works, ${localChapters.size} chapters...")
-                val postResult = sendLocalChanges(token, localWorks, localChapters)
+            if (localWorks.isNotEmpty() || localChapters.isNotEmpty() || pendingFavouriteTags.isNotEmpty()) {
+                _syncState.value = _syncState.value.copy(
+                    statusMessage = "Sending ${localWorks.size} works, ${localChapters.size} chapters, ${pendingFavouriteTags.size} favourites..."
+                )
+                val postResult = sendLocalChanges(
+                    token,
+                    localWorks,
+                    localChapters,
+                    pendingFavouriteTags
+                )
                 if (postResult.isFailure) {
                     val error = postResult.exceptionOrNull()!!
                     return handleSyncError(error)
+                }
+                // Clear pendingSync on rows the server accepted (or that we sent —
+                // server ignored just means our row was stale; either way local
+                // matches server now via applyRemote in a later pull).
+                for (entity in pendingFavouriteEntities) {
+                    favouriteTagRepository.markSynced(entity.tagType, entity.tag)
                 }
             }
 
@@ -190,6 +231,8 @@ class SyncRepository(
         val allWorkMetadata = mutableListOf<SyncWorkMetadata>()
         val allChapterMetadata = mutableListOf<SyncChapterMetadata>()
         val allTagMetadata = mutableListOf<SyncTagMetadata>()
+        // Favourite tags only come back on the first page (workCursor == null in request).
+        var favouriteTags: List<SyncFavouriteTagItem> = emptyList()
 
         var workCursor: Long? = null
         var hasMore = true
@@ -214,6 +257,10 @@ class SyncRepository(
             allWorkMetadata.addAll(response.workMetadata)
             allChapterMetadata.addAll(response.chapterMetadata)
             allTagMetadata.addAll(response.tagMetadata)
+            // Capture favouriteTags from the first response only (subsequent pages omit it).
+            if (workCursor == null) {
+                favouriteTags = response.favouriteTags ?: emptyList()
+            }
 
             serverLastUpdated = response.serverLastUpdated
             latestWorkLastReadAt = response.latestWorkLastReadAt
@@ -228,26 +275,42 @@ class SyncRepository(
                 workMetadata = allWorkMetadata,
                 chapterMetadata = allChapterMetadata,
                 tagMetadata = allTagMetadata,
-                latestWorkLastReadAt = latestWorkLastReadAt
+                latestWorkLastReadAt = latestWorkLastReadAt,
+                favouriteTags = favouriteTags
             ) to (serverLastUpdated ?: Clock.System.now().toString())
         )
     }
 
     /**
      * Sends local changes to server in batches of MAX_WORKS_PER_BATCH.
+     * Favourite tags are attached to the first batch only — they're a small set
+     * with no batching needs, and sending them once avoids duplicate processing.
      */
     private suspend fun sendLocalChanges(
         token: String,
         works: List<SyncWorkRequest>,
-        chapters: List<SyncChapterRequest>
+        chapters: List<SyncChapterRequest>,
+        favouriteTags: List<SyncFavouriteTagItem>
     ): Result<Unit> {
-        if (works.isEmpty() && chapters.isEmpty()) {
+        if (works.isEmpty() && chapters.isEmpty() && favouriteTags.isEmpty()) {
             return Result.success(Unit)
         }
 
         // Group chapters by workId for batching
         val chaptersByWorkId = chapters.groupBy { it.workId }
 
+        // If we have favourites but no works/chapters, send them in a standalone request.
+        if (works.isEmpty() && chapters.isEmpty()) {
+            val request = SyncPostRequest(
+                works = emptyList(),
+                chapters = emptyList(),
+                favouriteTags = favouriteTags
+            )
+            val result = syncService.sendSyncData(token, request)
+            return if (result.isFailure) Result.failure(result.exceptionOrNull()!!) else Result.success(Unit)
+        }
+
+        var firstBatch = true
         // Send works in batches of MAX_WORKS_PER_BATCH with their chapters
         for (i in works.indices step MAX_WORKS_PER_BATCH) {
             val workBatch = works.subList(i, minOf(i + MAX_WORKS_PER_BATCH, works.size))
@@ -256,8 +319,10 @@ class SyncRepository(
 
             val request = SyncPostRequest(
                 works = workBatch,
-                chapters = chapterBatch
+                chapters = chapterBatch,
+                favouriteTags = if (firstBatch) favouriteTags.ifEmpty { null } else null
             )
+            firstBatch = false
 
             val result = syncService.sendSyncData(token, request)
             if (result.isFailure) {
@@ -430,7 +495,8 @@ class SyncRepository(
         val chapterMetadata: List<SyncChapterMetadata>,
         val tagMetadata: List<SyncTagMetadata>,
         /** ISO 8601 timestamp of most recent work lastReadAt, or null if user has no tracked works */
-        val latestWorkLastReadAt: String?
+        val latestWorkLastReadAt: String?,
+        val favouriteTags: List<SyncFavouriteTagItem>
     )
 
     /**

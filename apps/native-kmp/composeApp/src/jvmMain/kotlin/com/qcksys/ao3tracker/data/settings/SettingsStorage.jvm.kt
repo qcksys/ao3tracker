@@ -43,20 +43,10 @@ actual class SettingsStorage {
         prefs.putBoolean(KEY_AUTO_SYNC_ON_OPEN, enabled)
     }
 
-    actual fun getFavouriteTagFilters(): Set<String> {
-        val raw = prefs.get(KEY_FAVOURITE_TAG_FILTERS, "") ?: ""
-        return if (raw.isEmpty()) emptySet() else raw.split('\n').toSet()
-    }
-
-    actual fun setFavouriteTagFilters(filters: Set<String>) {
-        prefs.put(KEY_FAVOURITE_TAG_FILTERS, filters.joinToString("\n"))
-    }
-
     companion object {
         private const val KEY_API_ENVIRONMENT = "api_environment"
         private const val KEY_DEV_MODE = "dev_mode_enabled"
         private const val KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         private const val KEY_AUTO_SYNC_ON_OPEN = "auto_sync_on_open"
-        private const val KEY_FAVOURITE_TAG_FILTERS = "favourite_tag_filters"
     }
 }
