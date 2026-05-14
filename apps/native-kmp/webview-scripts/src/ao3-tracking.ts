@@ -9,6 +9,9 @@ export {};
 declare global {
   interface Window {
     __ao3TrackerInitialized?: boolean;
+    __ao3Tracker?: {
+      applyListBadges(payloadJson: string): void;
+    };
     AndroidBridge?: {
       postMessage(msg: string): void;
     };
@@ -21,6 +24,22 @@ declare global {
     };
     ao3Bridge?: (msg: string) => void;
   }
+}
+
+/**
+ * Per-work data sent back from native to render a list-page badge.
+ */
+export interface WorkBadgeData {
+  id: number;
+  status: 'not-started' | 'in-progress' | 'caught-up' | 'finished' | 'has-new-chapters' | 'private';
+  progressPercent: number;
+  favourite: boolean;
+}
+
+export interface ListWorksMessage {
+  type: 'listWorks';
+  url: string;
+  workIds: number[];
 }
 
 export interface TagInfo {
@@ -442,6 +461,84 @@ function scrollTo(scrollToParam: string): void {
 }
 
 /**
+ * Find AO3 work blurb IDs on the current page.
+ * AO3 list pages use `<li id="work_{workId}">` for each work card.
+ */
+export function findListWorkIds(): number[] {
+  const blurbs = document.querySelectorAll<HTMLLIElement>('li[id^="work_"]');
+  const ids: number[] = [];
+  for (const blurb of blurbs) {
+    const match = blurb.id.match(/^work_(\d+)$/);
+    if (match) {
+      const id = parseInt(match[1], 10);
+      if (!Number.isNaN(id)) ids.push(id);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Apply tracker badges to work blurbs on a list page.
+ * Called by native via evaluateJavaScript after we post a `listWorks` message.
+ */
+export function applyListBadges(payloadJson: string): void {
+  let entries: WorkBadgeData[];
+  try {
+    entries = JSON.parse(payloadJson) as WorkBadgeData[];
+  } catch {
+    return;
+  }
+
+  for (const data of entries) {
+    const blurb = document.getElementById(`work_${data.id}`);
+    if (!blurb) continue;
+
+    blurb.querySelector('.ao3-tracker-badge')?.remove();
+
+    const { label, color } = formatBadge(data);
+    const badge = document.createElement('div');
+    badge.className = 'ao3-tracker-badge';
+    badge.textContent = label;
+    badge.style.cssText = [
+      'position: absolute',
+      'top: 4px',
+      'right: 4px',
+      `background: ${color}`,
+      'color: #fff',
+      'padding: 2px 6px',
+      'border-radius: 4px',
+      'font-size: 11px',
+      'font-weight: 600',
+      'z-index: 5',
+      'pointer-events: none',
+    ].join('; ');
+
+    if (getComputedStyle(blurb).position === 'static') {
+      blurb.style.position = 'relative';
+    }
+    blurb.appendChild(badge);
+  }
+}
+
+export function formatBadge(data: WorkBadgeData): { label: string; color: string } {
+  const star = data.favourite ? '★ ' : '';
+  switch (data.status) {
+    case 'finished':
+      return { label: `${star}✓ Finished`, color: '#2e7d32' };
+    case 'caught-up':
+      return { label: `${star}Caught up`, color: '#1565c0' };
+    case 'has-new-chapters':
+      return { label: `${star}New chapters`, color: '#ef6c00' };
+    case 'in-progress':
+      return { label: `${star}${data.progressPercent}%`, color: '#6a1b9a' };
+    case 'private':
+      return { label: `${star}Private`, color: '#616161' };
+    case 'not-started':
+      return { label: `${star}Tracked`, color: '#455a64' };
+  }
+}
+
+/**
  * Main initialization function
  */
 function init(): void {
@@ -488,6 +585,23 @@ function init(): void {
   if (scrollToParam) {
     scrollTo(scrollToParam);
   }
+
+  // List pages: send the visible work IDs so native can return badge data.
+  const listWorkIds = findListWorkIds();
+  if (listWorkIds.length > 0) {
+    const message: ListWorksMessage = {
+      type: 'listWorks',
+      url: window.location.href,
+      workIds: listWorkIds,
+    };
+    postMessage(JSON.stringify(message));
+  }
+}
+
+// Expose the badge applier so native can call it via evaluateJavaScript.
+if (typeof window !== 'undefined') {
+  window.__ao3Tracker = window.__ao3Tracker ?? { applyListBadges };
+  window.__ao3Tracker.applyListBadges = applyListBadges;
 }
 
 // Auto-initialize when not in test environment

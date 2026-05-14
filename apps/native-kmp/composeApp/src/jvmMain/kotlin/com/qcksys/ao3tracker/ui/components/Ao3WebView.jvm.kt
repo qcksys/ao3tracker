@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.flow.SharedFlow
 
 @Composable
 actual fun Ao3WebView(
@@ -15,7 +16,9 @@ actual fun Ao3WebView(
     onNavigationStateChange: (canGoBack: Boolean, canGoForward: Boolean) -> Unit,
     onUrlChange: (String) -> Unit,
     onMessage: (String) -> Unit,
-    onLoadingStateChange: (isLoading: Boolean) -> Unit
+    onLoadingStateChange: (isLoading: Boolean) -> Unit,
+    onBackAtRoot: () -> Unit,
+    jsInjectionFlow: SharedFlow<String>?
 ) {
     // Desktop JVM doesn't have native WebView support in Compose
     // Users can use the external browser instead

@@ -13,6 +13,7 @@ import com.qcksys.ao3tracker.data.model.Tag
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
+import com.qcksys.ao3tracker.data.model.WorkBadgePayload
 import com.qcksys.ao3tracker.data.model.WorkChapterIndexEvent
 import com.qcksys.ao3tracker.data.model.WorkInfoEvent
 import com.qcksys.ao3tracker.data.model.WorkTagsEvent
@@ -503,6 +504,53 @@ class Ao3Repository(private val database: Ao3Database) {
 
     suspend fun getWorkCount(): Int {
         return workDao.getWorkCount()
+    }
+
+    /**
+     * Build badge payloads for tracked works visible on a list page.
+     * Returns one entry per known work; unknown IDs are silently skipped (no badge).
+     */
+    suspend fun getWorkBadges(workIds: List<Long>): List<WorkBadgePayload> {
+        if (workIds.isEmpty()) return emptyList()
+
+        val payloads = mutableListOf<WorkBadgePayload>()
+        // Batch-fetch chapters once for all requested work IDs.
+        val chaptersByWorkId = chapterDao.getChaptersByWorkIds(workIds).groupBy { it.workId }
+
+        for (workId in workIds) {
+            val work = workDao.getWorkById(workId) ?: continue
+            val chapters = chaptersByWorkId[workId] ?: emptyList()
+            val domain = work.toDomain(chapters.map { it.toDomain() })
+            payloads.add(buildBadgePayload(domain))
+        }
+        return payloads
+    }
+
+    private fun buildBadgePayload(work: Work): WorkBadgePayload {
+        val hasProgress = work.chapterList.any { (it.readProgress ?: 0f) > 0f }
+        val currentChapters = work.currentChapters ?: work.chapterList.size
+        val totalChapters = work.totalChapters
+        val readChaptersCount = work.chapterList.count { it.isComplete }
+        val isWorkComplete = totalChapters != null && currentChapters >= totalChapters
+        val hasReadAllAvailable = readChaptersCount >= currentChapters && currentChapters > 0
+        val hasNewChapters = work.markedCompleteAt != null &&
+            currentChapters > readChaptersCount && readChaptersCount > 0
+
+        val status = when {
+            work.isPrivate -> "private"
+            hasNewChapters -> "has-new-chapters"
+            !hasProgress -> "not-started"
+            hasReadAllAvailable && isWorkComplete -> "finished"
+            hasReadAllAvailable -> "caught-up"
+            else -> "in-progress"
+        }
+
+        return WorkBadgePayload(
+            id = work.id,
+            status = status,
+            progressPercent = (work.readProgress * 100).toInt().coerceIn(0, 100),
+            favourite = work.favourite
+        )
     }
 
     suspend fun deleteAllLocalData() {

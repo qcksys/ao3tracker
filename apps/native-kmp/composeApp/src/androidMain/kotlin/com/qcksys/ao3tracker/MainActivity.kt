@@ -19,6 +19,7 @@ import com.qcksys.ao3tracker.data.database.initializeDatabase
 import com.qcksys.ao3tracker.data.push.initializePushTokenStorage
 import com.qcksys.ao3tracker.data.settings.initializeSettingsStorage
 import com.qcksys.ao3tracker.push.Ao3FirebaseMessagingService
+import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.util.initializeShareHelper
 import io.github.aakira.napier.Napier
 
@@ -31,8 +32,6 @@ class MainActivity : ComponentActivity() {
         Napier.d("Notification permission ${if (isGranted) "granted" else "denied"}")
     }
 
-    // Pending work ID to navigate to after app initialization
-    private var pendingWorkId: Long? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -92,22 +91,12 @@ class MainActivity : ComponentActivity() {
             val workId = intent.getLongExtra(Ao3FirebaseMessagingService.EXTRA_WORK_ID, -1)
             if (workId > 0) {
                 Napier.d("Notification deep link: opening work $workId")
-                pendingWorkId = workId
-                // TODO: Navigate to work detail screen
-                // This would require a navigation state holder accessible from here
-                // For now, the workId is stored and can be consumed by the app
+                NavigationState.navigateToRead(
+                    url = "https://archiveofourown.org/works/$workId",
+                    scrollProgress = 0f
+                )
             }
         }
-    }
-
-    /**
-     * Gets and clears the pending work ID from a notification deep link.
-     * Call this from the app's navigation setup to handle the deep link.
-     */
-    fun consumePendingWorkId(): Long? {
-        val workId = pendingWorkId
-        pendingWorkId = null
-        return workId
     }
 
     override fun onResume() {

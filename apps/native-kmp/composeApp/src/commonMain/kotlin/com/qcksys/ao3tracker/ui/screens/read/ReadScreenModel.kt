@@ -3,8 +3,10 @@ package com.qcksys.ao3tracker.ui.screens.read
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.qcksys.ao3tracker.data.model.DataException
+import com.qcksys.ao3tracker.data.model.ListWorksEvent
 import com.qcksys.ao3tracker.data.model.ScrollProgressEvent
 import com.qcksys.ao3tracker.data.model.WebViewMessage
+import com.qcksys.ao3tracker.data.model.WorkBadgePayload
 import com.qcksys.ao3tracker.data.model.WorkChapterIndexEvent
 import com.qcksys.ao3tracker.data.model.WorkInfoEvent
 import com.qcksys.ao3tracker.data.model.WorkTagsEvent
@@ -13,11 +15,15 @@ import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.util.JsonConfig
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -39,6 +45,12 @@ class ReadScreenModel(
 
     private val _scrollProgress = MutableStateFlow(0f)
     val scrollProgress: StateFlow<Float> = _scrollProgress.asStateFlow()
+
+    // Snippets of JS to evaluate in the WebView (e.g. applying list-page badges).
+    // extraBufferCapacity guarantees emit() never suspends; replay=0 because each
+    // injection is a one-shot.
+    private val _jsInjectionFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val jsInjectionFlow: SharedFlow<String> = _jsInjectionFlow.asSharedFlow()
 
     // Cache for work info until we have all the data
     private var pendingWorkInfo: WorkInfoEvent? = null
@@ -97,6 +109,9 @@ class ReadScreenModel(
             "scrollProgress" -> WebViewMessage.ScrollProgress(
                 JsonConfig.json.decodeFromString<ScrollProgressEvent>(messageJson)
             )
+            "listWorks" -> WebViewMessage.ListWorks(
+                JsonConfig.json.decodeFromString<ListWorksEvent>(messageJson)
+            )
             else -> {
                 AppLogger.w("Unknown WebView message type: $type", TAG)
                 WebViewMessage.Unknown(type, messageJson)
@@ -121,10 +136,46 @@ class ReadScreenModel(
                 _scrollProgress.value = message.event.scrollPercentage / 100f
                 repository.updateScrollProgress(message.event)
             }
+            is WebViewMessage.ListWorks -> {
+                handleListWorks(message.event)
+            }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
             }
         }
+    }
+
+    private suspend fun handleListWorks(event: ListWorksEvent) {
+        if (event.workIds.isEmpty()) return
+        val badges = repository.getWorkBadges(event.workIds)
+        if (badges.isEmpty()) return
+
+        val payloadJson = JsonConfig.json.encodeToString(
+            ListSerializer(WorkBadgePayload.serializer()),
+            badges
+        )
+        // Pass the JSON as a string literal that we eval at runtime to avoid
+        // re-escaping inside a JS string template.
+        val script = """
+            (function() {
+                if (window.__ao3Tracker && window.__ao3Tracker.applyListBadges) {
+                    window.__ao3Tracker.applyListBadges(${jsStringLiteral(payloadJson)});
+                }
+            })();
+        """.trimIndent()
+        _jsInjectionFlow.emit(script)
+    }
+
+    /** Wraps a string for safe embedding inside a JS source as a string literal. */
+    private fun jsStringLiteral(value: String): String {
+        val escaped = value
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace(" ", "\\u2028")
+            .replace(" ", "\\u2029")
+        return "'$escaped'"
     }
 
     private suspend fun tryToSaveWork() {

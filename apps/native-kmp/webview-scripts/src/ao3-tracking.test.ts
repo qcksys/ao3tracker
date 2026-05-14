@@ -9,6 +9,10 @@ import {
     getWorkTagInfo,
     getWorkChapterIndex,
     getWorkChapterSelect,
+    findListWorkIds,
+    formatBadge,
+    applyListBadges,
+    type WorkBadgeData,
 } from "./ao3-tracking";
 
 // Helper to set up location mock
@@ -165,5 +169,158 @@ describe("getWorkTagInfo", () => {
         expect(result.fandom[0].tag).toBe("XCOM: Enemy Within");
         expect(result.character).toHaveLength(6);
         expect(result.freeform.length).toBeGreaterThan(0);
+    });
+});
+
+describe("findListWorkIds", () => {
+    it("returns IDs from all work blurbs on the page, in DOM order", () => {
+        document.body.innerHTML = `
+            <ol class="work index group">
+                <li id="work_111"></li>
+                <li id="work_222"></li>
+                <li id="series_999"></li>
+                <li id="work_333"></li>
+            </ol>
+        `;
+
+        expect(findListWorkIds()).toEqual([111, 222, 333]);
+    });
+
+    it("skips blurbs with non-numeric or malformed IDs", () => {
+        document.body.innerHTML = `
+            <li id="work_42"></li>
+            <li id="work_abc"></li>
+            <li id="work_"></li>
+            <li id="work_99extra"></li>
+        `;
+
+        expect(findListWorkIds()).toEqual([42]);
+    });
+
+    it("returns an empty array when no work blurbs are present", () => {
+        document.body.innerHTML = `<div>No works here</div>`;
+
+        expect(findListWorkIds()).toEqual([]);
+    });
+});
+
+describe("formatBadge", () => {
+    const base: WorkBadgeData = {
+        id: 1,
+        status: "not-started",
+        progressPercent: 0,
+        favourite: false,
+    };
+
+    it("renders distinct label+color per status", () => {
+        expect(formatBadge({ ...base, status: "finished" })).toEqual({
+            label: "✓ Finished",
+            color: "#2e7d32",
+        });
+        expect(formatBadge({ ...base, status: "caught-up" })).toEqual({
+            label: "Caught up",
+            color: "#1565c0",
+        });
+        expect(formatBadge({ ...base, status: "has-new-chapters" })).toEqual({
+            label: "New chapters",
+            color: "#ef6c00",
+        });
+        expect(formatBadge({ ...base, status: "private" })).toEqual({
+            label: "Private",
+            color: "#616161",
+        });
+        expect(formatBadge({ ...base, status: "not-started" })).toEqual({
+            label: "Tracked",
+            color: "#455a64",
+        });
+    });
+
+    it("shows progress percent for in-progress status", () => {
+        expect(
+            formatBadge({ ...base, status: "in-progress", progressPercent: 42 })
+        ).toEqual({ label: "42%", color: "#6a1b9a" });
+    });
+
+    it("prepends a star for favourites", () => {
+        expect(
+            formatBadge({ ...base, status: "finished", favourite: true }).label
+        ).toBe("★ ✓ Finished");
+        expect(
+            formatBadge({
+                ...base,
+                status: "in-progress",
+                progressPercent: 10,
+                favourite: true,
+            }).label
+        ).toBe("★ 10%");
+    });
+});
+
+describe("applyListBadges", () => {
+    function setupBlurbs(ids: number[]) {
+        document.body.innerHTML = ids
+            .map((id) => `<li id="work_${id}">work ${id}</li>`)
+            .join("");
+    }
+
+    it("adds a badge to each matching blurb and skips unknown IDs", () => {
+        setupBlurbs([1, 2]);
+
+        applyListBadges(
+            JSON.stringify([
+                { id: 1, status: "finished", progressPercent: 100, favourite: false },
+                { id: 99, status: "finished", progressPercent: 100, favourite: false },
+            ])
+        );
+
+        const blurb1 = document.getElementById("work_1");
+        const blurb2 = document.getElementById("work_2");
+
+        expect(blurb1?.querySelector(".ao3-tracker-badge")?.textContent).toBe(
+            "✓ Finished"
+        );
+        expect(blurb2?.querySelector(".ao3-tracker-badge")).toBeNull();
+    });
+
+    it("replaces an existing badge instead of stacking duplicates", () => {
+        setupBlurbs([7]);
+
+        const payload = (status: WorkBadgeData["status"]) =>
+            JSON.stringify([
+                { id: 7, status, progressPercent: 50, favourite: false },
+            ]);
+
+        applyListBadges(payload("in-progress"));
+        applyListBadges(payload("finished"));
+
+        const badges = document
+            .getElementById("work_7")
+            ?.querySelectorAll(".ao3-tracker-badge");
+        expect(badges?.length).toBe(1);
+        expect(badges?.[0].textContent).toBe("✓ Finished");
+    });
+
+    it("ensures the blurb is positioned for absolute children", () => {
+        setupBlurbs([5]);
+        const blurb = document.getElementById("work_5") as HTMLElement;
+        // happy-dom returns "" for unset position; emulate "static"
+        blurb.style.position = "static";
+
+        applyListBadges(
+            JSON.stringify([
+                { id: 5, status: "caught-up", progressPercent: 100, favourite: false },
+            ])
+        );
+
+        expect(blurb.style.position).toBe("relative");
+    });
+
+    it("ignores malformed JSON without throwing", () => {
+        setupBlurbs([1]);
+
+        expect(() => applyListBadges("not json")).not.toThrow();
+        expect(
+            document.getElementById("work_1")?.querySelector(".ao3-tracker-badge")
+        ).toBeNull();
     });
 });

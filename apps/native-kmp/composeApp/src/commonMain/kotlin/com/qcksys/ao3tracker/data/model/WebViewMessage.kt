@@ -67,3 +67,22 @@ data class ScrollProgressEvent(
     val url: String,
     val scrollPercentage: Int
 )
+
+@Serializable
+data class ListWorksEvent(
+    val type: String = "listWorks",
+    val url: String,
+    val workIds: List<Long> = emptyList()
+)
+
+/**
+ * Payload sent back to the WebView to render a tracker badge on a list page.
+ * Status values must stay in sync with `WorkBadgeData` in webview-scripts/src/ao3-tracking.ts.
+ */
+@Serializable
+data class WorkBadgePayload(
+    val id: Long,
+    val status: String,
+    val progressPercent: Int,
+    val favourite: Boolean
+)

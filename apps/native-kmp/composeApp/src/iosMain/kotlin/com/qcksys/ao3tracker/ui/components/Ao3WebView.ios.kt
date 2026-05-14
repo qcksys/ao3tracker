@@ -1,12 +1,17 @@
 package com.qcksys.ao3tracker.ui.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.interop.UIKitView
 import com.qcksys.ao3tracker.webview.Ao3TrackingScript
 import com.qcksys.ao3tracker.webview.ScrollRestoreScriptGenerated
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.flow.SharedFlow
 import platform.Foundation.NSMutableURLRequest
 import platform.Foundation.NSURL
 import platform.WebKit.WKNavigation
@@ -29,8 +34,19 @@ actual fun Ao3WebView(
     onNavigationStateChange: (canGoBack: Boolean, canGoForward: Boolean) -> Unit,
     onUrlChange: (String) -> Unit,
     onMessage: (String) -> Unit,
-    onLoadingStateChange: (isLoading: Boolean) -> Unit
+    onLoadingStateChange: (isLoading: Boolean) -> Unit,
+    onBackAtRoot: () -> Unit,
+    jsInjectionFlow: SharedFlow<String>?
 ) {
+    var webViewRef by remember { mutableStateOf<WKWebView?>(null) }
+
+    LaunchedEffect(jsInjectionFlow, webViewRef) {
+        val view = webViewRef ?: return@LaunchedEffect
+        jsInjectionFlow?.collect { script ->
+            view.evaluateJavaScript(script, null)
+        }
+    }
+
     val messageHandler = remember {
         object : NSObject(), WKScriptMessageHandlerProtocol {
             override fun userContentController(
@@ -86,7 +102,7 @@ actual fun Ao3WebView(
 
                 val request = NSMutableURLRequest(uRL = NSURL(string = url))
                 loadRequest(request)
-            }
+            }.also { webViewRef = it }
         },
         modifier = modifier,
         update = { webView ->

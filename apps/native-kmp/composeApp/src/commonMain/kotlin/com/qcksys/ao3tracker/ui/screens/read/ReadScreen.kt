@@ -12,16 +12,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.navigation.TrackTab
 import org.koin.compose.koinInject
+
+private val WORK_URL_REGEX = Regex("/works/\\d+")
 
 @Composable
 fun ReadScreen() {
     val screenModel = koinInject<ReadScreenModel>()
     val currentUrl by screenModel.currentUrl.collectAsState()
     val scrollProgress by screenModel.scrollProgress.collectAsState()
+    val tabNavigator = LocalTabNavigator.current
 
     // Handle pending navigation from other tabs
     val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
@@ -41,19 +47,25 @@ fun ReadScreen() {
         }
     }
 
+    val showProgressBar = remember(currentUrl) {
+        WORK_URL_REGEX.containsMatchIn(currentUrl)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
-        // Reading progress bar at the top
-        LinearProgressIndicator(
-            progress = { scrollProgress },
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.primary,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-            drawStopIndicator = {}
-        )
+        // Reading progress bar (only on work pages)
+        if (showProgressBar) {
+            LinearProgressIndicator(
+                progress = { scrollProgress },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                drawStopIndicator = {}
+            )
+        }
 
         Ao3WebView(
             url = currentUrl,
@@ -69,7 +81,11 @@ fun ReadScreen() {
             },
             onLoadingStateChange = { isLoading ->
                 screenModel.updateLoadingState(isLoading)
-            }
+            },
+            onBackAtRoot = {
+                tabNavigator.current = TrackTab
+            },
+            jsInjectionFlow = screenModel.jsInjectionFlow
         )
     }
 }

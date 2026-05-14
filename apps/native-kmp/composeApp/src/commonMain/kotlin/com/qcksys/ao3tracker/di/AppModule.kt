@@ -57,5 +57,5 @@ val appModule = module {
     singleOf(::ReadScreenModel)
 
     // TrackScreenModel as singleton to preserve filter state
-    singleOf(::TrackScreenModel)
+    single { TrackScreenModel(get(), get(), get()) }
 }

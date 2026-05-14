@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -32,6 +33,18 @@ class MainScreen : Screen {
         val isWebViewLoading by readScreenModel.isLoading.collectAsState()
 
         TabNavigator(TrackTab) {
+            val tabNavigator = LocalTabNavigator.current
+            val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
+
+            // Switch to the Read tab whenever an external trigger (notification,
+            // Track tab click) sets a pending navigation. ReadScreen then consumes
+            // the URL on its own LaunchedEffect.
+            LaunchedEffect(pendingNavigation) {
+                if (pendingNavigation != null && tabNavigator.current.key != ReadTab.key) {
+                    tabNavigator.current = ReadTab
+                }
+            }
+
             Scaffold(
                 bottomBar = {
                     NavigationBar(

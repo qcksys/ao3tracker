@@ -1,7 +1,10 @@
 package com.qcksys.ao3tracker.ui.screens.track
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +49,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,10 +60,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -643,6 +647,12 @@ private fun FilterSheetContent(
     val searchQuery by screenModel.filterTagSearchQuery.collectAsState()
     val expandedSections by screenModel.expandedFilterSections.collectAsState()
 
+    // Subscribe so favourite changes recompose the chips
+    val favouriteTagFilters by screenModel.favouriteTagFilters.collectAsState()
+    val isFavourite: (TagType, String) -> Boolean = { tagType, tag ->
+        "${tagType.id}\t$tag" in favouriteTagFilters
+    }
+
     // Filter options based on search query, but always include items with active filter modes
     fun filterOptions(options: List<String>, filters: Map<String, TagFilterMode>): List<String> {
         if (searchQuery.isBlank()) return options
@@ -707,7 +717,9 @@ private fun FilterSheetContent(
                         filters = filterState.ratingFilters,
                         onToggle = { screenModel.toggleRating(it) },
                         expanded = FilterSection.RATING in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RATING) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RATING) },
+                        isFavourite = { isFavourite(TagType.RATING, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.RATING, it) }
                     )
                 }
             }
@@ -721,7 +733,9 @@ private fun FilterSheetContent(
                         filters = filterState.warningFilters,
                         onToggle = { screenModel.toggleWarning(it) },
                         expanded = FilterSection.WARNING in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.WARNING) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.WARNING) },
+                        isFavourite = { isFavourite(TagType.WARNING, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.WARNING, it) }
                     )
                 }
             }
@@ -735,7 +749,9 @@ private fun FilterSheetContent(
                         filters = filterState.categoryFilters,
                         onToggle = { screenModel.toggleCategory(it) },
                         expanded = FilterSection.CATEGORY in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CATEGORY) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CATEGORY) },
+                        isFavourite = { isFavourite(TagType.CATEGORY, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.CATEGORY, it) }
                     )
                 }
             }
@@ -749,7 +765,9 @@ private fun FilterSheetContent(
                         filters = filterState.fandomFilters,
                         onToggle = { screenModel.toggleFandom(it) },
                         expanded = FilterSection.FANDOM in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FANDOM) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FANDOM) },
+                        isFavourite = { isFavourite(TagType.FANDOM, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.FANDOM, it) }
                     )
                 }
             }
@@ -763,7 +781,9 @@ private fun FilterSheetContent(
                         filters = filterState.relationshipFilters,
                         onToggle = { screenModel.toggleRelationship(it) },
                         expanded = FilterSection.RELATIONSHIP in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RELATIONSHIP) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RELATIONSHIP) },
+                        isFavourite = { isFavourite(TagType.RELATIONSHIP, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.RELATIONSHIP, it) }
                     )
                 }
             }
@@ -777,7 +797,9 @@ private fun FilterSheetContent(
                         filters = filterState.characterFilters,
                         onToggle = { screenModel.toggleCharacter(it) },
                         expanded = FilterSection.CHARACTER in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CHARACTER) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CHARACTER) },
+                        isFavourite = { isFavourite(TagType.CHARACTER, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.CHARACTER, it) }
                     )
                 }
             }
@@ -791,7 +813,9 @@ private fun FilterSheetContent(
                         filters = filterState.freeformFilters,
                         onToggle = { screenModel.toggleFreeformTag(it) },
                         expanded = FilterSection.FREEFORM in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FREEFORM) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FREEFORM) },
+                        isFavourite = { isFavourite(TagType.FREEFORM, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.FREEFORM, it) }
                     )
                 }
             }
@@ -811,9 +835,15 @@ private fun TagFilterSection(
     filters: Map<String, TagFilterMode>,
     onToggle: (String) -> Unit,
     expanded: Boolean,
-    onExpandedChange: () -> Unit
+    onExpandedChange: () -> Unit,
+    isFavourite: (String) -> Boolean = { false },
+    onLongClick: ((String) -> Unit)? = null
 ) {
     val activeCount = options.count { filters[it] != null && filters[it] != TagFilterMode.DEFAULT }
+    val sortedOptions = remember(options, isFavourite) {
+        // Pinned favourites first; otherwise preserve incoming order.
+        options.sortedByDescending { isFavourite(it) }
+    }
 
     Column {
         Row(
@@ -852,12 +882,14 @@ private fun TagFilterSection(
                 verticalArrangement = Arrangement.spacedBy(-8.dp),
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
-                options.forEach { option ->
+                sortedOptions.forEach { option ->
                     val filterMode = filters[option] ?: TagFilterMode.DEFAULT
                     TriStateFilterChip(
                         mode = filterMode,
                         onClick = { onToggle(option) },
-                        label = option
+                        label = option,
+                        isFavourite = isFavourite(option),
+                        onLongClick = onLongClick?.let { handler -> { handler(option) } }
                     )
                 }
             }
@@ -865,11 +897,14 @@ private fun TagFilterSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TriStateFilterChip(
     mode: TagFilterMode,
     onClick: () -> Unit,
-    label: String
+    label: String,
+    onLongClick: (() -> Unit)? = null,
+    isFavourite: Boolean = false
 ) {
     val containerColor = when (mode) {
         TagFilterMode.DEFAULT -> MaterialTheme.colorScheme.surface
@@ -887,31 +922,39 @@ private fun TriStateFilterChip(
         TagFilterMode.EXCLUDE -> MaterialTheme.colorScheme.error
     }
 
-    FilterChip(
-        selected = mode != TagFilterMode.DEFAULT,
-        onClick = onClick,
-        label = {
+    Surface(
+        color = containerColor,
+        contentColor = labelColor,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            if (isFavourite) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = labelColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Text(
                 text = when (mode) {
                     TagFilterMode.EXCLUDE -> "✗ $label"
                     else -> label
                 },
-                color = labelColor
+                color = labelColor,
+                style = MaterialTheme.typography.labelLarge
             )
-        },
-        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-            containerColor = containerColor,
-            selectedContainerColor = containerColor,
-            labelColor = labelColor,
-            selectedLabelColor = labelColor
-        ),
-        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = mode != TagFilterMode.DEFAULT,
-            borderColor = borderColor,
-            selectedBorderColor = borderColor
-        )
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

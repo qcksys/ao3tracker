@@ -13,6 +13,7 @@ import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
+import com.qcksys.ao3tracker.data.settings.SettingsStorage
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,11 +42,15 @@ enum class FilterSection {
 
 class TrackScreenModel(
     private val repository: Ao3Repository,
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val settingsStorage: SettingsStorage
 ) : ScreenModel {
 
     private val _filterState = MutableStateFlow(FilterState())
     val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
+
+    private val _favouriteTagFilters = MutableStateFlow(settingsStorage.getFavouriteTagFilters())
+    val favouriteTagFilters: StateFlow<Set<String>> = _favouriteTagFilters.asStateFlow()
 
     private val _sortState = MutableStateFlow(SortState())
     val sortState: StateFlow<SortState> = _sortState.asStateFlow()
@@ -348,4 +353,18 @@ class TrackScreenModel(
     fun clearSyncResult() {
         _lastSyncResult.value = null
     }
+
+    fun isFavouriteTag(tagType: TagType, tag: String): Boolean {
+        return favouriteKey(tagType, tag) in _favouriteTagFilters.value
+    }
+
+    fun toggleFavouriteTag(tagType: TagType, tag: String) {
+        val key = favouriteKey(tagType, tag)
+        val current = _favouriteTagFilters.value
+        val updated = if (key in current) current - key else current + key
+        _favouriteTagFilters.value = updated
+        settingsStorage.setFavouriteTagFilters(updated)
+    }
+
+    private fun favouriteKey(tagType: TagType, tag: String): String = "${tagType.id}\t$tag"
 }
