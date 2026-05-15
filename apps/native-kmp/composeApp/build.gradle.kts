@@ -41,7 +41,7 @@ val compileWebviewScripts by tasks.registering(Exec::class) {
     commandLine = pnpmCommand + listOf("run", "build")
     inputs.dir(webviewScriptsDir.resolve("src"))
     inputs.file(webviewScriptsDir.resolve("tsconfig.json"))
-    inputs.file(webviewScriptsDir.resolve("vite.config.ts"))
+    inputs.file(webviewScriptsDir.resolve("build.ts"))
     outputs.dir(webviewScriptsDir.resolve("dist"))
 }
 

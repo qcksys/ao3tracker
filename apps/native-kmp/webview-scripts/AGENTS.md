@@ -16,8 +16,7 @@ DOM logic lives in [`@qcksys/ao3tracker-core`](../../../packages/ao3-core) — t
 ## Commands
 
 ```bash
-pnpm run build              # vp build — produces both .min.js IIFE bundles via vite
-pnpm run build:dev          # development-mode build (less aggressive minify)
+pnpm run build              # vp build — produces both .min.js IIFE bundles
 pnpm run typecheck          # tsc --noEmit
 pnpm run test               # vp test run — vitest under happy-dom
 pnpm run test:watch         # vp test watch
@@ -31,13 +30,13 @@ pnpm run biome:ci           # Biome CI lint
 
 ### Build pipeline
 
-Vite refuses multi-entry IIFE bundles, so this package keeps a shared base config plus one entry-specific config per bundle:
+Vite refuses multi-entry IIFE bundles in library config mode (see [vitejs/vite#1736](https://github.com/vitejs/vite/discussions/1736)), so the build calls vite's programmatic `build()` API in a loop instead. The whole pipeline lives in [build.ts](./build.ts):
 
-- [vite.config.ts](./vite.config.ts) — shared defaults (`resolve.tsconfigPaths: true`, `build.minify: true`, happy-dom test env).
-- [vite.tracking.config.ts](./vite.tracking.config.ts) — `lib.entry = src/ao3-tracking.ts`, IIFE, wipes `dist/` first (`emptyOutDir: true`).
-- [vite.scroll-restore.config.ts](./vite.scroll-restore.config.ts) — `lib.entry = src/scroll-restore.ts`, IIFE, keeps `dist/` (no wipe; runs second).
+- One entry per iteration with its own `lib.entry`, `name`, `fileName`.
+- The first iteration sets `emptyOutDir: true` to wipe `dist/`; subsequent iterations preserve siblings.
+- `resolve.tsconfigPaths: true` so vite honours `~/*` → `./src/*` from [tsconfig.json](./tsconfig.json).
 
-`pnpm run build` chains the two configs with `&&`. **Order matters** because the tracking config owns the `dist/` wipe.
+`pnpm run build` runs `node build.ts` end-to-end in a single command — Node 23.6+ strips TypeScript types natively, so no runner dependency is needed. [vite.config.ts](./vite.config.ts) is reserved for `vp test` / type-check only — it's not consulted during the build.
 
 ### Files
 

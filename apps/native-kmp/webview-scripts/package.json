@@ -5,8 +5,7 @@
     "description": "WebView scripts for AO3 Tracker (native KMP app)",
     "type": "module",
     "scripts": {
-        "build": "vp build --config vite.tracking.config.ts && vp build --config vite.scroll-restore.config.ts",
-        "build:dev": "vp build --mode development --config vite.tracking.config.ts && vp build --mode development --config vite.scroll-restore.config.ts",
+        "build": "node build.ts",
         "typecheck": "tsc --noEmit",
         "test": "vp test run",
         "test:watch": "vp test watch",

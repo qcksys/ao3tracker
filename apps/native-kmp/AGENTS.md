@@ -35,9 +35,9 @@ TypeScript code in `webview-scripts/` compiles to minified IIFE JavaScript injec
 
 Auto-compiled during Gradle builds, but can be built manually:
 ```shell
-cd webview-scripts && pnpm run build       # Build minified JS (esbuild)
+cd webview-scripts && pnpm run build       # Build minified IIFE JS via vp build (vite library mode)
 cd webview-scripts && pnpm run typecheck   # TypeScript type checking only
-cd webview-scripts && pnpm run test        # vitest (happy-dom)
+cd webview-scripts && pnpm run test        # vp test run (vitest, happy-dom)
 cd webview-scripts && pnpm run biome:ci    # Lint
 ```
 

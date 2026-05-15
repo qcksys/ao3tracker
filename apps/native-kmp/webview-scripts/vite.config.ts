@@ -1,22 +1,17 @@
 import { defineConfig } from "vite-plus";
 
 /**
- * Shared base config — concrete entry-specific configs live alongside this
- * file (`vite.tracking.config.ts`, `vite.scroll-restore.config.ts`) because
- * vite refuses multi-entry IIFE bundles. The `build` script chains them.
+ * Test/type-check config for vitest. The actual IIFE build lives in
+ * [build.ts](./build.ts), which calls vite's programmatic `build()` API in a
+ * loop (per vitejs/vite#1736) — vite refuses multi-entry IIFE in library mode,
+ * but the programmatic API has no such restriction.
  *
- * `resolve.tsconfigPaths` lets vite honour the `~/*` -> `./src/*` mapping
- * declared in [tsconfig.json](./tsconfig.json) for both `vp build` and `vp test`.
+ * `resolve.tsconfigPaths` lets vite/vitest honour the `~/*` -> `./src/*`
+ * mapping declared in [tsconfig.json](./tsconfig.json).
  */
 export default defineConfig({
     resolve: {
         tsconfigPaths: true,
-    },
-    build: {
-        outDir: "dist",
-        emptyOutDir: false,
-        minify: true,
-        target: "es2018",
     },
     test: {
         environment: "happy-dom",
