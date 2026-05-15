@@ -36,11 +36,17 @@ Subpath exports are declared in [package.json](./package.json). **Prefer them ov
 ## Conventions
 
 - **Pure functions, no I/O.** Every DOM helper takes `(doc: Document, location: Location)` explicitly so the same code runs in real browsers, content-script-injected pages, and happy-dom unit tests. No `window`/`document` globals at module scope.
-- **No `~/` aliases in this package's own source.** This package ships as TypeScript source; consumers' tsconfig path mappings are different, so `~/badges` from inside `src/` would not resolve when a consumer compiles its dependency tree. Use relative imports (`./foo`, `../foo`) for internal cross-directory references. `~/` is reserved for leaf consumers (apps).
+- **No `~/` aliases inside `src/`.** This package ships as TypeScript source; consumers' tsconfig path mappings are different, so `~/badges` from inside `src/` would not resolve when a consumer compiles its dependency tree. Use relative imports (`./foo`, `../foo`) for internal cross-directory references within `src/`. Tests in `test/` are private to this package and may freely use `~/`.
 - **Sibling barrel re-exports stay `./foo`** — `src/index.ts`, `src/dom/index.ts`, `src/schemas/index.ts`.
 - **API contract changes propagate.** When [apps/api/src/routes/api.track.ts](../../apps/api/src/routes/api.track.ts) changes shape, update [src/schemas/sync.ts](./src/schemas/sync.ts) in the same PR so the wire schemas stay in lockstep.
 - **Badge status set is cross-platform.** Any new `WorkBadgeStatus` needs matching cases in `formatBadge` here AND in the native Kotlin `WorkBadgePayload` / `Ao3Repository.buildBadgePayload`. See [apps/native-kmp/AGENTS.md](../../apps/native-kmp/AGENTS.md) → "List-page badges".
 
 ## Tests
 
-Pure DOM + utility tests under happy-dom ([src/dom/extract.test.ts](./src/dom/extract.test.ts), [src/dom/utils.test.ts](./src/dom/utils.test.ts)). When adding a new DOM extraction helper, add a fixture-driven test alongside it.
+Pure DOM + utility tests under happy-dom live in [test/](./test/) — flat layout mirroring `src/dom/`:
+- [test/extract.test.ts](./test/extract.test.ts) covers `findListWorkIds`, `getWorkInfo`.
+- [test/utils.test.ts](./test/utils.test.ts) covers `normalizeWhitespace`, `classifyAo3Url`.
+
+Tests use the `~/*` alias to reach into `src/` (e.g. `import ... from "~/dom/extract"`). The `~/` alias is fine in test files because tests are never bundled by downstream consumers — they're a private concern of this package.
+
+When adding a new DOM extraction helper, add a fixture-driven test in `test/`.

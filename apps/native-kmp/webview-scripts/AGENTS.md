@@ -42,7 +42,8 @@ Vite refuses multi-entry IIFE bundles in library config mode (see [vitejs/vite#1
 
 - [src/ao3-tracking.ts](./src/ao3-tracking.ts) — entry that wires `@qcksys/ao3tracker-core/dom` + `/badges` helpers to the native `postMessage` bridges. Exposes `window.__ao3Tracker.applyListBadges(payloadJson)` for native→JS evaluation.
 - [src/scroll-restore.ts](./src/scroll-restore.ts) — one-shot IIFE that calls `consumeScrollToParam(document, window)` from `@qcksys/ao3tracker-core/dom`.
-- [src/fixtures.ts](./src/fixtures.ts) — real AO3 HTML fixture (XCOM: The Advent Directive) used by [src/ao3-tracking.test.ts](./src/ao3-tracking.test.ts) to lock the extraction shape end-to-end.
+- [test/ao3-tracking.test.ts](./test/ao3-tracking.test.ts) — drives the shared `@qcksys/ao3tracker-core/dom` helpers against real AO3 fixture HTML; exercises the JSON-bridge wrapper for `applyListBadges`.
+- [test/fixtures.ts](./test/fixtures.ts) — real AO3 HTML fixture (XCOM: The Advent Directive) used by the test above.
 
 After `pnpm run build`, the Gradle `generateWebviewScriptKotlin` task reads `dist/*.min.js` and emits Kotlin string constants under `apps/native-kmp/composeApp/build/generated/kotlin/webview/`.
 
@@ -56,4 +57,4 @@ After `pnpm run build`, the Gradle `generateWebviewScriptKotlin` task reads `dis
 
 ## Tests
 
-[src/ao3-tracking.test.ts](./src/ao3-tracking.test.ts) drives the shared `@qcksys/ao3tracker-core/dom` helpers against real AO3 fixture HTML, and exercises the JSON-bridge wrapper for `applyListBadges`. When the AO3 work-page DOM shape changes, update the fixture and these tests together.
+[test/ao3-tracking.test.ts](./test/ao3-tracking.test.ts) drives the shared `@qcksys/ao3tracker-core/dom` helpers against real AO3 fixture HTML, and exercises the JSON-bridge wrapper for `applyListBadges`. When the AO3 work-page DOM shape changes, update the fixture and these tests together.

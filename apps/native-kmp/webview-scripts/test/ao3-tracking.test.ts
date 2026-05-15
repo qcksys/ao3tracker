@@ -6,7 +6,6 @@
  * exercises the JSON-bridge wrapper exported from this entry file.
  */
 
-import { beforeEach, describe, expect, it } from "vitest";
 import {
     findListWorkIds,
     formatBadge,
@@ -16,8 +15,9 @@ import {
     getWorkTagInfo,
     type WorkBadgeData,
 } from "@qcksys/ao3tracker-core";
+import { beforeEach, describe, expect, it } from "vitest";
 import { applyListBadges } from "~/ao3-tracking";
-import { chapterIndexHtml, minimalHtml, workPageHtml } from "~/fixtures";
+import { chapterIndexHtml, minimalHtml, workPageHtml } from "./fixtures";
 
 function mockLocation(url: string): Location {
     const parsedUrl = new URL(url);
@@ -93,7 +93,9 @@ describe("getWorkChapterSelect", () => {
 describe("getWorkChapterIndex (navigate page)", () => {
     it("should parse chapters with dates from the navigate page", () => {
         document.body.innerHTML = chapterIndexHtml;
-        const loc = mockLocation("https://archiveofourown.org/works/10828137/navigate");
+        const loc = mockLocation(
+            "https://archiveofourown.org/works/10828137/navigate",
+        );
 
         const result = getWorkChapterIndex(document, loc);
 
@@ -223,7 +225,11 @@ describe("formatBadge", () => {
 
     it("shows progress percent for in-progress status", () => {
         expect(
-            formatBadge({ ...base, status: "in-progress", progressPercent: 42 }),
+            formatBadge({
+                ...base,
+                status: "in-progress",
+                progressPercent: 42,
+            }),
         ).toEqual({ label: "42%", color: "#6a1b9a" });
     });
 
@@ -254,8 +260,18 @@ describe("applyListBadges (JSON bridge)", () => {
 
         applyListBadges(
             JSON.stringify([
-                { id: 1, status: "finished", progressPercent: 100, favourite: false },
-                { id: 99, status: "finished", progressPercent: 100, favourite: false },
+                {
+                    id: 1,
+                    status: "finished",
+                    progressPercent: 100,
+                    favourite: false,
+                },
+                {
+                    id: 99,
+                    status: "finished",
+                    progressPercent: 100,
+                    favourite: false,
+                },
             ]),
         );
 
@@ -293,7 +309,12 @@ describe("applyListBadges (JSON bridge)", () => {
 
         applyListBadges(
             JSON.stringify([
-                { id: 5, status: "caught-up", progressPercent: 100, favourite: false },
+                {
+                    id: 5,
+                    status: "caught-up",
+                    progressPercent: 100,
+                    favourite: false,
+                },
             ]),
         );
 
@@ -305,7 +326,9 @@ describe("applyListBadges (JSON bridge)", () => {
 
         expect(() => applyListBadges("not json")).not.toThrow();
         expect(
-            document.getElementById("work_1")?.querySelector(".ao3-tracker-badge"),
+            document
+                .getElementById("work_1")
+                ?.querySelector(".ao3-tracker-badge"),
         ).toBeNull();
     });
 });

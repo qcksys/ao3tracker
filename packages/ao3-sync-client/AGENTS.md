@@ -36,6 +36,6 @@ No build step: ships as TypeScript source via `main`/`types` pointing at `./src/
 ## Conventions
 
 - **All responses validated.** Every endpoint helper passes a zod schema to `request(...)`. If the server returns a shape the client doesn't expect, it throws `SyncApiError` (with the zod issue list) instead of silently corrupting state. Don't bypass this.
-- **No `~/` aliases inside this package's source.** Same reason as ao3-core: consumers compile our TS source under their tsconfig, so internal cross-directory imports must be relative. `~/` is reserved for leaf consumers.
-- **LWW mirrors the server.** The merge in [src/lww.ts](./src/lww.ts) must agree with `resolveFavouriteTagMerge` at [apps/api/src/db/queries/user-favourite-tag.ts](../../apps/api/src/db/queries/user-favourite-tag.ts). Server wins on tie (locally that maps to "remote wins on tie"). Tests in [src/lww.test.ts](./src/lww.test.ts) lock the behaviour.
+- **No `~/` aliases inside `src/`.** Same reason as ao3-core: consumers compile our TS source under their tsconfig, so internal cross-directory imports must be relative. Tests in `test/` may freely use `~/` (they're never bundled by consumers).
+- **LWW mirrors the server.** The merge in [src/lww.ts](./src/lww.ts) must agree with `resolveFavouriteTagMerge` at [apps/api/src/db/queries/user-favourite-tag.ts](../../apps/api/src/db/queries/user-favourite-tag.ts). Server wins on tie (locally that maps to "remote wins on tie"). Tests in [test/lww.test.ts](./test/lww.test.ts) lock the behaviour.
 - **No retry / backoff here.** Callers handle retries (the browser extension debounces sync and re-runs on the next page event or alarm). Keep this package a thin, deterministic layer.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyAo3Url, normalizeWhitespace } from "./utils";
+import { classifyAo3Url, normalizeWhitespace } from "~/dom/utils";
 
 describe("normalizeWhitespace", () => {
   it("collapses runs of whitespace", () => {

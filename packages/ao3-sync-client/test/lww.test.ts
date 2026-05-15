@@ -1,6 +1,6 @@
 import type { FavouriteTagItem, TagTypeId } from "@qcksys/ao3tracker-core";
 import { describe, expect, it } from "vitest";
-import { liveFavouriteTagSet, mergeFavouriteTags } from "./lww";
+import { liveFavouriteTagSet, mergeFavouriteTags } from "~/lww";
 
 const fav = (
   tag: string,

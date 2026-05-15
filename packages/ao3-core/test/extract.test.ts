@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findListWorkIds, getWorkInfo } from "./extract";
+import { findListWorkIds, getWorkInfo } from "~/dom/extract";
 
 function makeDoc(html: string): Document {
   const parser = new DOMParser();
