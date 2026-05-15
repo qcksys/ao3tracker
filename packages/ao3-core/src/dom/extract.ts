@@ -183,8 +183,10 @@ export function findListWorkIds(doc: Document): number[] {
 }
 
 /**
- * Compute the scroll percentage within the `#chapters` element. Returns null
- * if the element isn't on the page or has zero height (e.g. still loading).
+ * Compute the scroll percentage within the `#chapters` element, measured at the
+ * bottom of the viewport (so 100% means the reader has scrolled the bottom of
+ * the chapters block into view). Returns null if the element isn't on the page
+ * or has zero height (e.g. still loading).
  */
 export function computeChapterScrollPercentage(doc: Document, win: Window): number | null {
   const element = doc.getElementById("chapters");
@@ -192,11 +194,12 @@ export function computeChapterScrollPercentage(doc: Document, win: Window): numb
 
   const rect = element.getBoundingClientRect();
   const viewportTop = win.scrollY ?? 0;
+  const viewportBottom = viewportTop + (win.innerHeight ?? 0);
   const elementAbsoluteTop = viewportTop + rect.top;
   const elementHeight = rect.height;
   if (elementHeight === 0) return null;
 
-  const scrollDistanceIntoElement = viewportTop - elementAbsoluteTop;
+  const scrollDistanceIntoElement = viewportBottom - elementAbsoluteTop;
   let progress = 0;
   if (scrollDistanceIntoElement <= 0) progress = 0;
   else if (scrollDistanceIntoElement >= elementHeight) progress = 100;

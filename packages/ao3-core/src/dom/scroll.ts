@@ -48,7 +48,9 @@ export function consumeScrollToParam(doc: Document, win: Window): boolean {
     const chaptersElement = doc.getElementById("chapters");
     if (!chaptersElement) return;
     const height = chaptersElement.getBoundingClientRect().height;
-    const target = chaptersElement.offsetTop + (height * scrollPercent) / 100;
+    const viewportHeight = win.innerHeight ?? 0;
+    const targetBottom = chaptersElement.offsetTop + (height * scrollPercent) / 100;
+    const target = Math.max(0, targetBottom - viewportHeight);
     win.scrollTo(0, target);
   };
 
