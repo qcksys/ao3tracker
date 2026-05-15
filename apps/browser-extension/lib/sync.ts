@@ -1,3 +1,4 @@
+import type { FavouriteTagItem } from "@qcksys/ao3tracker-core";
 import {
   getFullSync,
   postSync,
@@ -10,6 +11,8 @@ import {
   lastSyncedAtItem,
   lastSyncErrorItem,
   trackedChaptersItem,
+  type TrackedChapter,
+  type TrackedWork,
   trackedWorksItem,
   workMetadataItem,
   tagMetadataItem,
@@ -29,6 +32,8 @@ async function buildConfig(): Promise<SyncClientConfig> {
   };
 }
 
+const POST_BATCH_SIZE = 50;
+
 /**
  * Pull all server changes since `lastSyncedAt`, merge into local state, push
  * any pending local rows, and record the new `serverLastUpdated`. Throws on
@@ -37,23 +42,25 @@ async function buildConfig(): Promise<SyncClientConfig> {
  */
 export async function runSync(): Promise<{ pushed: number; pulled: number }> {
   const cfg = await buildConfig();
-  const lastSyncedAt = await lastSyncedAtItem.getValue();
+  const [lastSyncedAt, localWorks, localChapters, metadata] = await Promise.all([
+    lastSyncedAtItem.getValue(),
+    trackedWorksItem.getValue(),
+    trackedChaptersItem.getValue(),
+    workMetadataItem.getValue(),
+  ]);
 
   // 1. Pull server state.
   const remote = await getFullSync(cfg, lastSyncedAt ? { lastSyncedAt } : {});
 
   // 2. Merge remote works/chapters into local stores. Server is authoritative
   // for fields it returns; we LWW per-field via lastReadAt comparisons.
-  const localWorks = await trackedWorksItem.getValue();
   for (const r of remote.works) {
     const local = localWorks[r.workId];
     if (!local || Date.parse(r.lastReadAt) >= Date.parse(local.lastReadAt)) {
       localWorks[r.workId] = { ...r, pendingSync: false };
     }
   }
-  await trackedWorksItem.setValue(localWorks);
 
-  const localChapters = await trackedChaptersItem.getValue();
   for (const r of remote.chapters) {
     const key = `${r.workId}:${r.chapterId}`;
     const local = localChapters[key];
@@ -68,54 +75,37 @@ export async function runSync(): Promise<{ pushed: number; pulled: number }> {
       };
     }
   }
-  await trackedChaptersItem.setValue(localChapters);
 
   // 3. Cache metadata for badge rendering + popup display.
-  const metadata = await workMetadataItem.getValue();
   for (const m of remote.workMetadata) metadata[m.id] = m;
-  await workMetadataItem.setValue(metadata);
 
-  await tagMetadataItem.setValue(remote.tagMetadata);
-
-  if (remote.favouriteTags && remote.favouriteTags.length > 0) {
-    await applyRemoteFavouriteTags(remote.favouriteTags);
+  const metadataWrites: Promise<unknown>[] = [];
+  if (remote.workMetadata.length > 0) {
+    metadataWrites.push(workMetadataItem.setValue(metadata));
   }
+  if (remote.tagMetadata.length > 0) {
+    metadataWrites.push(tagMetadataItem.setValue(remote.tagMetadata));
+  }
+  if (remote.favouriteTags && remote.favouriteTags.length > 0) {
+    metadataWrites.push(applyRemoteFavouriteTags(remote.favouriteTags));
+  }
+  await Promise.all(metadataWrites);
 
-  // 4. Push local rows that diverge from the server.
+  // 4. Push local rows that diverge from the server, in batches of
+  // POST_BATCH_SIZE works (the api enforces this and rejects larger requests,
+  // and chapters must reference a work in the same request).
   const worksToPush = Object.values(localWorks).filter((w) => w.pendingSync);
   const chaptersToPush = Object.values(localChapters).filter((c) => c.pendingSync);
   const favouriteTagsPush = await favouriteTagsToPush(lastSyncedAt);
 
   const pushedWorkIds = new Set<number>();
-  if (worksToPush.length > 0 || chaptersToPush.length > 0 || favouriteTagsPush.length > 0) {
-    // The API enforces that chapters reference works in the same request, so
-    // we send them in batches of 50 works at a time.
-    const works = worksToPush.slice(0, 50);
+  let favouritesSent = false;
+  for (let i = 0; i < worksToPush.length; i += POST_BATCH_SIZE) {
+    const works = worksToPush.slice(i, i + POST_BATCH_SIZE);
     const workIdSet = new Set(works.map((w) => w.workId));
     const chapters = chaptersToPush.filter((c) => workIdSet.has(c.workId));
-
-    await postSync(cfg, {
-      works: works.map((w) => ({
-        workId: w.workId,
-        lastReadAt: w.lastReadAt,
-        markedCompleteAt: w.markedCompleteAt,
-        private: w.private,
-        subscribed: w.subscribed,
-        favourite: w.favourite,
-        subscribedUpdatedAt: w.subscribedUpdatedAt,
-        favouriteUpdatedAt: w.favouriteUpdatedAt,
-        deleted: w.deleted,
-      })),
-      chapters: chapters.map((c) => ({
-        workId: c.workId,
-        chapterId: c.chapterId,
-        lastReadAt: c.lastReadAt,
-        markedCompleteAt: c.markedCompleteAt,
-        readProgress: c.readProgress,
-      })),
-      favouriteTags: favouriteTagsPush.length > 0 ? favouriteTagsPush : undefined,
-    });
-
+    await postSyncBatch(cfg, works, chapters, favouritesSent ? [] : favouriteTagsPush);
+    favouritesSent = true;
     for (const w of works) {
       pushedWorkIds.add(w.workId);
       const stored = localWorks[w.workId];
@@ -125,13 +115,55 @@ export async function runSync(): Promise<{ pushed: number; pulled: number }> {
       const stored = localChapters[`${c.workId}:${c.chapterId}`];
       if (stored) stored.pendingSync = false;
     }
-    await trackedWorksItem.setValue(localWorks);
-    await trackedChaptersItem.setValue(localChapters);
   }
 
-  await lastSyncedAtItem.setValue(remote.serverLastUpdated);
-  await lastSyncErrorItem.setValue(null);
+  // Favourite tags stand alone if there were no works to piggy-back on.
+  if (!favouritesSent && favouriteTagsPush.length > 0) {
+    await postSyncBatch(cfg, [], [], favouriteTagsPush);
+  }
+
+  const writes: Promise<unknown>[] = [
+    lastSyncedAtItem.setValue(remote.serverLastUpdated),
+    lastSyncErrorItem.setValue(null),
+  ];
+  if (remote.works.length > 0 || pushedWorkIds.size > 0) {
+    writes.push(trackedWorksItem.setValue(localWorks));
+  }
+  if (remote.chapters.length > 0 || chaptersToPush.length > 0) {
+    writes.push(trackedChaptersItem.setValue(localChapters));
+  }
+  await Promise.all(writes);
   return { pushed: pushedWorkIds.size, pulled: remote.works.length };
+}
+
+async function postSyncBatch(
+  cfg: SyncClientConfig,
+  works: TrackedWork[],
+  chapters: TrackedChapter[],
+  favouriteTags: FavouriteTagItem[],
+): Promise<void> {
+  if (works.length === 0 && chapters.length === 0 && favouriteTags.length === 0) return;
+  await postSync(cfg, {
+    works: works.map((w) => ({
+      workId: w.workId,
+      lastReadAt: w.lastReadAt,
+      markedCompleteAt: w.markedCompleteAt,
+      private: w.private,
+      subscribed: w.subscribed,
+      favourite: w.favourite,
+      subscribedUpdatedAt: w.subscribedUpdatedAt,
+      favouriteUpdatedAt: w.favouriteUpdatedAt,
+      deleted: w.deleted,
+    })),
+    chapters: chapters.map((c) => ({
+      workId: c.workId,
+      chapterId: c.chapterId,
+      lastReadAt: c.lastReadAt,
+      markedCompleteAt: c.markedCompleteAt,
+      readProgress: c.readProgress,
+    })),
+    favouriteTags: favouriteTags.length > 0 ? favouriteTags : undefined,
+  });
 }
 
 export function isAuthError(err: unknown): boolean {

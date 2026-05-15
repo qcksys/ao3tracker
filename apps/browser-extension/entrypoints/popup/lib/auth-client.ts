@@ -7,8 +7,11 @@ import {
 } from "@/lib/auth-token-cache";
 
 function createClient(baseURL: string) {
+  // The api mounts Better Auth at `/auth` (see apps/api/src/lib/auth.ts), but
+  // the client's default basePath is `/api/auth`. Pass the full path here so
+  // sign-in/sign-up hit the right endpoints.
   return createAuthClient({
-    baseURL,
+    baseURL: `${baseURL.replace(/\/$/, "")}/auth`,
     plugins: [passkeyClient(), twoFactorClient()],
     fetchOptions: {
       auth: {

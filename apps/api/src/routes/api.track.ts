@@ -630,6 +630,9 @@ const tagTypeIdToName = Object.fromEntries(
     Object.entries(tagTypes).map(([name, id]) => [id, name]),
 ) as Record<number, keyof typeof tagTypes>;
 
+const isoOrNull = (d: Date | null | undefined): string | null =>
+    d ? d.toISOString() : null;
+
 export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
     .openapi(getSyncRoute, async (c) => {
         const user = c.var.user;
@@ -656,30 +659,31 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
         // set). Subsequent paginated pages don't need to re-send the same set.
         const includeFavouriteTags = workCursor === undefined;
 
-        // Get server's most recent lastReadAt values for reference
-        const [serverLastUpdated, latestWorkLastReadAt, favouriteTags] =
-            await Promise.all([
-                getServerLastUpdated(c.var.db, userId),
-                getLatestWorkLastReadAt(c.var.db, userId),
-                includeFavouriteTags
-                    ? getFavouriteTagsSince(c.var.db, userId, since ?? null)
-                    : Promise.resolve([]),
-            ]);
-
-        // Get tracked works and chapters (pagination only on works)
-        const {
-            works,
-            chapters,
-            workMetadata,
-            chapterMetadata,
-            tagMetadata,
-            hasMoreWorks,
-        } = await getTrackedWorksForSync(c.var.db, userId, {
-            since,
-            workCursor,
-            limit: actualLimit,
-            filter,
-        });
+        const [
+            serverLastUpdated,
+            latestWorkLastReadAt,
+            favouriteTags,
+            {
+                works,
+                chapters,
+                workMetadata,
+                chapterMetadata,
+                tagMetadata,
+                hasMoreWorks,
+            },
+        ] = await Promise.all([
+            getServerLastUpdated(c.var.db, userId),
+            getLatestWorkLastReadAt(c.var.db, userId),
+            includeFavouriteTags
+                ? getFavouriteTagsSince(c.var.db, userId, since ?? null)
+                : Promise.resolve([]),
+            getTrackedWorksForSync(c.var.db, userId, {
+                since,
+                workCursor,
+                limit: actualLimit,
+                filter,
+            }),
+        ]);
 
         // Calculate next cursor
         const nextWorkCursor =
@@ -704,20 +708,19 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
             works: works.map((w) => ({
                 workId: w.workId,
                 lastReadAt: w.lastReadAt.toISOString(),
-                markedCompleteAt: w.markedCompleteAt?.toISOString() ?? null,
+                markedCompleteAt: isoOrNull(w.markedCompleteAt),
                 private: w.private,
                 subscribed: w.subscribed,
                 favourite: w.favourite,
-                subscribedUpdatedAt:
-                    w.subscribedUpdatedAt?.toISOString() ?? null,
-                favouriteUpdatedAt: w.favouriteUpdatedAt?.toISOString() ?? null,
+                subscribedUpdatedAt: isoOrNull(w.subscribedUpdatedAt),
+                favouriteUpdatedAt: isoOrNull(w.favouriteUpdatedAt),
                 deleted: w.rowDeletedAt !== null,
             })),
             chapters: chapters.map((ch) => ({
                 workId: ch.workId,
                 chapterId: ch.chapterId,
                 lastReadAt: ch.lastReadAt.toISOString(),
-                markedCompleteAt: ch.markedCompleteAt?.toISOString() ?? null,
+                markedCompleteAt: isoOrNull(ch.markedCompleteAt),
                 readProgress: ch.readProgress,
                 deleted: ch.rowDeletedAt !== null,
             })),
@@ -738,14 +741,14 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
                 published: w.published.toISOString(),
                 lastUpdated: w.lastUpdated.toISOString(),
                 downloadPath: w.downloadPath,
-                downloadUpdatedAt: w.downloadUpdatedAt?.toISOString() ?? null,
+                downloadUpdatedAt: isoOrNull(w.downloadUpdatedAt),
             })),
             chapterMetadata: chapterMetadata.map((ch) => ({
                 id: ch.id,
                 workId: ch.workId,
                 number: ch.number,
                 title: ch.title,
-                dateUpdated: ch.dateUpdated?.toISOString() ?? null,
+                dateUpdated: isoOrNull(ch.dateUpdated),
             })),
             tagMetadata: tagMetadata.map((t) => {
                 const typeName = tagTypeIdToName[t.typeId];
@@ -768,7 +771,7 @@ export const trackRouter = new OpenAPIHono<TRouterEnvAuthReq>()
             hasMore: hasMoreWorks,
             serverLastUpdated:
                 serverLastUpdated?.toISOString() ?? new Date().toISOString(),
-            latestWorkLastReadAt: latestWorkLastReadAt?.toISOString() ?? null,
+            latestWorkLastReadAt: isoOrNull(latestWorkLastReadAt),
             favouriteTags: includeFavouriteTags
                 ? favouriteTags.map((f) => ({
                       tagType: f.tagType,

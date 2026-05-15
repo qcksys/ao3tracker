@@ -60,6 +60,8 @@ class SyncRepository(
     companion object {
         private const val TAG = "SyncRepository"
         private const val MAX_WORKS_PER_BATCH = 50
+        private val NUMERIC_ENTITY_REGEX = Regex("&#(\\d+);")
+        private val HEX_ENTITY_REGEX = Regex("&#x([0-9a-fA-F]+);")
     }
 
     /**
@@ -88,29 +90,25 @@ class SyncRepository(
         }
 
         return try {
-            // Get the last sync timestamp for incremental sync
             val lastSyncedAt = settingsStorage.getLastSyncTimestamp()
             AppLogger.d("Last sync timestamp: ${lastSyncedAt ?: "none (full sync)"}", TAG)
 
-            // Step 1: Fetch all server data with pagination
             _syncState.value = _syncState.value.copy(statusMessage = "Fetching data from server...")
             val fetchResult = fetchAllServerData(token, lastSyncedAt)
             if (fetchResult.isFailure) {
-                val error = fetchResult.exceptionOrNull()!!
-                return handleSyncError(error)
+                return handleSyncError(fetchResult.exceptionOrNull()!!)
             }
 
             val (serverData, serverLastUpdated) = fetchResult.getOrThrow()
             AppLogger.d("Fetched ${serverData.works.size} works, ${serverData.chapters.size} chapters from server", TAG)
             AppLogger.d("Server latestWorkLastReadAt: ${serverData.latestWorkLastReadAt ?: "null (no server tracks)"}", TAG)
 
-            // Step 2: Apply server data to local database
-            // Order matters: apply tracking data first (lastReadAt), then update with metadata
+            // Order matters: apply tracking data first (lastReadAt), then layer metadata on top.
             _syncState.value = _syncState.value.copy(statusMessage = "Applying server changes...")
-            applyServerWorkChanges(serverData.works) // Creates work entries with correct lastReadAt
-            applyServerWorkMetadata(serverData.workMetadata) // Updates existing works with full metadata
-            applyServerChapterChanges(serverData.chapters) // Creates chapter entries with reading progress
-            applyServerChapterMetadata(serverData.chapterMetadata) // Updates existing chapters with titles, etc.
+            applyServerWorkChanges(serverData.works)
+            applyServerWorkMetadata(serverData.workMetadata)
+            applyServerChapterChanges(serverData.chapters)
+            applyServerChapterMetadata(serverData.chapterMetadata)
             applyServerTagMetadata(serverData.tagMetadata)
             if (serverData.favouriteTags.isNotEmpty()) {
                 favouriteTagRepository.applyRemote(
@@ -125,9 +123,8 @@ class SyncRepository(
                 )
             }
 
-            // Step 3: Send local changes
-            // For full sync (lastSyncedAt was null), send ALL local data
-            // For incremental sync, send changes since last sync
+            // For full sync (lastSyncedAt was null), send ALL local data; for
+            // incremental sync, send changes since last sync.
             _syncState.value = _syncState.value.copy(statusMessage = "Preparing local changes...")
             val lastSyncTimestamp = lastSyncedAt?.let { parseIso8601(it) }
             val localWorks = getLocalWorkChanges(lastSyncTimestamp)
@@ -157,8 +154,7 @@ class SyncRepository(
                     pendingFavouriteTags
                 )
                 if (postResult.isFailure) {
-                    val error = postResult.exceptionOrNull()!!
-                    return handleSyncError(error)
+                    return handleSyncError(postResult.exceptionOrNull()!!)
                 }
                 // Clear pendingSync on rows the server accepted (or that we sent —
                 // server ignored just means our row was stale; either way local
@@ -168,7 +164,6 @@ class SyncRepository(
                 }
             }
 
-            // Save the sync timestamp
             settingsStorage.setLastSyncTimestamp(serverLastUpdated)
             _syncState.value = _syncState.value.copy(
                 lastSyncedAt = serverLastUpdated,
@@ -399,46 +394,12 @@ class SyncRepository(
      * Note: Must include deleted works so server learns about deletions.
      */
     private suspend fun getLocalWorkChanges(lastSyncTimestamp: Long?): List<SyncWorkRequest> {
-        // Use method that includes deleted works so we can sync deletions to server
         val works = workDao.getAllWorksIncludingDeletedOnce()
-
-        // For full sync, send all local works (including deleted ones)
+            .filter { it.lastRead != null && (lastSyncTimestamp == null || it.rowUpdatedAt >= lastSyncTimestamp) }
         if (lastSyncTimestamp == null) {
-            val worksToSync = works.filter { it.lastRead != null }
-            AppLogger.d("Full sync - sending ${worksToSync.size} local works (including ${worksToSync.count { it.rowDeletedAt != null }} deleted)", TAG)
-            return worksToSync
-                .map { work ->
-                    SyncWorkRequest(
-                        workId = work.id,
-                        lastReadAt = toIso8601(work.lastRead!!),
-                        markedCompleteAt = work.markedCompleteAt?.let { toIso8601(it) },
-                        private = work.isPrivate,
-                        subscribed = work.subscribed,
-                        subscribedUpdatedAt = work.subscribedUpdatedAt?.let { toIso8601(it) },
-                        favourite = work.favourite,
-                        favouriteUpdatedAt = work.favouriteUpdatedAt?.let { toIso8601(it) },
-                        deleted = work.rowDeletedAt != null
-                    )
-                }
+            AppLogger.d("Full sync - sending ${works.size} local works (including ${works.count { it.rowDeletedAt != null }} deleted)", TAG)
         }
-
-        return works
-            .filter { work ->
-                work.lastRead != null && work.rowUpdatedAt >= lastSyncTimestamp
-            }
-            .map { work ->
-                SyncWorkRequest(
-                    workId = work.id,
-                    lastReadAt = toIso8601(work.lastRead!!),
-                    markedCompleteAt = work.markedCompleteAt?.let { toIso8601(it) },
-                    private = work.isPrivate,
-                    subscribed = work.subscribed,
-                    subscribedUpdatedAt = work.subscribedUpdatedAt?.let { toIso8601(it) },
-                    favourite = work.favourite,
-                    favouriteUpdatedAt = work.favouriteUpdatedAt?.let { toIso8601(it) },
-                    deleted = work.rowDeletedAt != null
-                )
-            }
+        return works.map(::workToSyncRequest)
     }
 
     /**
@@ -449,40 +410,12 @@ class SyncRepository(
      * Note: Must include deleted chapters so server learns about deletions.
      */
     private suspend fun getLocalChapterChanges(lastSyncTimestamp: Long?): List<SyncChapterRequest> {
-        // Use method that includes deleted chapters so we can sync deletions to server
-        val allChapters = chapterDao.getAllChaptersIncludingDeletedOnce()
-
-        // For full sync, send all local chapters that have been read (including deleted ones)
+        val chapters = chapterDao.getAllChaptersIncludingDeletedOnce()
+            .filter { it.lastReadAt != null && (lastSyncTimestamp == null || it.rowUpdatedAt >= lastSyncTimestamp) }
         if (lastSyncTimestamp == null) {
-            val chaptersWithReadProgress = allChapters.filter { it.lastReadAt != null }
-            AppLogger.d("Full sync - sending ${chaptersWithReadProgress.size} read chapters (including ${chaptersWithReadProgress.count { it.rowDeletedAt != null }} deleted)", TAG)
-            return chaptersWithReadProgress
-                .map { chapter ->
-                    SyncChapterRequest(
-                        workId = chapter.workId,
-                        chapterId = chapter.chapterId,
-                        lastReadAt = toIso8601(chapter.lastReadAt!!),
-                        markedCompleteAt = chapter.markedCompleteAt?.let { toIso8601(it) },
-                        readProgress = chapter.readProgress ?: 0f,
-                        deleted = chapter.rowDeletedAt != null
-                    )
-                }
+            AppLogger.d("Full sync - sending ${chapters.size} read chapters (including ${chapters.count { it.rowDeletedAt != null }} deleted)", TAG)
         }
-
-        return allChapters
-            .filter { chapter ->
-                chapter.lastReadAt != null && chapter.rowUpdatedAt >= lastSyncTimestamp
-            }
-            .map { chapter ->
-                SyncChapterRequest(
-                    workId = chapter.workId,
-                    chapterId = chapter.chapterId,
-                    lastReadAt = toIso8601(chapter.lastReadAt!!),
-                    markedCompleteAt = chapter.markedCompleteAt?.let { toIso8601(it) },
-                    readProgress = chapter.readProgress ?: 0f,
-                    deleted = chapter.rowDeletedAt != null
-                )
-            }
+        return chapters.map(::chapterToSyncRequest)
     }
 
     /**
@@ -617,11 +550,11 @@ class SyncRepository(
             .replace("&#39;", "'")
             .replace("&apos;", "'")
             .replace("&nbsp;", " ")
-            .replace(Regex("&#(\\d+);")) { matchResult ->
+            .replace(NUMERIC_ENTITY_REGEX) { matchResult ->
                 val code = matchResult.groupValues[1].toIntOrNull()
                 if (code != null) code.toChar().toString() else matchResult.value
             }
-            .replace(Regex("&#x([0-9a-fA-F]+);")) { matchResult ->
+            .replace(HEX_ENTITY_REGEX) { matchResult ->
                 val code = matchResult.groupValues[1].toIntOrNull(16)
                 if (code != null) code.toChar().toString() else matchResult.value
             }
@@ -705,42 +638,32 @@ class SyncRepository(
                     }
                 }
 
-                // Sync subscription status using LWW with per-field timestamps
-                // If either side omits timestamp, the side with a timestamp wins
-                // If both have timestamps, compare them (server wins on tie)
-                // If neither has timestamp, no change
-                val serverSubscribedAt = serverWork.subscribedUpdatedAt?.let { parseIso8601(it) }
-                val localSubscribedAt = localWork.subscribedUpdatedAt
-                val shouldUpdateSubscribed = serverWork.subscribed != localWork.subscribed && when {
-                    serverSubscribedAt != null && localSubscribedAt != null -> serverSubscribedAt >= localSubscribedAt
-                    serverSubscribedAt != null -> true  // Server has timestamp, local doesn't
-                    localSubscribedAt != null -> false  // Local has timestamp, server doesn't
-                    else -> false  // Neither has timestamp
-                }
-                if (shouldUpdateSubscribed) {
+                applyServerLwwField(
+                    serverValue = serverWork.subscribed,
+                    serverTimestamp = serverWork.subscribedUpdatedAt?.let { parseIso8601(it) },
+                    localValue = localWork.subscribed,
+                    localTimestamp = localWork.subscribedUpdatedAt,
+                    now = now,
+                ) { value, ts ->
                     workDao.updateSubscription(
                         id = serverWork.workId,
-                        subscribed = serverWork.subscribed,
-                        subscribedUpdatedAt = serverSubscribedAt ?: now,
+                        subscribed = value,
+                        subscribedUpdatedAt = ts,
                         rowUpdatedAt = now
                     )
                 }
 
-                // Sync favourite status using LWW with per-field timestamps
-                // Same logic as subscription
-                val serverFavouriteAt = serverWork.favouriteUpdatedAt?.let { parseIso8601(it) }
-                val localFavouriteAt = localWork.favouriteUpdatedAt
-                val shouldUpdateFavourite = serverWork.favourite != localWork.favourite && when {
-                    serverFavouriteAt != null && localFavouriteAt != null -> serverFavouriteAt >= localFavouriteAt
-                    serverFavouriteAt != null -> true  // Server has timestamp, local doesn't
-                    localFavouriteAt != null -> false  // Local has timestamp, server doesn't
-                    else -> false  // Neither has timestamp
-                }
-                if (shouldUpdateFavourite) {
+                applyServerLwwField(
+                    serverValue = serverWork.favourite,
+                    serverTimestamp = serverWork.favouriteUpdatedAt?.let { parseIso8601(it) },
+                    localValue = localWork.favourite,
+                    localTimestamp = localWork.favouriteUpdatedAt,
+                    now = now,
+                ) { value, ts ->
                     workDao.updateFavourite(
                         id = serverWork.workId,
-                        favourite = serverWork.favourite,
-                        favouriteUpdatedAt = serverFavouriteAt ?: now,
+                        favourite = value,
+                        favouriteUpdatedAt = ts,
                         rowUpdatedAt = now
                     )
                 }
@@ -836,6 +759,51 @@ class SyncRepository(
     }
 
     /**
+     * Per-field LWW resolution. If only one side has an explicit timestamp it
+     * wins; if both have one, the higher wins (server wins on tie since the
+     * comparison is `serverTs >= localTs`); if neither has one, no update.
+     * Mirrors `resolveLWW` on the server (apps/api/src/db/helpers/lww.ts).
+     */
+    private suspend fun <T> applyServerLwwField(
+        serverValue: T,
+        serverTimestamp: Long?,
+        localValue: T,
+        localTimestamp: Long?,
+        now: Long,
+        update: suspend (value: T, timestamp: Long) -> Unit,
+    ) {
+        if (serverValue == localValue) return
+        val shouldUpdate = when {
+            serverTimestamp != null && localTimestamp != null -> serverTimestamp >= localTimestamp
+            serverTimestamp != null -> true
+            localTimestamp != null -> false
+            else -> false
+        }
+        if (shouldUpdate) update(serverValue, serverTimestamp ?: now)
+    }
+
+    private fun workToSyncRequest(work: WorkEntity): SyncWorkRequest = SyncWorkRequest(
+        workId = work.id,
+        lastReadAt = toIso8601(work.lastRead!!),
+        markedCompleteAt = work.markedCompleteAt?.let { toIso8601(it) },
+        private = work.isPrivate,
+        subscribed = work.subscribed,
+        subscribedUpdatedAt = work.subscribedUpdatedAt?.let { toIso8601(it) },
+        favourite = work.favourite,
+        favouriteUpdatedAt = work.favouriteUpdatedAt?.let { toIso8601(it) },
+        deleted = work.rowDeletedAt != null
+    )
+
+    private fun chapterToSyncRequest(chapter: ChapterEntity): SyncChapterRequest = SyncChapterRequest(
+        workId = chapter.workId,
+        chapterId = chapter.chapterId,
+        lastReadAt = toIso8601(chapter.lastReadAt!!),
+        markedCompleteAt = chapter.markedCompleteAt?.let { toIso8601(it) },
+        readProgress = chapter.readProgress ?: 0f,
+        deleted = chapter.rowDeletedAt != null
+    )
+
+    /**
      * Converts an epoch milliseconds timestamp to ISO 8601 format.
      */
     private fun toIso8601(epochMillis: Long): String {
@@ -843,12 +811,16 @@ class SyncRepository(
     }
 
     /**
-     * Parses an ISO 8601 timestamp to epoch milliseconds.
+     * Parses an ISO 8601 timestamp to epoch milliseconds. On failure logs and
+     * returns 0L so a single bad timestamp from the server doesn't crash a
+     * sync — but downstream LWW will treat the row as ancient, so the warn
+     * lets us spot the bad data.
      */
     private fun parseIso8601(iso8601: String): Long {
         return try {
             Instant.parse(iso8601).toEpochMilliseconds()
         } catch (e: Exception) {
+            AppLogger.w("Failed to parse ISO 8601 timestamp: $iso8601", TAG, e)
             0L
         }
     }
