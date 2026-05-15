@@ -1,55 +1,33 @@
-import {
-    EmailParams,
-    MailerSend,
-    type Recipient,
-    type Sender,
-} from "mailersend";
-
-export type IEmailSender = (config: {
-    apiKey: string;
-    from: Sender;
-    to: Recipient[];
-    cc?: Recipient[];
-    bcc?: Recipient[];
-    replyTo?: Recipient;
+/**
+ * Thin wrapper around the Cloudflare Email Sending binding (`SendEmail`).
+ * Bound to `env.EMAIL` per [wrangler.json](../../wrangler.json); allowed sender
+ * addresses are pinned per-env so the worker can only send `From:` the
+ * `SYSTEM_EMAIL_ADDRESS` for that environment.
+ */
+export interface SendEmailArgs {
+    binding: SendEmail;
+    to: string;
+    fromAddress: string;
+    fromName: string;
     subject: string;
-    content:
-        | {
-              html?: string;
-              text: string;
-          }
-        | {
-              html: string;
-              text?: string;
-          };
-}) => Promise<boolean>;
+    text?: string;
+    html?: string;
+}
 
-export const sendEmail: IEmailSender = async ({
-    apiKey,
-    from,
+export async function sendEmail({
+    binding,
     to,
-    cc,
-    bcc,
-    replyTo,
+    fromAddress,
+    fromName,
     subject,
-    content: { html, text },
-}) => {
-    const mailerSend = new MailerSend({
-        apiKey,
+    text,
+    html,
+}: SendEmailArgs): Promise<void> {
+    await binding.send({
+        from: { name: fromName, email: fromAddress },
+        to,
+        subject,
+        ...(text !== undefined ? { text } : {}),
+        ...(html !== undefined ? { html } : {}),
     });
-
-    const emailParams = new EmailParams()
-        .setFrom(from)
-        .setTo(to)
-        .setReplyTo(replyTo ?? from)
-        .setSubject(subject);
-
-    html && emailParams.setHtml(html);
-    text && emailParams.setText(text);
-    cc && emailParams.setCc(cc);
-    bcc && emailParams.setBcc(bcc);
-
-    const response = await mailerSend.email.send(emailParams);
-
-    return response.statusCode.toString().startsWith("2");
-};
+}

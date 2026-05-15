@@ -2,7 +2,6 @@ import { passkey } from "@better-auth/passkey";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { betterAuth } from "better-auth/minimal";
 import { bearer, openAPI, twoFactor } from "better-auth/plugins";
-import { Recipient, Sender } from "mailersend";
 import { PROD_ENV_NAME } from "~/const";
 import type { TDatabase } from "~/db/db.client";
 import { rAuthAccount, tAuthAccount } from "~/db/schema/auth.account";
@@ -19,7 +18,7 @@ export const auth = ({
 }: {
     env: CloudflareBindings;
     db: TDatabase;
-}): ReturnType<typeof betterAuth> => {
+}) => {
     return betterAuth({
         appName: `QckSys AO3 Tracker ${env.ENVIRONMENT !== PROD_ENV_NAME ? `(${env.ENVIRONMENT})` : ""}`,
         basePath: "/auth",
@@ -31,32 +30,24 @@ export const auth = ({
             requireEmailVerification: true,
             sendResetPassword: async ({ user, url }, _request) => {
                 await sendEmail({
-                    apiKey: env.MAILERSEND_API_KEY,
-                    to: [new Recipient(user.email, user.name)],
-                    from: new Sender(
-                        env.SYSTEM_EMAIL_ADDRESS,
-                        "QckSys AO3 Tracker",
-                    ),
+                    binding: env.EMAIL,
+                    to: user.email,
+                    fromAddress: env.SYSTEM_EMAIL_ADDRESS,
+                    fromName: "QckSys AO3 Tracker",
                     subject: "Reset your password",
-                    content: {
-                        text: `Click the link to reset your password: ${url}`,
-                    },
+                    text: `Click the link to reset your password: ${url}`,
                 });
             },
         },
         emailVerification: {
             sendVerificationEmail: async ({ user, url }, _request) => {
                 await sendEmail({
-                    apiKey: env.MAILERSEND_API_KEY,
-                    to: [new Recipient(user.email, user.name)],
-                    from: new Sender(
-                        env.SYSTEM_EMAIL_ADDRESS,
-                        "QckSys AO3 Tracker",
-                    ),
+                    binding: env.EMAIL,
+                    to: user.email,
+                    fromAddress: env.SYSTEM_EMAIL_ADDRESS,
+                    fromName: "QckSys AO3 Tracker",
                     subject: "Verify your email address",
-                    content: {
-                        text: `Click the link to verify your email: ${url}`,
-                    },
+                    text: `Click the link to verify your email: ${url}`,
                 });
             },
             sendOnSignUp: true,

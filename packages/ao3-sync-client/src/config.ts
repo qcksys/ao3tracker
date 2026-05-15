@@ -1,5 +1,5 @@
 export interface SyncClientConfig {
-  /** Base URL of the api worker, e.g. `https://ao3tracker.qcksys.app`. */
+  /** Base URL of the api worker, e.g. `https://ao3tracker.com`. */
   baseUrl: string;
   /**
    * Returns the session token sent as `Authorization: Bearer ...`. The Better

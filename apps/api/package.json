@@ -3,7 +3,7 @@
     "type": "module",
     "scripts": {
         "test": "vitest",
-        "dev": "wrangler dev",
+        "dev": "portless ao3tracker --app-port 8787 wrangler dev",
         "proxy": "cloudflared tunnel --config dev/cloudflared/cloudflared.dev.yml run",
         "deploy:dev": "wrangler deploy --minify -e dev",
         "deploy:prod": "wrangler deploy --minify -e prod",
@@ -31,7 +31,6 @@
         "hono": "^4.12.18",
         "jose": "^6.2.3",
         "ky": "^1.14.3",
-        "mailersend": "^2.8.0",
         "zod": "^4.4.3"
     },
     "devDependencies": {
@@ -40,6 +39,7 @@
         "@types/node": "^24.12.4",
         "dotenv": "^17.4.2",
         "drizzle-kit": "^0.31.10",
+        "portless": "catalog:",
         "typescript": "catalog:",
         "vite-tsconfig-paths": "^6.1.1",
         "vitest": "catalog:",

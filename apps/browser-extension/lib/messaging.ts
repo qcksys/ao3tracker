@@ -26,12 +26,13 @@ export const backgroundToContentResponseSchema = z.discriminatedUnion("kind", [
 ]);
 export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResponseSchema>;
 
-/** Messages flowing **popup → background**. */
+/**
+ * Messages flowing **popup → background**. Auth (sign-in / sign-up / sign-out)
+ * lives entirely in the popup via the Better Auth React client; the background
+ * picks up token changes via `authTokenItem.watch` and triggers sync.
+ */
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("getState") }),
-  z.object({ kind: z.literal("signIn"), email: z.string().email(), password: z.string().min(1) }),
-  z.object({ kind: z.literal("signUp"), email: z.string().email(), password: z.string().min(1), name: z.string().min(1) }),
-  z.object({ kind: z.literal("signOut") }),
   z.object({ kind: z.literal("syncNow") }),
   z.object({ kind: z.literal("toggleFavouriteTag"), tagType: tagTypeIdSchema, tag: z.string().min(1), favourited: z.boolean() }),
   z.object({ kind: z.literal("setApiBaseUrl"), baseUrl: z.string().url() }),
@@ -41,10 +42,6 @@ export type PopupToBackground = z.infer<typeof popupToBackgroundSchema>;
 /** Background → popup state snapshot. */
 export const popupStateSchema = z.object({
   apiBaseUrl: z.string(),
-  authenticated: z.boolean(),
-  user: z
-    .object({ id: z.string(), email: z.string().nullable(), name: z.string().nullable() })
-    .nullable(),
   lastSyncedAt: z.string().nullable(),
   lastSyncError: z.string().nullable(),
   syncing: z.boolean(),

@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { usePopupState } from "~popup/lib/state";
+import { authClient } from "~popup/lib/auth-client";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -23,7 +23,6 @@ const schema = z.object({
 type RegisterValues = z.infer<typeof schema>;
 
 export default function Register() {
-  const { dispatch } = usePopupState();
   const navigate = useNavigate();
   const form = useForm<RegisterValues>({
     resolver: zodResolver(schema),
@@ -31,14 +30,13 @@ export default function Register() {
   });
 
   const onSubmit = async (values: RegisterValues): Promise<void> => {
-    const res = await dispatch({
-      kind: "signUp",
-      name: values.name,
+    const { error } = await authClient.signUp.email({
       email: values.email,
       password: values.password,
+      name: values.name,
     });
-    if (!res.ok) {
-      form.setError("password", { message: res.error });
+    if (error) {
+      form.setError("password", { message: error.message ?? "Sign up failed" });
       return;
     }
     navigate("/");

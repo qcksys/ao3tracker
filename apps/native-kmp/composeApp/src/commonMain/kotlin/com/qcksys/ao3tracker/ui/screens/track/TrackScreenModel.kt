@@ -31,6 +31,7 @@ import kotlinx.coroutines.launch
  * Identifiers for filter sections to track expanded state
  */
 enum class FilterSection {
+    FAVOURITES,
     READING_STATUS,
     RATING,
     WARNING,
@@ -249,6 +250,20 @@ class TrackScreenModel(
         _filterState.value = _filterState.value.copy(
             freeformFilters = cycleFilter(_filterState.value.freeformFilters, tag)
         )
+    }
+
+    /** Cycle the filter mode for a tag, dispatched by tag type. */
+    fun toggleTagFilter(tagType: TagType, tag: String) {
+        when (tagType) {
+            TagType.RATING -> toggleRating(tag)
+            TagType.WARNING -> toggleWarning(tag)
+            TagType.CATEGORY -> toggleCategory(tag)
+            TagType.FANDOM -> toggleFandom(tag)
+            TagType.RELATIONSHIP -> toggleRelationship(tag)
+            TagType.CHARACTER -> toggleCharacter(tag)
+            TagType.FREEFORM -> toggleFreeformTag(tag)
+            TagType.UNKNOWN -> {}
+        }
     }
 
     fun toggleReadingStatus(status: ReadingStatus) {

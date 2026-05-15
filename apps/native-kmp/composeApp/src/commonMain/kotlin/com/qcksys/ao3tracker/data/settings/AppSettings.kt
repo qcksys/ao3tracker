@@ -10,13 +10,13 @@ enum class ApiEnvironment(
     val displayName: String
 ) {
     PRODUCTION(
-        authBaseUrl = "https://ao3tracker.qcksys.app/auth",
-        apiBaseUrl = "https://ao3tracker.qcksys.app/api",
+        authBaseUrl = "https://ao3tracker.com/auth",
+        apiBaseUrl = "https://ao3tracker.com/api",
         displayName = "Production"
     ),
     DEV(
-        authBaseUrl = "https://ao3tracker-dev.qcksys.app/auth",
-        apiBaseUrl = "https://ao3tracker-dev.qcksys.app/api",
+        authBaseUrl = "https://dev.ao3tracker.com/auth",
+        apiBaseUrl = "https://dev.ao3tracker.com/api",
         displayName = "Development"
     ),
     LOCAL(

@@ -1,7 +1,7 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { Scalar } from "@scalar/hono-api-reference";
 import { createMarkdownFromOpenApi } from "@scalar/openapi-to-markdown";
-import type { Auth } from "better-auth";
+import type { Auth, BetterAuthOptions } from "better-auth";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
@@ -15,8 +15,12 @@ import { apiRouter } from "~/routes/api";
 import { wellKnownRouter } from "~/routes/well-known";
 import { scheduled } from "~/scheduled/handler";
 
-/** Helper to generate OpenAPI schema from Better Auth instance */
-async function generateAuthOpenAPISchema(auth: Auth): Promise<object> {
+// `Auth<O>` is invariant in `O`, so callers passing the inferred narrow-options
+// Auth from `~/lib/auth` can't widen to `Auth<BetterAuthOptions>`. Making the
+// helper generic lets the call site flow its options type through.
+async function generateAuthOpenAPISchema<O extends BetterAuthOptions>(
+    auth: Auth<O>,
+): Promise<object> {
     // Better Auth's api.generateOpenAPISchema is not exposed in types but exists at runtime
     const api = auth.api as { generateOpenAPISchema?: () => Promise<object> };
     if (typeof api.generateOpenAPISchema !== "function") {

@@ -13,7 +13,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { usePopupState } from "~popup/lib/state";
+import { authClient } from "~popup/lib/auth-client";
 
 const schema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -22,7 +22,6 @@ const schema = z.object({
 type LoginValues = z.infer<typeof schema>;
 
 export default function Login() {
-  const { dispatch } = usePopupState();
   const navigate = useNavigate();
   const form = useForm<LoginValues>({
     resolver: zodResolver(schema),
@@ -30,9 +29,21 @@ export default function Login() {
   });
 
   const onSubmit = async (values: LoginValues): Promise<void> => {
-    const res = await dispatch({ kind: "signIn", email: values.email, password: values.password });
-    if (!res.ok) {
-      form.setError("password", { message: res.error });
+    const { error } = await authClient.signIn.email({
+      email: values.email,
+      password: values.password,
+    });
+    if (error) {
+      form.setError("password", { message: error.message ?? "Sign in failed" });
+      return;
+    }
+    navigate("/");
+  };
+
+  const onPasskey = async (): Promise<void> => {
+    const { error } = await authClient.signIn.passkey();
+    if (error) {
+      form.setError("password", { message: error.message ?? "Passkey sign in failed" });
       return;
     }
     navigate("/");
@@ -79,6 +90,9 @@ export default function Login() {
           </Button>
         </form>
       </Form>
+      <Button type="button" variant="outline" onClick={onPasskey}>
+        Use passkey
+      </Button>
       <p className="text-muted-foreground text-sm">
         No account?{" "}
         <Link to="/register" className="text-primary underline-offset-4 hover:underline">

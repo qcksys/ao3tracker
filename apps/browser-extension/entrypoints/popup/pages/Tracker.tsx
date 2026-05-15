@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { authClient } from "~popup/lib/auth-client";
 import { usePopupState } from "~popup/lib/state";
 
 function formatRelative(iso: string | null): string {
@@ -21,12 +22,13 @@ function formatRelative(iso: string | null): string {
 
 export default function Tracker() {
   const { state, loading, dispatch } = usePopupState();
+  const { data: session, isPending: sessionPending } = authClient.useSession();
 
-  if (loading || !state) {
+  if (loading || sessionPending || !state) {
     return <div className="text-muted-foreground text-sm">Loading…</div>;
   }
 
-  if (!state.authenticated) {
+  if (!session?.user) {
     return (
       <div className="flex h-full flex-col items-start gap-3">
         <h1 className="text-lg font-semibold">Welcome</h1>

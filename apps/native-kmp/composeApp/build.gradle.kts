@@ -218,8 +218,8 @@ android {
         versionName = "0.1.0"
 
         // Default to production API endpoints
-        buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.qcksys.app/auth\"")
-        buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.qcksys.app/api\"")
+        buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
         // Sentry DSN
         buildConfigField("String", "SENTRY_DSN", "\"https://12e1b1b6f3402ab88188b7508dd5f65c@o4507101986291712.ingest.de.sentry.io/4510465375993936\"")
     }

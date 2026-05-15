@@ -111,7 +111,7 @@ Long-pressing a tag chip in the filter sheet pins it to the top of its section. 
 
 **Cross-device sync**: each row has its own `updatedAt`; sync is via the per-row `favouriteTags` block on `/api/track/sync` (see [api/AGENTS.md](../api/AGENTS.md)). Rows with local changes have `pendingSync = true` and are pushed on the next sync; the server LWW-merges and `FavouriteTagRepository.applyRemote` LWW-merges incoming rows locally. Server wins on tie.
 
-**Auto-sync trigger**: toggling a favourite calls `SyncTriggers.notifyFavouriteChanged()`, which debounces 2s before firing `SyncRepository.sync()`. Implemented in [SyncTriggers.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/sync/SyncTriggers.kt). `SyncTriggers` is a `createdAtStart = true` Koin singleton so the debounce subscriber is wired before the first user action.
+**Auto-sync trigger**: toggling a favourite calls `SyncTriggers.notifyFavouriteChanged()`, which fires `SyncRepository.sync()` straight away. Implemented in [SyncTriggers.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/sync/SyncTriggers.kt). `SyncTriggers` is a `createdAtStart = true` Koin singleton so the subscriber is wired before the first user action.
 
 ## Key Dependencies
 - Compose Multiplatform (UI) with Hot Reload plugin

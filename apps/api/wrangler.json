@@ -5,7 +5,7 @@
     "compatibility_date": "2025-11-18",
     "compatibility_flags": ["nodejs_compat"],
     "placement": {
-        "mode": "smart"
+        "region": "aws:ap-southeast-2"
     },
     "observability": {
         "logs": {
@@ -20,6 +20,13 @@
             "binding": "WORK_BACKUPS_BUCKET",
             "bucket_name": "ao3tracker-work-backups-dev",
             "remote": true
+        }
+    ],
+    "send_email": [
+        {
+            "name": "EMAIL",
+            "remote": true,
+            "allowed_sender_addresses": ["hello@dev.ao3tracker.com"]
         }
     ],
     "queues": {
@@ -43,8 +50,8 @@
     "vars": {
         "BETTER_AUTH_URL": "https://qcksys-ao3tracker-api-local.ta2.dev",
         "ENVIRONMENT": "local",
-        "SYSTEM_EMAIL_ADDRESS": "ao3tracker-local@qcksys.com",
-        "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups-dev.qcksys.app"
+        "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
+        "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups-dev.ao3tracker.com"
     },
     "triggers": {
         "crons": ["*/5 * * * *"]
@@ -56,6 +63,12 @@
                 {
                     "binding": "WORK_BACKUPS_BUCKET",
                     "bucket_name": "ao3tracker-work-backups-dev"
+                }
+            ],
+            "send_email": [
+                {
+                    "name": "EMAIL",
+                    "allowed_sender_addresses": ["hello@dev.ao3tracker.com"]
                 }
             ],
             "queues": {
@@ -77,7 +90,7 @@
             },
             "routes": [
                 {
-                    "pattern": "ao3tracker-dev.qcksys.app",
+                    "pattern": "dev.ao3tracker.com",
                     "custom_domain": true
                 }
             ],
@@ -91,10 +104,10 @@
                 }
             },
             "vars": {
-                "BETTER_AUTH_URL": "https://ao3tracker-dev.qcksys.app",
+                "BETTER_AUTH_URL": "https://dev.ao3tracker.com",
                 "ENVIRONMENT": "dev",
-                "SYSTEM_EMAIL_ADDRESS": "ao3tracker-dev@qcksys.com",
-                "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups-dev.qcksys.app"
+                "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
+                "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups-dev.ao3tracker.com"
             }
         },
         "prod": {
@@ -103,6 +116,12 @@
                 {
                     "binding": "WORK_BACKUPS_BUCKET",
                     "bucket_name": "ao3tracker-work-backups-prod"
+                }
+            ],
+            "send_email": [
+                {
+                    "name": "EMAIL",
+                    "allowed_sender_addresses": ["hello@ao3tracker.com"]
                 }
             ],
             "queues": {
@@ -124,7 +143,7 @@
             },
             "routes": [
                 {
-                    "pattern": "ao3tracker.qcksys.app",
+                    "pattern": "ao3tracker.com",
                     "custom_domain": true
                 }
             ],
@@ -138,10 +157,10 @@
                 }
             },
             "vars": {
-                "BETTER_AUTH_URL": "https://ao3tracker.qcksys.app",
+                "BETTER_AUTH_URL": "https://ao3tracker.com",
                 "ENVIRONMENT": "prod",
-                "SYSTEM_EMAIL_ADDRESS": "ao3tracker@qcksys.com",
-                "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups.qcksys.app"
+                "SYSTEM_EMAIL_ADDRESS": "hello@ao3tracker.com",
+                "WORK_BACKUPS_BUCKET_URL": "ao3tracker-work-backups.ao3tracker.com"
             }
         }
     }

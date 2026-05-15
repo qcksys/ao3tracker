@@ -98,8 +98,11 @@ Required in `.dev.vars` (local) or Cloudflare dashboard (deployed):
 
 - `DATABASE_URL` - PlanetScale connection string
 - `BETTER_AUTH_SECRET` - Auth secret key
-- `MAILERSEND_API_KEY` - For transactional emails
 - `GOOGLE_ID` / `GOOGLE_SECRET` - For Google OAuth (optional)
+
+Transactional emails (password reset, email verification) are sent via the
+Cloudflare Email Sending binding `EMAIL` defined in `wrangler.json`. No
+secret needed — the binding authenticates via the worker itself.
 
 ## Architecture
 

@@ -1,9 +1,3 @@
-import {
-  type SyncClientConfig,
-  signInEmail,
-  signOut as signOutCall,
-  signUpEmail,
-} from "@qcksys/ao3tracker-sync-client";
 import type {
   BackgroundToContentResponse,
   BackgroundToPopupResponse,
@@ -15,6 +9,7 @@ import {
   contentToBackgroundSchema,
   popupToBackgroundSchema,
 } from "@/lib/messaging";
+import { loadAuthToken } from "@/lib/auth-token-cache";
 import { toggleFavouriteTag } from "@/lib/favourite-tags-repo";
 import {
   apiBaseUrlItem,
@@ -22,7 +17,6 @@ import {
   favouriteTagsItem,
   lastSyncErrorItem,
   lastSyncedAtItem,
-  userItem,
 } from "@/lib/storage";
 import { runSync } from "@/lib/sync";
 import {
@@ -60,21 +54,10 @@ async function triggerSync(): Promise<void> {
   }
 }
 
-async function buildClientConfig(): Promise<SyncClientConfig> {
-  const baseUrl = await apiBaseUrlItem.getValue();
-  return {
-    baseUrl,
-    getBearerToken: () => authTokenItem.getValue(),
-    includeCredentials: false,
-  };
-}
-
 async function getPopupState(): Promise<PopupState> {
-  const [baseUrl, token, user, lastSyncedAt, lastSyncError, favouriteTags, currentWork, trackedCount] =
+  const [baseUrl, lastSyncedAt, lastSyncError, favouriteTags, currentWork, trackedCount] =
     await Promise.all([
       apiBaseUrlItem.getValue(),
-      authTokenItem.getValue(),
-      userItem.getValue(),
       lastSyncedAtItem.getValue(),
       lastSyncErrorItem.getValue(),
       favouriteTagsItem.getValue(),
@@ -83,8 +66,6 @@ async function getPopupState(): Promise<PopupState> {
     ]);
   return {
     apiBaseUrl: baseUrl,
-    authenticated: !!token,
-    user,
     lastSyncedAt,
     lastSyncError,
     syncing,
@@ -121,45 +102,6 @@ async function handlePopupMessage(
       await apiBaseUrlItem.setValue(msg.baseUrl);
       return { kind: "state", state: await getPopupState() };
 
-    case "signIn": {
-      const cfg = await buildClientConfig();
-      const { token, userId } = await signInEmail(cfg, {
-        email: msg.email,
-        password: msg.password,
-      });
-      if (token) await authTokenItem.setValue(token);
-      if (userId)
-        await userItem.setValue({ id: userId, email: msg.email, name: null });
-      scheduleSync();
-      return { kind: "state", state: await getPopupState() };
-    }
-
-    case "signUp": {
-      const cfg = await buildClientConfig();
-      const { token, userId } = await signUpEmail(cfg, {
-        email: msg.email,
-        password: msg.password,
-        name: msg.name,
-      });
-      if (token) await authTokenItem.setValue(token);
-      if (userId)
-        await userItem.setValue({ id: userId, email: msg.email, name: msg.name });
-      scheduleSync();
-      return { kind: "state", state: await getPopupState() };
-    }
-
-    case "signOut": {
-      const cfg = await buildClientConfig();
-      try {
-        await signOutCall(cfg);
-      } catch {
-        // best-effort: server may already have ended the session.
-      }
-      await authTokenItem.setValue(null);
-      await userItem.setValue(null);
-      return { kind: "state", state: await getPopupState() };
-    }
-
     case "syncNow": {
       try {
         if (!syncing) {
@@ -186,6 +128,13 @@ async function handlePopupMessage(
 
 export default defineBackground(() => {
   console.log("[ao3-tracker] background worker started", { id: browser.runtime.id });
+
+  // Seed the token cache so the auth client can read synchronously, and
+  // re-trigger sync whenever the popup signs in / out.
+  void loadAuthToken();
+  authTokenItem.watch((next) => {
+    if (next) scheduleSync();
+  });
 
   browser.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
     // The same channel handles content-script and popup messages. We try the

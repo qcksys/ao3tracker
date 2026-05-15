@@ -60,14 +60,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(response.body<SignInResponse>())
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse auth error response", TAG, e)
-                    AuthError(message = "Sign in failed")
-                }
-                Result.failure(Exception(error.message ?: "Sign in failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Sign in failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Sign in request failed", TAG, e)
@@ -85,18 +78,26 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(response.body<SignUpResponse>())
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse auth error response", TAG, e)
-                    AuthError(message = "Sign up failed")
-                }
-                Result.failure(Exception(error.message ?: "Sign up failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Sign up failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Sign up request failed", TAG, e)
             Result.failure(e)
+        }
+    }
+
+    /**
+     * Decode an `AuthError` JSON body from a failed auth request. Empty bodies
+     * (common on 4xx/5xx without a JSON payload) fall back silently; non-JSON
+     * bodies are logged at warn so we can spot misbehaving endpoints.
+     */
+    private fun parseAuthErrorMessage(body: String, fallback: String): String {
+        if (body.isBlank()) return fallback
+        return try {
+            JsonConfig.json.decodeFromString<AuthError>(body).message ?: fallback
+        } catch (e: SerializationException) {
+            AppLogger.w("Failed to parse auth error response: $body", TAG, e)
+            fallback
         }
     }
 
@@ -174,14 +175,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(Unit)
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse passkey error response", TAG, e)
-                    AuthError(message = "Passkey registration failed")
-                }
-                Result.failure(Exception(error.message ?: "Passkey registration failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Passkey registration failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Verify passkey registration request failed", TAG, e)
@@ -220,14 +214,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(response.body<SessionResponse>())
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse passkey error response", TAG, e)
-                    AuthError(message = "Passkey authentication failed")
-                }
-                Result.failure(Exception(error.message ?: "Passkey authentication failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Passkey authentication failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Verify passkey authentication request failed", TAG, e)

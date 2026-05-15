@@ -11,7 +11,11 @@ export default defineConfig({
       "Cross device tracking for AO3. Automatically syncs your position in any work you open across devices.",
     host_permissions: [
       "https://archiveofourown.org/*",
-      "https://ao3tracker.qcksys.app/*",
+      // Must mirror `apiBaseUrlPresets` in lib/storage.ts.
+      "https://ao3tracker.com/*",
+      "https://dev.ao3tracker.com/*",
+      "https://qcksys-ao3tracker-api-local.ta2.dev/*",
+      "https://ao3tracker.localhost/*",
     ],
   },
   modules: ["@wxt-dev/module-react"],
@@ -22,5 +26,8 @@ export default defineConfig({
   }),
   alias: {
     "~popup": resolve("./entrypoints/popup"),
+  },
+  webExt: {
+    startUrls: ["https://archiveofourown.org/"],
   },
 });

@@ -2,17 +2,55 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { setAuthToken } from "@/lib/auth-token-cache";
+import { apiBaseUrlPresets } from "@/lib/storage";
+import { authClient } from "~popup/lib/auth-client";
 import { usePopupState } from "~popup/lib/state";
 
 export default function Settings() {
   const { state, dispatch } = usePopupState();
-  const [baseUrlDraft, setBaseUrlDraft] = useState<string>("");
+  const { data: session } = authClient.useSession();
+  const activePreset = state
+    ? apiBaseUrlPresets.find((p) => p.url === state.apiBaseUrl)
+    : undefined;
+  const [draftId, setDraftId] = useState<string | null>(null);
 
   if (!state) return <div className="text-muted-foreground text-sm">Loading…</div>;
 
-  const currentBaseUrl = baseUrlDraft || state.apiBaseUrl;
+  const selectedId = draftId ?? activePreset?.id ?? null;
+  const selectedPreset = apiBaseUrlPresets.find((p) => p.id === selectedId);
+  const canSave =
+    selectedPreset !== undefined && selectedPreset.url !== state.apiBaseUrl;
+
+  const onSignOut = async (): Promise<void> => {
+    await authClient.signOut();
+    await setAuthToken(null);
+  };
+
+  const onAddPasskey = async (): Promise<void> => {
+    await authClient.passkey.addPasskey();
+  };
+
+  const onSaveApiUrl = async (): Promise<void> => {
+    if (!selectedPreset) return;
+    const res = await dispatch({
+      kind: "setApiBaseUrl",
+      baseUrl: selectedPreset.url,
+    });
+    if (res.ok) {
+      // Better Auth captures `baseURL` at construction time, so we reload the
+      // popup to rebuild the auth client against the new endpoint.
+      window.location.reload();
+    }
+  };
 
   return (
     <div className="flex h-full flex-col gap-3">
@@ -23,23 +61,22 @@ export default function Settings() {
           <CardTitle className="text-base">Account</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm">
-          {state.authenticated ? (
+          {session?.user ? (
             <>
               <div>
                 Signed in as{" "}
                 <span className="font-medium">
-                  {state.user?.name ?? state.user?.email ?? "unknown"}
+                  {session.user.name || session.user.email}
                 </span>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  void dispatch({ kind: "signOut" });
-                }}
-              >
-                Sign out
-              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={onSignOut}>
+                  Sign out
+                </Button>
+                <Button size="sm" variant="outline" onClick={onAddPasskey}>
+                  Add passkey
+                </Button>
+              </div>
             </>
           ) : (
             <p className="text-muted-foreground">Not signed in.</p>
@@ -52,19 +89,37 @@ export default function Settings() {
           <CardTitle className="text-base">API endpoint</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          <Label htmlFor="apiBaseUrl">Base URL</Label>
-          <Input
-            id="apiBaseUrl"
-            value={currentBaseUrl}
-            onChange={(e) => setBaseUrlDraft(e.target.value)}
-          />
-          <Button
-            size="sm"
-            disabled={baseUrlDraft.length === 0 || baseUrlDraft === state.apiBaseUrl}
-            onClick={() => {
-              void dispatch({ kind: "setApiBaseUrl", baseUrl: baseUrlDraft });
-            }}
+          <Label htmlFor="apiBaseUrl">Environment</Label>
+          <Select
+            value={selectedId ?? undefined}
+            onValueChange={(value) => setDraftId(value as string)}
           >
+            <SelectTrigger id="apiBaseUrl" className="w-full">
+              <SelectValue placeholder="Pick an environment" />
+            </SelectTrigger>
+            <SelectContent>
+              {apiBaseUrlPresets.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id}>
+                  {preset.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {selectedPreset && selectedPreset.url !== state.apiBaseUrl ? (
+              <>
+                Active: <span className="font-mono">{state.apiBaseUrl}</span>
+                <br />
+                After save:{" "}
+                <span className="font-mono">{selectedPreset.url}</span>
+              </>
+            ) : (
+              <>
+                Active: <span className="font-mono">{state.apiBaseUrl}</span>
+              </>
+            )}
+          </p>
+          <Button size="sm" disabled={!canSave} onClick={onSaveApiUrl}>
             Save
           </Button>
         </CardContent>

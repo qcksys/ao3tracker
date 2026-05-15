@@ -58,7 +58,7 @@ val appModule = module {
     // Sync
     single { SyncService(get(), get()) }
     single { SyncRepository(get(), get(), get(), get(), get()) }
-    // Eager so the debounce subscriber is wired before the first user action.
+    // Eager so the favourites subscriber is wired before the first user action.
     single(createdAtStart = true) { SyncTriggers(get()) }
 
     // Push notifications

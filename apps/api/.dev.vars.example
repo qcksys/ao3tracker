@@ -7,9 +7,6 @@ DATABASE_URL=
 #  BetterAuth secret for authentication
 BETTER_AUTH_SECRET=
 
-# Mailersend API key
-MAILERSEND_API_KEY=
-
 # For Google OAuth2 authentication
 GOOGLE_ID=
 GOOGLE_SECRET=

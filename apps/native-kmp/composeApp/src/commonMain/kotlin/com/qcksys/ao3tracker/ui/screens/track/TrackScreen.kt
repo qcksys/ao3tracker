@@ -698,6 +698,20 @@ private fun FilterSheetContent(
                 )
             }
 
+            val visibleFavourites = parseFavouriteKeys(favouriteTagFilters, searchQuery)
+            if (visibleFavourites.isNotEmpty()) {
+                item {
+                    FavouriteTagsFilterSection(
+                        favourites = visibleFavourites,
+                        filterState = filterState,
+                        expanded = FilterSection.FAVOURITES in expandedSections,
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FAVOURITES) },
+                        onToggleFilter = { tagType, tag -> screenModel.toggleTagFilter(tagType, tag) },
+                        onToggleFavourite = { tagType, tag -> screenModel.toggleFavouriteTag(tagType, tag) }
+                    )
+                }
+            }
+
             // Reading Status filter section (always show)
             item {
                 ReadingStatusFilterSection(
@@ -827,6 +841,119 @@ private fun FilterSheetContent(
     }
 }
 
+/**
+ * Cross-type favourites section pinned to the top of the filter sheet.
+ * Each chip dispatches its tap to the underlying per-type filter map, so
+ * filter state stays in one place. Long-press unfavourites the tag.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FavouriteTagsFilterSection(
+    favourites: List<Pair<TagType, String>>,
+    filterState: FilterState,
+    expanded: Boolean,
+    onExpandedChange: () -> Unit,
+    onToggleFilter: (TagType, String) -> Unit,
+    onToggleFavourite: (TagType, String) -> Unit
+) {
+    val activeCount = favourites.count { (tagType, tag) ->
+        filterModeFor(filterState, tagType, tag) != TagFilterMode.DEFAULT
+    }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onExpandedChange() }
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "Favourites",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (activeCount > 0) "($activeCount/${favourites.size})" else "(${favourites.size})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                favourites.forEach { (tagType, tag) ->
+                    TriStateFilterChip(
+                        mode = filterModeFor(filterState, tagType, tag),
+                        onClick = { onToggleFilter(tagType, tag) },
+                        label = tag,
+                        isFavourite = true,
+                        onLongClick = { onToggleFavourite(tagType, tag) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun filterModeFor(state: FilterState, tagType: TagType, tag: String): TagFilterMode {
+    val map = when (tagType) {
+        TagType.RATING -> state.ratingFilters
+        TagType.WARNING -> state.warningFilters
+        TagType.CATEGORY -> state.categoryFilters
+        TagType.FANDOM -> state.fandomFilters
+        TagType.RELATIONSHIP -> state.relationshipFilters
+        TagType.CHARACTER -> state.characterFilters
+        TagType.FREEFORM -> state.freeformFilters
+        TagType.UNKNOWN -> return TagFilterMode.DEFAULT
+    }
+    return map[tag] ?: TagFilterMode.DEFAULT
+}
+
+/**
+ * Decode the `"${tagType.id}\t$tag"` key set into typed pairs, filter by the
+ * shared search query, and sort by tag type then tag name so similar tags
+ * cluster together.
+ */
+private fun parseFavouriteKeys(
+    favouriteKeys: Set<String>,
+    searchQuery: String
+): List<Pair<TagType, String>> {
+    val parsed = favouriteKeys.mapNotNull { key ->
+        val sep = key.indexOf('\t')
+        if (sep <= 0) return@mapNotNull null
+        val typeId = key.substring(0, sep).toIntOrNull() ?: return@mapNotNull null
+        val tagType = TagType.fromId(typeId)
+        if (tagType == TagType.UNKNOWN) return@mapNotNull null
+        tagType to key.substring(sep + 1)
+    }.sortedWith(compareBy({ it.first.id }, { it.second.lowercase() }))
+
+    if (searchQuery.isBlank()) return parsed
+    val q = searchQuery.lowercase()
+    return parsed.filter { (_, tag) -> tag.lowercase().contains(q) }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TagFilterSection(
@@ -879,7 +1006,7 @@ private fun TagFilterSection(
         AnimatedVisibility(visible = expanded) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(-8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 sortedOptions.forEach { option ->
@@ -1013,7 +1140,7 @@ private fun ReadingStatusFilterSection(
         AnimatedVisibility(visible = expanded) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(-8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 ReadingStatus.entries.forEach { status ->

@@ -32,19 +32,40 @@ export interface TrackedChapter {
   pendingSync: boolean;
 }
 
+/**
+ * Pre-defined api environments selectable from the Settings dropdown. The
+ * stored `apiBaseUrlItem` value must always be one of these `url`s so the
+ * popup's auth client + sync transport hit a known host (also kept in sync
+ * with manifest `host_permissions` in `wxt.config.ts`).
+ */
+export interface ApiBaseUrlPreset {
+  id: "prod" | "dev" | "proxy" | "local";
+  label: string;
+  url: string;
+}
+
+export const apiBaseUrlPresets = [
+  { id: "prod", label: "Prod", url: "https://ao3tracker.com" },
+  { id: "dev", label: "Dev", url: "https://dev.ao3tracker.com" },
+  {
+    id: "proxy",
+    label: "Proxy (cloudflared → local)",
+    url: "https://qcksys-ao3tracker-api-local.ta2.dev",
+  },
+  {
+    id: "local",
+    label: "Local (portless)",
+    url: "https://ao3tracker.localhost",
+  },
+] as const satisfies readonly ApiBaseUrlPreset[];
+
 export const apiBaseUrlItem = storage.defineItem<string>("local:apiBaseUrl", {
-  fallback: "https://ao3tracker.qcksys.app",
+  fallback: apiBaseUrlPresets[0].url,
 });
 
 export const authTokenItem = storage.defineItem<string | null>("local:authToken", {
   fallback: null,
 });
-
-export const userItem = storage.defineItem<{
-  id: string;
-  email: string | null;
-  name: string | null;
-} | null>("local:user", { fallback: null });
 
 export const lastSyncedAtItem = storage.defineItem<string | null>("local:lastSyncedAt", {
   fallback: null,

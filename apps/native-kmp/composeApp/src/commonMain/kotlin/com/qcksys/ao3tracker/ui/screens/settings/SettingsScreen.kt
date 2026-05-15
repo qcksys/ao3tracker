@@ -550,7 +550,7 @@ fun SettingsScreen() {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Contact: ao3tracker@qcksys.com",
+                        text = "Contact: hello@ao3tracker.com",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )

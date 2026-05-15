@@ -14,7 +14,9 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@better-auth/passkey": "catalog:",
     "@qcksys/ao3tracker-core": "workspace:*",
+    "better-auth": "catalog:",
     "zod": "^4.4.3"
   },
   "devDependencies": {

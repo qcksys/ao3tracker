@@ -8,6 +8,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { authClient } from "~popup/lib/auth-client";
 import { usePopupState } from "~popup/lib/state";
 
 const SECTION_ORDER: TagTypeName[] = [
@@ -22,6 +23,7 @@ const SECTION_ORDER: TagTypeName[] = [
 
 export default function Lists() {
   const { state, dispatch } = usePopupState();
+  const { data: session } = authClient.useSession();
 
   const grouped = useMemo(() => {
     const map = new Map<TagTypeName, { tag: string; favourited: boolean }[]>();
@@ -35,7 +37,7 @@ export default function Lists() {
   }, [state?.favouriteTags]);
 
   if (!state) return <div className="text-muted-foreground text-sm">Loading…</div>;
-  if (!state.authenticated) {
+  if (!session?.user) {
     return (
       <p className="text-muted-foreground text-sm">
         Sign in to manage favourite tags across devices.
