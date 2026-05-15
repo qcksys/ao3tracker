@@ -100,5 +100,32 @@ export const favouriteTagsItem = storage.defineItem<FavouriteTagItem[]>(
   { fallback: [] },
 );
 
+/**
+ * The highest notification id we've already surfaced as a chrome notification.
+ * Persisted so a service-worker restart doesn't re-fire old alerts.
+ */
+export const lastSeenNotificationIdItem = storage.defineItem<number | null>(
+  "local:lastSeenNotificationId",
+  { fallback: null },
+);
+
+/**
+ * Whether the background worker should poll for new notifications and surface
+ * chrome notifications. Defaults to true so users get push by default after
+ * sign-in (matching native KMP behaviour).
+ */
+export const notificationsEnabledItem = storage.defineItem<boolean>(
+  "local:notificationsEnabled",
+  { fallback: true },
+);
+
+/**
+ * Map of chrome notification id → AO3 work id. Lets the click handler look up
+ * which work to open without re-fetching from the api.
+ */
+export const notificationWorkIdsItem = storage.defineItem<
+  Record<string, number>
+>("local:notificationWorkIds", { fallback: {} });
+
 export const chapterKey = (workId: number, chapterId: number): string =>
   `${workId}:${chapterId}`;

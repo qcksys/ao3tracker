@@ -7,13 +7,14 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { timing } from "hono/timing";
 import { PROD_ENV_NAME } from "~/const";
-import { landingPageHtml } from "~/lib/landing-page";
 import { authMw } from "~/middleware/authMw";
 import { startupMw, type TRouterEnvFw } from "~/middleware/startupMw";
 import { queue } from "~/queue/handler";
 import { apiRouter } from "~/routes/api";
 import { wellKnownRouter } from "~/routes/well-known";
 import { scheduled } from "~/scheduled/handler";
+import { LandingPage } from "~/views/landing-page";
+import { ResetPasswordPage } from "~/views/reset-password-page";
 
 // `Auth<O>` is invariant in `O`, so callers passing the inferred narrow-options
 // Auth from `~/lib/auth` can't widen to `Auth<BetterAuthOptions>`. Making the
@@ -97,7 +98,9 @@ appRouter.get("/robots.txt", (c) => {
     return c.text("User-agent: *\nDisallow: /\n");
 });
 
-appRouter.get("/", (c) => c.html(landingPageHtml));
+appRouter.get("/", (c) => c.html(<LandingPage />));
+
+appRouter.get("/reset-password", (c) => c.html(<ResetPasswordPage />));
 
 appRouter.on(["POST", "GET"], "/auth/*", (c) => c.var.auth.handler(c.req.raw));
 

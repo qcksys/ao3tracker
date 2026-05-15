@@ -5,7 +5,7 @@ import { defineConfig, type WxtViteConfig } from "wxt";
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   manifest: {
-    permissions: ["storage", "activeTab", "alarms"],
+    permissions: ["storage", "activeTab", "alarms", "notifications"],
     name: "ao3 Tracker",
     description:
       "Cross device tracking for AO3. Automatically syncs your position in any work you open across devices.",

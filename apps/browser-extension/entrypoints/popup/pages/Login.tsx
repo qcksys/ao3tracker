@@ -93,12 +93,17 @@ export default function Login() {
       <Button type="button" variant="outline" onClick={onPasskey}>
         Use passkey
       </Button>
-      <p className="text-muted-foreground text-sm">
-        No account?{" "}
-        <Link to="/register" className="text-primary underline-offset-4 hover:underline">
-          Create one
+      <div className="flex items-center justify-between text-sm">
+        <Link
+          to="/forgot-password"
+          className="text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+        >
+          Forgot password?
         </Link>
-      </p>
+        <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+          Create account
+        </Link>
+      </div>
     </div>
   );
 }

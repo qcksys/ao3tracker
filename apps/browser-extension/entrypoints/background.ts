@@ -12,11 +12,17 @@ import {
 import { loadAuthToken } from "@/lib/auth-token-cache";
 import { toggleFavouriteTag } from "@/lib/favourite-tags-repo";
 import {
+  attachNotificationClickHandler,
+  pollAndDisplayNotifications,
+} from "@/lib/notifications";
+import {
   apiBaseUrlItem,
   authTokenItem,
   favouriteTagsItem,
+  lastSeenNotificationIdItem,
   lastSyncErrorItem,
   lastSyncedAtItem,
+  notificationsEnabledItem,
 } from "@/lib/storage";
 import { runSync } from "@/lib/sync";
 import {
@@ -54,22 +60,47 @@ async function triggerSync(): Promise<void> {
   }
 }
 
+async function pollNotifications(): Promise<void> {
+  const [enabled, lastSeenId] = await Promise.all([
+    notificationsEnabledItem.getValue(),
+    lastSeenNotificationIdItem.getValue(),
+  ]);
+  try {
+    await pollAndDisplayNotifications({
+      notificationsEnabled: enabled,
+      lastSeenId,
+      setLastSeenId: (id) => lastSeenNotificationIdItem.setValue(id),
+    });
+  } catch (err) {
+    console.warn("[ao3-tracker] notification poll failed", err);
+  }
+}
+
 async function getPopupState(): Promise<PopupState> {
-  const [baseUrl, lastSyncedAt, lastSyncError, favouriteTags, currentWork, trackedCount] =
-    await Promise.all([
-      apiBaseUrlItem.getValue(),
-      lastSyncedAtItem.getValue(),
-      lastSyncErrorItem.getValue(),
-      favouriteTagsItem.getValue(),
-      currentWorkSummary(),
-      trackedWorkCount(),
-    ]);
+  const [
+    baseUrl,
+    lastSyncedAt,
+    lastSyncError,
+    favouriteTags,
+    currentWork,
+    trackedCount,
+    notificationsEnabled,
+  ] = await Promise.all([
+    apiBaseUrlItem.getValue(),
+    lastSyncedAtItem.getValue(),
+    lastSyncErrorItem.getValue(),
+    favouriteTagsItem.getValue(),
+    currentWorkSummary(),
+    trackedWorkCount(),
+    notificationsEnabledItem.getValue(),
+  ]);
   return {
     apiBaseUrl: baseUrl,
     lastSyncedAt,
     lastSyncError,
     syncing,
     trackedCount,
+    notificationsEnabled,
     currentWork,
     favouriteTags,
   };
@@ -123,6 +154,12 @@ async function handlePopupMessage(
       scheduleSync();
       return { kind: "state", state: await getPopupState() };
     }
+
+    case "setNotificationsEnabled": {
+      await notificationsEnabledItem.setValue(msg.enabled);
+      if (msg.enabled) void pollNotifications();
+      return { kind: "state", state: await getPopupState() };
+    }
   }
 }
 
@@ -133,8 +170,13 @@ export default defineBackground(() => {
   // re-trigger sync whenever the popup signs in / out.
   void loadAuthToken();
   authTokenItem.watch((next) => {
-    if (next) scheduleSync();
+    if (next) {
+      scheduleSync();
+      void pollNotifications();
+    }
   });
+
+  attachNotificationClickHandler();
 
   browser.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
     // The same channel handles content-script and popup messages. We try the
@@ -166,11 +208,16 @@ export default defineBackground(() => {
     return true;
   });
 
-  // Background sync every 5 minutes when signed in.
+  // Background sync every 5 minutes when signed in. Notifications poll on the
+  // same cadence — they're a piggy-back on the sync alarm, no extra timer.
   void browser.alarms.create("ao3-tracker-periodic-sync", { periodInMinutes: 5 });
   browser.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === "ao3-tracker-periodic-sync") void triggerSync();
+    if (alarm.name === "ao3-tracker-periodic-sync") {
+      void triggerSync();
+      void pollNotifications();
+    }
   });
 
   void triggerSync();
+  void pollNotifications();
 });

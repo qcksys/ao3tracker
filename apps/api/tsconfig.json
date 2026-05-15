@@ -1,6 +1,7 @@
 {
     "include": ["src/**/*", "test/**/*", "*"],
     "compilerOptions": {
+        "types": ["vite/client"],
         "verbatimModuleSyntax": true,
         "skipLibCheck": true,
         "noEmit": true,

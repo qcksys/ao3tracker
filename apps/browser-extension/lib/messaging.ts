@@ -36,6 +36,7 @@ export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("syncNow") }),
   z.object({ kind: z.literal("toggleFavouriteTag"), tagType: tagTypeIdSchema, tag: z.string().min(1), favourited: z.boolean() }),
   z.object({ kind: z.literal("setApiBaseUrl"), baseUrl: z.string().url() }),
+  z.object({ kind: z.literal("setNotificationsEnabled"), enabled: z.boolean() }),
 ]);
 export type PopupToBackground = z.infer<typeof popupToBackgroundSchema>;
 
@@ -46,6 +47,7 @@ export const popupStateSchema = z.object({
   lastSyncError: z.string().nullable(),
   syncing: z.boolean(),
   trackedCount: z.number().int().nonnegative(),
+  notificationsEnabled: z.boolean(),
   currentWork: z
     .object({
       workId: z.number().int().positive(),

@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Tailwind v4 scans relative paths only when files live above the config; the
+ * worker source lives a sibling directory away, so be explicit. */
+@source "../lib/landing-page.tsx";
+@source "../lib/reset-password-page.tsx";
+@source "../lib/page-layout.tsx";

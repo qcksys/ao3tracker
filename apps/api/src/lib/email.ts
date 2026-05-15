@@ -22,8 +22,8 @@ export async function sendEmail({
     subject,
     text,
     html,
-}: SendEmailArgs): Promise<void> {
-    await binding.send({
+}: SendEmailArgs) {
+    return await binding.send({
         from: { name: fromName, email: fromAddress },
         to,
         subject,

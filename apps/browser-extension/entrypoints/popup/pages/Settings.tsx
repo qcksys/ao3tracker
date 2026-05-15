@@ -86,6 +86,35 @@ export default function Settings() {
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Notifications</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2 text-sm">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex-1">
+              <div>Push notifications</div>
+              <p className="text-muted-foreground text-xs">
+                Show alerts for new chapters and completed works on your
+                tracked subscriptions.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant={state.notificationsEnabled ? "default" : "outline"}
+              onClick={() =>
+                void dispatch({
+                  kind: "setNotificationsEnabled",
+                  enabled: !state.notificationsEnabled,
+                })
+              }
+            >
+              {state.notificationsEnabled ? "On" : "Off"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">API endpoint</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
