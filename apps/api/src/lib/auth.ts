@@ -4,10 +4,7 @@ import { betterAuth } from "better-auth/minimal";
 import { bearer, openAPI, twoFactor } from "better-auth/plugins";
 import { PROD_ENV_NAME } from "~/const";
 import type { TDatabase } from "~/db/db.client";
-import {
-    getLastSentAt,
-    recordEmailSent,
-} from "~/db/queries/email-send-log";
+import { getLastSentAt, recordEmailSent } from "~/db/queries/email-send-log";
 import { rAuthAccount, tAuthAccount } from "~/db/schema/auth.account";
 import type { EmailSendType } from "~/db/schema/auth.emailSendLog";
 import { rAuthPasskey, tAuthPasskey } from "~/db/schema/auth.passkey";
@@ -100,7 +97,7 @@ export const auth = ({
                     });
                     return;
                 }
-                await sendEmail({
+                const email = await sendEmail({
                     binding: env.EMAIL,
                     to: user.email,
                     fromAddress: env.SYSTEM_EMAIL_ADDRESS,
@@ -116,6 +113,7 @@ export const auth = ({
                 console.log({
                     message: "Password reset email sent",
                     email: user.email,
+                    result: email,
                 });
             },
         },
@@ -131,7 +129,7 @@ export const auth = ({
                     });
                     return;
                 }
-                await sendEmail({
+                const email = await sendEmail({
                     binding: env.EMAIL,
                     to: user.email,
                     fromAddress: env.SYSTEM_EMAIL_ADDRESS,
@@ -146,6 +144,7 @@ export const auth = ({
                 console.log({
                     message: "Verification email sent",
                     email: user.email,
+                    result: email,
                 });
             },
             sendOnSignUp: true,
