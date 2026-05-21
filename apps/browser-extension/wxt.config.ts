@@ -22,6 +22,9 @@ export default defineConfig({
   // Cast around a vite version mismatch between WXT and @tailwindcss/vite's
   // Plugin types. They behave identically at runtime.
   vite: (): WxtViteConfig => ({
+    resolve: {
+      tsconfigPaths: true,
+    },
     plugins: tailwindcss() as unknown as WxtViteConfig["plugins"],
   }),
   alias: {

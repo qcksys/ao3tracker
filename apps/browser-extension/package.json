@@ -43,7 +43,7 @@
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.2.2",
     "typescript": "catalog:",
-    "vite-tsconfig-paths": "^5.1.4",
-    "wxt": "^0.20.26"
+    "wxt": "^0.20.26",
+    "vite": "^8.0.13"
   }
 }

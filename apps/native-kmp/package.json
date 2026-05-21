@@ -2,5 +2,8 @@
   "name": "@qcksys/ao3tracker-native-kmp",
   "version": "0.1.0",
   "private": true,
-  "description": "Versioning anchor for the Kotlin Multiplatform app. Used by Changesets only — actual build is Gradle (./gradlew). Native version numbers live in composeApp/build.gradle.kts (Android versionName) and iosApp/Configuration/Config.xcconfig (MARKETING_VERSION) and must be bumped to match this value before each release."
+  "description": "Versioning anchor for the Kotlin Multiplatform app. Used by Changesets only — actual build is Gradle (./gradlew). Native version numbers live in composeApp/build.gradle.kts (Android versionName) and iosApp/Configuration/Config.xcconfig (MARKETING_VERSION) and must be bumped to match this value before each release.",
+  "scripts": {
+    "dev": "gradlew.bat :composeApp:assembleDebug"
+  }
 }
