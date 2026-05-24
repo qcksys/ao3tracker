@@ -137,6 +137,25 @@ export default function Works() {
       .map((t) => ({ ...t, typeName: tagTypeIdToName(t.tagType) }));
   }, [raw]);
 
+  const pinnedTagNames = useMemo(
+    () => new Set(pinnedTags.map((t) => t.tag)),
+    [pinnedTags],
+  );
+
+  const tagCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    if (pinnedTagNames.size === 0) return counts;
+    for (const tag of pinnedTagNames) counts.set(tag, 0);
+    for (const row of filteredAndSorted) {
+      for (const t of row.tags) {
+        if (pinnedTagNames.has(t.tag)) {
+          counts.set(t.tag, counts.get(t.tag)! + 1);
+        }
+      }
+    }
+    return counts;
+  }, [filteredAndSorted, pinnedTagNames]);
+
   if (sessionPending) {
     return <div className="text-muted-foreground text-sm">Loading…</div>;
   }
@@ -295,7 +314,10 @@ export default function Works() {
                     className="capitalize"
                     title={t.typeName}
                   >
-                    {t.tag}
+                    <span>{t.tag}</span>
+                    <span className="text-muted-foreground ml-1 text-[10px] tabular-nums normal-case">
+                      {tagCounts.get(t.tag) ?? 0}
+                    </span>
                   </Button>
                 ))}
               </div>
