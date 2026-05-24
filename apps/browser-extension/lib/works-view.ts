@@ -1,7 +1,6 @@
 import type {
   SyncTagMetadata,
   SyncWorkMetadata,
-  TagTypeName,
   WorkBadgeStatus,
 } from "@qcksys/ao3tracker-core";
 
@@ -36,7 +35,7 @@ export interface WorksListRow {
   // derived
   status: WorkBadgeStatus;
   progressPercent: number;
-  tags: { tag: string; type: TagTypeName }[];
+  tags: ReadonlySet<string>;
 }
 
 export type SortField =
@@ -72,6 +71,7 @@ export interface WorksSortState {
 }
 
 const COMPLETE_THRESHOLD = 0.95;
+const EMPTY_TAG_SET: ReadonlySet<string> = new Set();
 
 /**
  * Build the per-row status mirroring `buildBadgePayloads` in tracker-repo and
@@ -113,45 +113,51 @@ export function buildWorksList(input: {
   chapters: Record<string, TrackedChapter>;
   tagMetadata: SyncTagMetadata[];
 }): WorksListRow[] {
-  const tagsByWork = new Map<number, { tag: string; type: TagTypeName }[]>();
+  const tagsByWork = new Map<number, Set<string>>();
   for (const t of input.tagMetadata) {
-    const list = tagsByWork.get(t.workId) ?? [];
-    list.push({ tag: t.tag, type: t.type });
-    tagsByWork.set(t.workId, list);
+    let set = tagsByWork.get(t.workId);
+    if (!set) tagsByWork.set(t.workId, (set = new Set()));
+    set.add(t.tag);
   }
 
-  return Object.values(input.works)
-    .filter((w) => !w.deleted)
-    .map((w) => {
-      const meta = input.metadata[w.workId];
-      const workChapters = Object.values(input.chapters).filter(
-        (c) => c.workId === w.workId,
-      );
-      const { status, progressPercent } = deriveStatus(w, meta, workChapters);
-      return {
-        workId: w.workId,
-        lastReadAt: w.lastReadAt,
-        markedCompleteAt: w.markedCompleteAt,
-        private: w.private,
-        subscribed: w.subscribed,
-        favourite: w.favourite,
-        title: meta?.title ?? null,
-        author: meta?.author ?? null,
-        language: meta?.language ?? null,
-        wordCount: meta?.wordCount ?? null,
-        hits: meta?.hits ?? null,
-        kudos: meta?.kudos ?? null,
-        bookmarks: meta?.bookmarks ?? null,
-        comments: meta?.comments ?? null,
-        currentChapters: meta?.currentChapters ?? null,
-        totalChapters: meta?.totalChapters ?? null,
-        published: meta?.published ?? null,
-        lastUpdated: meta?.lastUpdated ?? null,
-        status,
-        progressPercent,
-        tags: tagsByWork.get(w.workId) ?? [],
-      } satisfies WorksListRow;
+  const chaptersByWork = new Map<number, TrackedChapter[]>();
+  for (const c of Object.values(input.chapters)) {
+    const list = chaptersByWork.get(c.workId);
+    if (list) list.push(c);
+    else chaptersByWork.set(c.workId, [c]);
+  }
+
+  const rows: WorksListRow[] = [];
+  for (const w of Object.values(input.works)) {
+    if (w.deleted) continue;
+    const meta = input.metadata[w.workId];
+    const workChapters = chaptersByWork.get(w.workId) ?? [];
+    const { status, progressPercent } = deriveStatus(w, meta, workChapters);
+    rows.push({
+      workId: w.workId,
+      lastReadAt: w.lastReadAt,
+      markedCompleteAt: w.markedCompleteAt,
+      private: w.private,
+      subscribed: w.subscribed,
+      favourite: w.favourite,
+      title: meta?.title ?? null,
+      author: meta?.author ?? null,
+      language: meta?.language ?? null,
+      wordCount: meta?.wordCount ?? null,
+      hits: meta?.hits ?? null,
+      kudos: meta?.kudos ?? null,
+      bookmarks: meta?.bookmarks ?? null,
+      comments: meta?.comments ?? null,
+      currentChapters: meta?.currentChapters ?? null,
+      totalChapters: meta?.totalChapters ?? null,
+      published: meta?.published ?? null,
+      lastUpdated: meta?.lastUpdated ?? null,
+      status,
+      progressPercent,
+      tags: tagsByWork.get(w.workId) ?? EMPTY_TAG_SET,
     });
+  }
+  return rows;
 }
 
 export function applyFilters(
@@ -159,16 +165,17 @@ export function applyFilters(
   filter: WorksFilterState,
 ): WorksListRow[] {
   const q = filter.searchQuery.trim().toLowerCase();
+  const includeTags =
+    filter.includeTags.size > 0 ? Array.from(filter.includeTags) : null;
   return rows.filter((row) => {
     if (filter.favouritesOnly && !row.favourite) return false;
     if (filter.subscribedOnly && !row.subscribed) return false;
     if (filter.statuses.length > 0 && !filter.statuses.includes(row.status))
       return false;
-    if (filter.includeTags.size > 0) {
-      const hasAll = Array.from(filter.includeTags).every((tag) =>
-        row.tags.some((t) => t.tag === tag),
-      );
-      if (!hasAll) return false;
+    if (includeTags !== null) {
+      for (const tag of includeTags) {
+        if (!row.tags.has(tag)) return false;
+      }
     }
     if (q.length > 0) {
       const haystack = [row.title ?? "", row.author ?? ""]

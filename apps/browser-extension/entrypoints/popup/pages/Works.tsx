@@ -145,13 +145,12 @@ export default function Works() {
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
     if (pinnedTagNames.size === 0) return counts;
-    for (const tag of pinnedTagNames) counts.set(tag, 0);
-    for (const row of filteredAndSorted) {
-      for (const t of row.tags) {
-        if (pinnedTagNames.has(t.tag)) {
-          counts.set(t.tag, counts.get(t.tag)! + 1);
-        }
+    for (const tag of pinnedTagNames) {
+      let count = 0;
+      for (const row of filteredAndSorted) {
+        if (row.tags.has(tag)) count++;
       }
+      counts.set(tag, count);
     }
     return counts;
   }, [filteredAndSorted, pinnedTagNames]);
