@@ -19,29 +19,34 @@ val webviewScriptsDir = rootProject.file("webview-scripts")
 val webviewScriptsOutputDir = layout.buildDirectory.dir("generated/webview-scripts")
 val generatedKotlinDir = layout.buildDirectory.dir("generated/kotlin/webview")
 
-// Task to install dependencies with bun
-val bunInstall by tasks.registering(Exec::class) {
-    workingDir = webviewScriptsDir
-    commandLine = if (System.getProperty("os.name").lowercase().contains("win")) {
-        listOf("cmd", "/c", "bun", "install")
-    } else {
-        listOf("bun", "install")
-    }
+// pnpm workspace root for installing webview-script dependencies
+val workspaceRoot = rootProject.file("../..")
+val isWindows = System.getProperty("os.name").lowercase().contains("win")
+val pnpmCommand = if (isWindows) listOf("cmd", "/c", "pnpm") else listOf("pnpm")
+
+// Task to install workspace dependencies with pnpm (root install resolves
+// workspace links for @qcksys/ao3tracker-core).
+val pnpmInstall by tasks.registering(Exec::class) {
+    workingDir = workspaceRoot
+    commandLine = pnpmCommand + listOf("install", "--frozen-lockfile=false")
+    inputs.file(workspaceRoot.resolve("pnpm-lock.yaml"))
     inputs.file(webviewScriptsDir.resolve("package.json"))
     outputs.dir(webviewScriptsDir.resolve("node_modules"))
 }
 
-// Task to compile TypeScript
+// Task to compile TypeScript via pnpm script
 val compileWebviewScripts by tasks.registering(Exec::class) {
-    dependsOn(bunInstall)
+    dependsOn(pnpmInstall)
     workingDir = webviewScriptsDir
-    commandLine = if (System.getProperty("os.name").lowercase().contains("win")) {
-        listOf("cmd", "/c", "bun", "run", "build")
-    } else {
-        listOf("bun", "run", "build")
-    }
+    commandLine = pnpmCommand + listOf("run", "build")
     inputs.dir(webviewScriptsDir.resolve("src"))
+    inputs.dir(workspaceRoot.resolve("packages/ao3-core/src"))
+    inputs.file(workspaceRoot.resolve("packages/ao3-core/package.json"))
+    inputs.file(workspaceRoot.resolve("pnpm-lock.yaml"))
     inputs.file(webviewScriptsDir.resolve("tsconfig.json"))
+    inputs.file(webviewScriptsDir.resolve("package.json"))
+    inputs.file(webviewScriptsDir.resolve("vite.config.ts"))
+    inputs.file(webviewScriptsDir.resolve("build.ts"))
     outputs.dir(webviewScriptsDir.resolve("dist"))
 }
 
@@ -206,6 +211,34 @@ kotlin {
     }
 }
 
+val releaseVersionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.let { value ->
+    require(value.matches(Regex("[1-9][0-9]{0,9}"))) {
+        "ANDROID_VERSION_CODE must be an integer between 1 and 2100000000"
+    }
+    val code = value.toLong()
+    require(code <= 2_100_000_000L) { "ANDROID_VERSION_CODE must not exceed 2100000000" }
+    code.toInt()
+} ?: 20
+
+val releaseVersionName = providers.environmentVariable("ANDROID_VERSION_NAME").orNull?.also { value ->
+    require(value.length <= 128 && value.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?"))) {
+        "ANDROID_VERSION_NAME must be a version such as 1.2.3 or 1.2.3-rc.1 (maximum 128 characters)"
+    }
+} ?: "0.1.0"
+
+val releaseSigning = listOf(
+    "ANDROID_KEYSTORE_PATH",
+    "ANDROID_KEYSTORE_PASSWORD",
+    "ANDROID_KEY_ALIAS",
+    "ANDROID_KEY_PASSWORD"
+).associateWith { providers.environmentVariable(it).orNull }
+val hasReleaseSigning = releaseSigning.values.any { it != null }
+require(!hasReleaseSigning || releaseSigning.values.all { !it.isNullOrBlank() }) {
+    "Release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD together"
+}
+val releaseKeystore = releaseSigning["ANDROID_KEYSTORE_PATH"]?.let(rootProject::file)
+require(releaseKeystore == null || releaseKeystore.isFile) { "ANDROID_KEYSTORE_PATH must name an existing keystore file" }
+
 android {
     namespace = "com.qcksys.ao3tracker"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
@@ -214,12 +247,12 @@ android {
         applicationId = "com.qcksys.ao3tracker"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 20
-        versionName = "0.1.0"
+        versionCode = releaseVersionCode
+        versionName = releaseVersionName
 
         // Default to production API endpoints
-        buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.qcksys.app/auth\"")
-        buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.qcksys.app/api\"")
+        buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
+        buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
         // Sentry DSN
         buildConfigField("String", "SENTRY_DSN", "\"https://12e1b1b6f3402ab88188b7508dd5f65c@o4507101986291712.ingest.de.sentry.io/4510465375993936\"")
     }
@@ -232,8 +265,17 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    if (hasReleaseSigning) {
+        signingConfigs.create("release") {
+            storeFile = releaseKeystore
+            storePassword = releaseSigning.getValue("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = releaseSigning.getValue("ANDROID_KEY_ALIAS")
+            keyPassword = releaseSigning.getValue("ANDROID_KEY_PASSWORD")
+        }
+    }
     buildTypes {
         getByName("release") {
+            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

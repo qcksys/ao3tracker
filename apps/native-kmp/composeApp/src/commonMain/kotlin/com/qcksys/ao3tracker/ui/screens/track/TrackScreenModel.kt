@@ -12,8 +12,12 @@ import com.qcksys.ao3tracker.data.model.SyncState
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
+import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
+import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
+import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,6 +33,7 @@ import kotlinx.coroutines.launch
  * Identifiers for filter sections to track expanded state
  */
 enum class FilterSection {
+    FAVOURITES,
     READING_STATUS,
     RATING,
     WARNING,
@@ -41,11 +46,34 @@ enum class FilterSection {
 
 class TrackScreenModel(
     private val repository: Ao3Repository,
-    private val syncRepository: SyncRepository
+    private val syncRepository: SyncRepository,
+    private val favouriteTagRepository: FavouriteTagRepository,
+    private val syncTriggers: SyncTriggers,
+    private val savedSearchRepository: SavedSearchRepository
 ) : ScreenModel {
 
     private val _filterState = MutableStateFlow(FilterState())
     val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
+
+    // Saved searches (named AO3 filter URLs), synced via /api/track/sync.
+    val savedSearches: StateFlow<List<SavedSearchEntity>> = savedSearchRepository
+        .observeLive()
+        .stateIn(
+            scope = screenModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val _isSavedSearchSheetVisible = MutableStateFlow(false)
+    val isSavedSearchSheetVisible: StateFlow<Boolean> = _isSavedSearchSheetVisible.asStateFlow()
+
+    val favouriteTagFilters: StateFlow<Set<String>> = favouriteTagRepository
+        .observeFavourites()
+        .stateIn(
+            scope = screenModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptySet()
+        )
 
     private val _sortState = MutableStateFlow(SortState())
     val sortState: StateFlow<SortState> = _sortState.asStateFlow()
@@ -239,6 +267,20 @@ class TrackScreenModel(
         )
     }
 
+    /** Cycle the filter mode for a tag, dispatched by tag type. */
+    fun toggleTagFilter(tagType: TagType, tag: String) {
+        when (tagType) {
+            TagType.RATING -> toggleRating(tag)
+            TagType.WARNING -> toggleWarning(tag)
+            TagType.CATEGORY -> toggleCategory(tag)
+            TagType.FANDOM -> toggleFandom(tag)
+            TagType.RELATIONSHIP -> toggleRelationship(tag)
+            TagType.CHARACTER -> toggleCharacter(tag)
+            TagType.FREEFORM -> toggleFreeformTag(tag)
+            TagType.UNKNOWN -> {}
+        }
+    }
+
     fun toggleReadingStatus(status: ReadingStatus) {
         _filterState.value = _filterState.value.copy(
             readingStatusFilters = cycleFilter(_filterState.value.readingStatusFilters, status)
@@ -347,5 +389,42 @@ class TrackScreenModel(
 
     fun clearSyncResult() {
         _lastSyncResult.value = null
+    }
+
+    fun isFavouriteTag(tagType: TagType, tag: String): Boolean {
+        return favouriteKey(tagType, tag) in favouriteTagFilters.value
+    }
+
+    fun toggleFavouriteTag(tagType: TagType, tag: String) {
+        screenModelScope.launch {
+            favouriteTagRepository.toggleFavourite(tagType, tag)
+            syncTriggers.notifyFavouriteChanged()
+        }
+    }
+
+    private fun favouriteKey(tagType: TagType, tag: String): String = "${tagType.id}\t$tag"
+
+    fun showSavedSearchSheet() {
+        _isSavedSearchSheetVisible.value = true
+    }
+
+    fun hideSavedSearchSheet() {
+        _isSavedSearchSheetVisible.value = false
+    }
+
+    fun renameSavedSearch(id: String, name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        screenModelScope.launch {
+            savedSearchRepository.rename(id, trimmed)
+            syncTriggers.notifySavedSearchChanged()
+        }
+    }
+
+    fun deleteSavedSearch(id: String) {
+        screenModelScope.launch {
+            savedSearchRepository.delete(id)
+            syncTriggers.notifySavedSearchChanged()
+        }
     }
 }

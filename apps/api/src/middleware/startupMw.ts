@@ -5,22 +5,22 @@ import type { AppEnv } from "~/index";
 import { auth } from "~/lib/auth";
 
 export type TRouterEnvFw = {
-    Variables: {
-        db: TDatabase;
-        env: CloudflareBindings;
-        auth: ReturnType<typeof auth>;
-    };
+  Variables: {
+    db: TDatabase;
+    env: CloudflareBindings;
+    auth: ReturnType<typeof auth>;
+  };
 };
 
 export const startupMw = createMiddleware<AppEnv>(async (c, next) => {
-    const e = env(c) as unknown as CloudflareBindings;
+  const e = env(c) as unknown as CloudflareBindings;
 
-    const db = createDbConnection(e.DATABASE_URL);
-    const authInstance = auth({ env: e, db });
+  const db = createDbConnection(e.DATABASE_URL);
+  const authInstance = auth({ env: e, db });
 
-    c.set("env", e);
-    c.set("db", db);
-    c.set("auth", authInstance);
+  c.set("env", e);
+  c.set("db", db);
+  c.set("auth", authInstance);
 
-    await next();
+  await next();
 });

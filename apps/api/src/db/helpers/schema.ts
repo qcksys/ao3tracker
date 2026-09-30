@@ -3,10 +3,7 @@ import { datetime } from "drizzle-orm/mysql-core";
 import type { ZodObject, ZodRawShape } from "zod";
 
 /** All timestamp column names (for select type exclusion) */
-export type TAllTimestampColNames =
-    | "rowCreatedAt"
-    | "rowUpdatedAt"
-    | "rowDeletedAt";
+export type TAllTimestampColNames = "rowCreatedAt" | "rowUpdatedAt" | "rowDeletedAt";
 
 /** DB-managed timestamp columns that should never be set in inserts/updates */
 export type TTimestampColNames = "rowCreatedAt" | "rowUpdatedAt";
@@ -16,19 +13,31 @@ export type OmitTimestampCols<T> = Omit<T, TTimestampColNames>;
 
 /** Omit DB-managed timestamp columns from a Zod schema */
 export function omitTimestampCols<T extends ZodRawShape>(schema: ZodObject<T>) {
-    // Zod v4 strict omit typing doesn't work with generics
-    // biome-ignore lint/suspicious/noExplicitAny: required for generic omit wrapper
-    const mask: any = { rowCreatedAt: true, rowUpdatedAt: true };
-    return schema.omit(mask) as unknown as ZodObject<
-        Omit<T, TTimestampColNames>
-    >;
+  // Zod v4 strict omit typing doesn't work with generics
+  // biome-ignore lint/suspicious/noExplicitAny: required for generic omit wrapper
+  const mask: any = {};
+  if (Object.hasOwn(schema.shape, "rowCreatedAt")) mask.rowCreatedAt = true;
+  if (Object.hasOwn(schema.shape, "rowUpdatedAt")) mask.rowUpdatedAt = true;
+  return schema.omit(mask) as unknown as ZodObject<Omit<T, TTimestampColNames>>;
 }
 
 export const timestampCols = {
-    rowCreatedAt: datetime().default(sql`CURRENT_TIMESTAMP`).notNull(),
-    rowUpdatedAt: datetime()
-        .default(sql`CURRENT_TIMESTAMP ON
+  rowCreatedAt: datetime()
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  rowUpdatedAt: datetime()
+    .default(sql`CURRENT_TIMESTAMP ON
         UPDATE CURRENT_TIMESTAMP`)
-        .notNull(),
-    rowDeletedAt: datetime(),
+    .notNull(),
+  rowDeletedAt: datetime(),
+};
+
+export const syncTimestampCols = {
+  rowCreatedAt: datetime({ fsp: 3 })
+    .default(sql`CURRENT_TIMESTAMP(3)`)
+    .notNull(),
+  rowUpdatedAt: datetime({ fsp: 3 })
+    .default(sql`CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)`)
+    .notNull(),
+  rowDeletedAt: datetime({ fsp: 3 }),
 };

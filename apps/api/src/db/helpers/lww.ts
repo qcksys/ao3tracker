@@ -7,15 +7,15 @@
  */
 
 export interface LWWField<T> {
-    value: T;
-    updatedAt: Date | null;
-    fallbackTs: Date;
+  value: T;
+  updatedAt: Date | null;
+  fallbackTs: Date;
 }
 
 export interface LWWResult<T> {
-    shouldUpdate: boolean;
-    value: T;
-    updatedAt: Date;
+  shouldUpdate: boolean;
+  value: T;
+  updatedAt: Date;
 }
 
 /**
@@ -30,46 +30,43 @@ export interface LWWResult<T> {
  * @param server - Server's field value and timestamps
  * @returns Resolution result with shouldUpdate flag and winning value/timestamp
  */
-export function resolveLWW<T>(
-    client: LWWField<T>,
-    server: LWWField<T>,
-): LWWResult<T> {
-    const clientHasTs = client.updatedAt !== null;
-    const serverHasTs = server.updatedAt !== null;
+export function resolveLWW<T>(client: LWWField<T>, server: LWWField<T>): LWWResult<T> {
+  const clientHasTs = client.updatedAt !== null;
+  const serverHasTs = server.updatedAt !== null;
 
-    // If only client has explicit timestamp, client wins
-    if (clientHasTs && !serverHasTs) {
-        return {
-            shouldUpdate: true,
-            value: client.value,
-            updatedAt: client.updatedAt as Date,
-        };
-    }
-
-    // If only server has explicit timestamp, server wins
-    if (serverHasTs && !clientHasTs) {
-        return {
-            shouldUpdate: false,
-            value: server.value,
-            updatedAt: server.updatedAt as Date,
-        };
-    }
-
-    // Both have timestamps or neither has - compare them
-    const clientTs = client.updatedAt ?? client.fallbackTs;
-    const serverTs = server.updatedAt ?? server.fallbackTs;
-
-    if (clientTs > serverTs) {
-        return {
-            shouldUpdate: true,
-            value: client.value,
-            updatedAt: clientTs,
-        };
-    }
-
+  // If only client has explicit timestamp, client wins
+  if (clientHasTs && !serverHasTs) {
     return {
-        shouldUpdate: false,
-        value: server.value,
-        updatedAt: serverTs,
+      shouldUpdate: true,
+      value: client.value,
+      updatedAt: client.updatedAt as Date,
     };
+  }
+
+  // If only server has explicit timestamp, server wins
+  if (serverHasTs && !clientHasTs) {
+    return {
+      shouldUpdate: false,
+      value: server.value,
+      updatedAt: server.updatedAt as Date,
+    };
+  }
+
+  // Both have timestamps or neither has - compare them
+  const clientTs = client.updatedAt ?? client.fallbackTs;
+  const serverTs = server.updatedAt ?? server.fallbackTs;
+
+  if (clientTs > serverTs) {
+    return {
+      shouldUpdate: true,
+      value: client.value,
+      updatedAt: clientTs,
+    };
+  }
+
+  return {
+    shouldUpdate: false,
+    value: server.value,
+    updatedAt: serverTs,
+  };
 }

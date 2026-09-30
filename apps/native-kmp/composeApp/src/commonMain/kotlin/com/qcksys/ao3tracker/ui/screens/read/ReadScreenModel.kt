@@ -3,30 +3,52 @@ package com.qcksys.ao3tracker.ui.screens.read
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.qcksys.ao3tracker.data.model.DataException
+import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.model.ListWorksEvent
+import com.qcksys.ao3tracker.data.model.SaveSearchEvent
 import com.qcksys.ao3tracker.data.model.ScrollProgressEvent
 import com.qcksys.ao3tracker.data.model.WebViewMessage
+import com.qcksys.ao3tracker.data.model.WorkBadgePayload
 import com.qcksys.ao3tracker.data.model.WorkChapterIndexEvent
 import com.qcksys.ao3tracker.data.model.WorkInfoEvent
 import com.qcksys.ao3tracker.data.model.WorkTagsEvent
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
+import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
+import com.qcksys.ao3tracker.data.sync.SyncTriggers
+import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.util.JsonConfig
+import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class ReadScreenModel(
-    private val repository: Ao3Repository
+    private val repository: Ao3Repository,
+    private val savedSearchRepository: SavedSearchRepository,
+    private val syncTriggers: SyncTriggers,
+    private val accountData: AccountDataStore,
+    private val appSettings: AppSettings
 ) : ScreenModel {
 
     private val _currentUrl = MutableStateFlow("https://archiveofourown.org")
     val currentUrl: StateFlow<String> = _currentUrl.asStateFlow()
+
+    // Set when the in-page "Save this search" button is tapped; the UI shows a
+    // naming dialog and clears this on confirm/cancel.
+    private val _pendingSaveSearch = MutableStateFlow<SaveSearchEvent?>(null)
+    val pendingSaveSearch: StateFlow<SaveSearchEvent?> = _pendingSaveSearch.asStateFlow()
 
     private val _canGoBack = MutableStateFlow(false)
     val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
@@ -40,6 +62,12 @@ class ReadScreenModel(
     private val _scrollProgress = MutableStateFlow(0f)
     val scrollProgress: StateFlow<Float> = _scrollProgress.asStateFlow()
 
+    // Snippets of JS to evaluate in the WebView (e.g. applying list-page badges).
+    // extraBufferCapacity guarantees emit() never suspends; replay=0 because each
+    // injection is a one-shot.
+    private val _jsInjectionFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val jsInjectionFlow: SharedFlow<String> = _jsInjectionFlow.asSharedFlow()
+
     // Cache for work info until we have all the data
     private var pendingWorkInfo: WorkInfoEvent? = null
     private var pendingWorkTags: WorkTagsEvent? = null
@@ -47,9 +75,35 @@ class ReadScreenModel(
     // Track the previous chapter to mark as read when navigating to next chapter
     private data class ChapterLocation(val workId: Long, val chapterId: Long)
     private var previousChapter: ChapterLocation? = null
+    private var cachedTrackingSession: Long? = null
 
     companion object {
         private const val TAG = "ReadScreenModel"
+    }
+
+    init {
+        screenModelScope.launch {
+            var previousOwner: String? = null
+            accountData.active.collect { account ->
+                if (previousOwner != null && account?.owner != previousOwner) {
+                    pendingWorkInfo = null
+                    pendingWorkTags = null
+                    previousChapter = null
+                    _pendingSaveSearch.value = null
+                    navigateToHome()
+                }
+                previousOwner = account?.owner
+            }
+        }
+        screenModelScope.launch {
+            var wasIncognito = appSettings.incognitoModeEnabled.value
+            appSettings.incognitoModeEnabled.collect { enabled ->
+                if (wasIncognito && !enabled) {
+                    _jsInjectionFlow.emit("window.__ao3Tracker?.reportReadingActivity?.();")
+                }
+                wasIncognito = enabled
+            }
+        }
     }
 
     fun updateNavigationState(canGoBack: Boolean, canGoForward: Boolean) {
@@ -66,10 +120,20 @@ class ReadScreenModel(
     }
 
     fun handleWebViewMessage(messageJson: String) {
+        val owner = accountData.active.value?.owner
+        val accountGeneration = accountData.generation
+        val trackingSession = appSettings.captureTrackingSession()
+        val canTrack = {
+            trackingSession != null && appSettings.isTrackingSessionCurrent(trackingSession) &&
+                accountData.generation == accountGeneration && accountData.active.value?.owner == owner
+        }
         screenModelScope.launch {
+            if (accountData.generation != accountGeneration || accountData.active.value?.owner != owner) return@launch
             try {
                 val message = parseWebViewMessage(messageJson)
-                processMessage(message)
+                processMessage(message, canTrack)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: SerializationException) {
                 AppLogger.e("Failed to parse WebView message", TAG, e)
             } catch (e: DataException) {
@@ -97,6 +161,12 @@ class ReadScreenModel(
             "scrollProgress" -> WebViewMessage.ScrollProgress(
                 JsonConfig.json.decodeFromString<ScrollProgressEvent>(messageJson)
             )
+            "listWorks" -> WebViewMessage.ListWorks(
+                JsonConfig.json.decodeFromString<ListWorksEvent>(messageJson)
+            )
+            "saveSearch" -> WebViewMessage.SaveSearch(
+                JsonConfig.json.decodeFromString<SaveSearchEvent>(messageJson)
+            )
             else -> {
                 AppLogger.w("Unknown WebView message type: $type", TAG)
                 WebViewMessage.Unknown(type, messageJson)
@@ -104,22 +174,37 @@ class ReadScreenModel(
         }
     }
 
-    private suspend fun processMessage(message: WebViewMessage) {
+    private suspend fun processMessage(message: WebViewMessage, canTrack: () -> Boolean) {
+        val currentSession = appSettings.captureTrackingSession()
+        if (cachedTrackingSession != currentSession) {
+            pendingWorkInfo = null
+            pendingWorkTags = null
+            previousChapter = null
+            cachedTrackingSession = currentSession
+        }
         when (message) {
             is WebViewMessage.WorkInfo -> {
+                if (!canTrack()) return
                 pendingWorkInfo = message.event
-                tryToSaveWork()
+                tryToSaveWork(canTrack)
             }
             is WebViewMessage.WorkTags -> {
+                if (!canTrack()) return
                 pendingWorkTags = message.event
-                tryToSaveWork()
+                tryToSaveWork(canTrack)
             }
             is WebViewMessage.ChapterIndex -> {
-                repository.saveChapterIndex(message.event)
+                if (canTrack()) repository.saveChapterIndex(message.event, canTrack)
             }
             is WebViewMessage.ScrollProgress -> {
                 _scrollProgress.value = message.event.scrollPercentage / 100f
-                repository.updateScrollProgress(message.event)
+                if (canTrack()) repository.updateScrollProgress(message.event, canTrack)
+            }
+            is WebViewMessage.ListWorks -> {
+                handleListWorks(message.event)
+            }
+            is WebViewMessage.SaveSearch -> {
+                _pendingSaveSearch.value = message.event
             }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
@@ -127,15 +212,67 @@ class ReadScreenModel(
         }
     }
 
-    private suspend fun tryToSaveWork() {
+    /** Persist a saved search after the user confirms the name, then trigger a sync. */
+    fun confirmSaveSearch(name: String, url: String) {
+        _pendingSaveSearch.value = null
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || !isTrustedAo3Url(url)) return
+        screenModelScope.launch {
+            savedSearchRepository.save(trimmed, url)
+            syncTriggers.notifySavedSearchChanged()
+        }
+    }
+
+    /** Dismiss the save-search naming dialog without saving. */
+    fun dismissSaveSearch() {
+        _pendingSaveSearch.value = null
+    }
+
+    private suspend fun handleListWorks(event: ListWorksEvent) {
+        if (event.workIds.isEmpty() || !isTrustedAo3Url(event.url)) return
+        val badges = repository.getWorkBadges(event.workIds)
+        if (badges.isEmpty()) return
+
+        val payloadJson = JsonConfig.json.encodeToString(
+            ListSerializer(WorkBadgePayload.serializer()),
+            badges
+        )
+        // Pass the JSON as a string literal that we eval at runtime to avoid
+        // re-escaping inside a JS string template.
+        val script = """
+            (function() {
+                if (location.href !== ${jsStringLiteral(event.url)}) return;
+                if (window.__ao3Tracker && window.__ao3Tracker.applyListBadges) {
+                    window.__ao3Tracker.applyListBadges(${jsStringLiteral(payloadJson)});
+                }
+            })();
+        """.trimIndent()
+        _jsInjectionFlow.emit(script)
+    }
+
+    /** Wraps a string for safe embedding inside a JS source as a string literal. */
+    private fun jsStringLiteral(value: String): String {
+        val escaped = value
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace(" ", "\\u2028")
+            .replace(" ", "\\u2029")
+        return "'$escaped'"
+    }
+
+    private suspend fun tryToSaveWork(canTrack: () -> Boolean) {
         val workInfo = pendingWorkInfo ?: return
         val workTags = pendingWorkTags
 
         // Save work with whatever tags we have (tags may come in separate message)
-        repository.saveWorkFromWebView(workInfo, workTags)
+        repository.saveWorkFromWebView(workInfo, workTags, canTrack)
+        if (!canTrack()) return
 
         // Mark previous chapter as read if we navigated to a different chapter of the same work
-        markPreviousChapterAsReadIfNeeded(workInfo)
+        markPreviousChapterAsReadIfNeeded(workInfo, canTrack)
+        if (!canTrack()) return
 
         // Clear cache after saving
         if (workTags != null) {
@@ -148,7 +285,7 @@ class ReadScreenModel(
      * Mark the previous chapter as fully read when navigating to the next chapter of the same work.
      * This assumes that if you're moving to the next chapter, you've finished reading the current one.
      */
-    private suspend fun markPreviousChapterAsReadIfNeeded(currentWorkInfo: WorkInfoEvent) {
+    private suspend fun markPreviousChapterAsReadIfNeeded(currentWorkInfo: WorkInfoEvent, canTrack: () -> Boolean) {
         val currentWorkId = extractWorkIdFromUrl(currentWorkInfo.url) ?: return
         val currentChapterId = currentWorkInfo.chapterId?.toLongOrNull()
             ?: extractChapterIdFromUrl(currentWorkInfo.url)
@@ -162,7 +299,7 @@ class ReadScreenModel(
         // If we have a previous chapter on the same work but different chapter, mark it as read
         if (prev != null && prev.workId == currentWorkId && prev.chapterId != currentChapterId) {
             AppLogger.d("Marking previous chapter ${prev.chapterId} as read (navigated to chapter $currentChapterId)", TAG)
-            repository.markChapterAsRead(prev.chapterId, prev.workId)
+            repository.markChapterAsRead(prev.chapterId, prev.workId, canTrack)
         }
     }
 
@@ -177,10 +314,17 @@ class ReadScreenModel(
     }
 
     fun navigateToUrl(url: String) {
+        if (!isTrustedAo3Url(url)) return
         // Reset scroll progress when navigating to a new page
         _scrollProgress.value = 0f
         // Add #chapters fragment for work URLs to auto-scroll to content
         _currentUrl.value = addChaptersFragment(url)
+    }
+
+    fun navigateToExternalUrl(url: String) {
+        if (!isTrustedAo3Url(url)) return
+        _scrollProgress.value = 0f
+        _currentUrl.value = url
     }
 
     fun navigateToHome() {
@@ -197,6 +341,7 @@ class ReadScreenModel(
 
     @OptIn(ExperimentalTime::class)
     fun navigateToUrlWithScroll(url: String, scrollProgress: Float) {
+        if (!isTrustedAo3Url(url)) return
         // Build URL with scrollTo param and timestamp to force reload
         val timestamp = Clock.System.now().toEpochMilliseconds()
         val scrollPercent = (scrollProgress * 100).toInt()

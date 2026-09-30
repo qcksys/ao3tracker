@@ -9,6 +9,8 @@ expect class SettingsStorage() {
     fun setLastSyncTimestamp(timestamp: String?)
     fun isAutoSyncOnOpenEnabled(): Boolean
     fun setAutoSyncOnOpenEnabled(enabled: Boolean)
+    fun isIncognitoModeEnabled(): Boolean
+    fun setIncognitoModeEnabled(enabled: Boolean)
 }
 
 expect fun getSettingsStorage(): SettingsStorage

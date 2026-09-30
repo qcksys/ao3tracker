@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workspace:
+    name: Workspace checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate GitHub Actions workflows
+        run: |
+          curl --fail --silent --show-error --location https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          # GitHub supports queue:max; actionlint 1.7.12 has not added it yet.
+          # https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency
+          "$RUNNER_TEMP/actionlint" -ignore '^unexpected key "queue" for "concurrency" section\. expected one of "cancel-in-progress", "group"$' .github/workflows/*.yml
+      - name: Formatting, lint and type checks
+        run: pnpm exec vp check
+      - name: App-specific lint checks
+        run: |
+          pnpm --filter @qcksys/ao3tracker-api run biome:ci --error-on-warnings
+          pnpm --filter ao3tracker-webview-scripts run biome:ci --error-on-warnings
+      - name: Release automation tests
+        run: node --test scripts/*.test.mjs
+      - name: Workspace tests
+        run: pnpm exec vp run -r test
+      - name: Workspace builds
+        run: pnpm exec vp run -r build
+
+  android:
+    name: Android and JVM checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          cache-provider: basic
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - run: pnpm install --frozen-lockfile
+      - name: Test native code and build Android
+        run: >-
+          bash apps/native-kmp/gradlew -p apps/native-kmp
+          :composeApp:jvmTest :composeApp:assembleDebug
+          -x :composeApp:pnpmInstall --no-configuration-cache
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: native-test-reports
+          path: |
+            apps/native-kmp/composeApp/build/reports/tests/
+            apps/native-kmp/composeApp/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Android debug APK
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-debug
+          path: apps/native-kmp/composeApp/build/outputs/apk/debug/composeApp-debug.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -1,7 +1,0 @@
-onlyBuiltDependencies:
-  - '@firebase/util'
-  - esbuild
-  - protobufjs
-  - sharp
-  - vue-demi
-  - workerd

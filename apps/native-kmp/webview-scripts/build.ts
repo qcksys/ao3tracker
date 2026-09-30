@@ -1,59 +1,51 @@
 /**
- * Build script for webview scripts
- * Compiles TypeScript files to minified JavaScript bundles
+ * Build script for the WebView IIFE bundles.
+ *
+ * Vite forbids multi-entry IIFE library mode (one entry per IIFE), so we use
+ * the programmatic `build()` API in a loop instead — the pattern recommended
+ * in vitejs/vite#1736. This keeps the config in one place and runs in a
+ * single command.
+ *
+ * Resolves `~/*` → `./src/*` via `resolve.tsconfigPaths` (Vite 8 / Rolldown
+ * built-in support for tsconfig path mappings).
  */
+import { build } from "vite";
 
-const isDevMode = process.argv.includes("--dev");
-
-async function build() {
-    const buildOptions = {
-        target: "browser" as const,
-        minify: !isDevMode,
-        format: "iife" as const, // Output as IIFE for WebView injection (not ES module)
-    };
-
-    // Build ao3-tracking script
-    const trackingResult = await Bun.build({
-        ...buildOptions,
-        entrypoints: ["./src/ao3-tracking.ts"],
-        outdir: "./dist",
-        naming: isDevMode ? "ao3-tracking.js" : "ao3-tracking.min.js",
-    });
-
-    if (!trackingResult.success) {
-        console.error("Failed to build ao3-tracking.ts:");
-        trackingResult.logs.forEach((log) => {
-            console.error(log);
-        });
-        process.exit(1);
-    }
-
-    // Build scroll-restore script
-    const scrollRestoreResult = await Bun.build({
-        ...buildOptions,
-        entrypoints: ["./src/scroll-restore.ts"],
-        outdir: "./dist",
-        naming: isDevMode ? "scroll-restore.js" : "scroll-restore.min.js",
-    });
-
-    if (!scrollRestoreResult.success) {
-        console.error("Failed to build scroll-restore.ts:");
-        scrollRestoreResult.logs.forEach((log) => {
-            console.error(log);
-        });
-        process.exit(1);
-    }
-
-    console.log(
-        `Built ${trackingResult.outputs.length + scrollRestoreResult.outputs.length} files:`,
-    );
-    [...trackingResult.outputs, ...scrollRestoreResult.outputs].forEach(
-        (output) => {
-            console.log(
-                `  ${output.path} (${(output.size / 1024).toFixed(2)} KB)`,
-            );
-        },
-    );
+interface Entry {
+  entry: string;
+  name: string;
+  fileName: string;
 }
 
-build();
+const entries: Entry[] = [
+  {
+    entry: "./src/ao3-tracking.ts",
+    name: "Ao3TrackerWebView",
+    fileName: "ao3-tracking.min.js",
+  },
+  {
+    entry: "./src/scroll-restore.ts",
+    name: "Ao3TrackerScrollRestore",
+    fileName: "scroll-restore.min.js",
+  },
+];
+
+for (const [i, entry] of entries.entries()) {
+  await build({
+    configFile: false,
+    resolve: { tsconfigPaths: true },
+    build: {
+      outDir: "dist",
+      // First entry wipes dist/; subsequent entries preserve siblings.
+      emptyOutDir: i === 0,
+      minify: true,
+      target: "es2018",
+      lib: {
+        entry: entry.entry,
+        formats: ["iife"],
+        name: entry.name,
+        fileName: () => entry.fileName,
+      },
+    },
+  });
+}

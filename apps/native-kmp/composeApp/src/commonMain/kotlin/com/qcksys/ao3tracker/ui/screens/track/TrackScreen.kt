@@ -1,7 +1,10 @@
 package com.qcksys.ao3tracker.ui.screens.track
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,9 +24,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -46,7 +52,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,10 +63,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -87,6 +94,7 @@ import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
+import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.SettingsTab
@@ -104,6 +112,11 @@ fun TrackScreen() {
     val filterState by screenModel.filterState.collectAsState()
     val isFilterSheetVisible by screenModel.isFilterSheetVisible.collectAsState()
     val sheetState = rememberModalBottomSheetState()
+
+    // Saved searches
+    val savedSearches by screenModel.savedSearches.collectAsState()
+    val isSavedSearchSheetVisible by screenModel.isSavedSearchSheetVisible.collectAsState()
+    val savedSearchSheetState = rememberModalBottomSheetState()
 
     // Sort state
     val sortState by screenModel.sortState.collectAsState()
@@ -229,6 +242,12 @@ fun TrackScreen() {
                                 }
                             )
                         }
+                    }
+                    IconButton(onClick = { screenModel.showSavedSearchSheet() }) {
+                        Icon(
+                            imageVector = Icons.Default.Bookmarks,
+                            contentDescription = "Saved searches"
+                        )
                     }
                     IconButton(onClick = { screenModel.showFilterSheet() }) {
                         Icon(
@@ -497,7 +516,144 @@ fun TrackScreen() {
                 )
             }
         }
+
+        // Saved searches bottom sheet
+        if (isSavedSearchSheetVisible) {
+            ModalBottomSheet(
+                onDismissRequest = { screenModel.hideSavedSearchSheet() },
+                sheetState = savedSearchSheetState
+            ) {
+                SavedSearchesSheetContent(
+                    searches = savedSearches,
+                    onOpen = { url ->
+                        screenModel.hideSavedSearchSheet()
+                        NavigationState.navigateToRead(url)
+                        tabNavigator.current = ReadTab
+                    },
+                    onRename = { id, name -> screenModel.renameSavedSearch(id, name) },
+                    onDelete = { id -> screenModel.deleteSavedSearch(id) }
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun SavedSearchesSheetContent(
+    searches: List<SavedSearchEntity>,
+    onOpen: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var renaming by remember { mutableStateOf<SavedSearchEntity?>(null) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Saved searches",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        if (searches.isEmpty()) {
+            Text(
+                text = "No saved searches yet. Open an AO3 works or bookmarks page in the Read tab and tap \"Save this search\".",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                items(searches, key = { it.id }) { search ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpen(search.url) }
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = search.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = search.url,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        IconButton(onClick = { renaming = search }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Rename ${search.name}"
+                            )
+                        }
+                        IconButton(onClick = { onDelete(search.id) }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete ${search.name}"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    renaming?.let { search ->
+        RenameSavedSearchDialog(
+            currentName = search.name,
+            onConfirm = { name ->
+                onRename(search.id, name)
+                renaming = null
+            },
+            onDismiss = { renaming = null }
+        )
+    }
+}
+
+@Composable
+private fun RenameSavedSearchDialog(
+    currentName: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename search") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(191) },
+                label = { Text("Name") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable
@@ -643,6 +799,12 @@ private fun FilterSheetContent(
     val searchQuery by screenModel.filterTagSearchQuery.collectAsState()
     val expandedSections by screenModel.expandedFilterSections.collectAsState()
 
+    // Subscribe so favourite changes recompose the chips
+    val favouriteTagFilters by screenModel.favouriteTagFilters.collectAsState()
+    val isFavourite: (TagType, String) -> Boolean = { tagType, tag ->
+        "${tagType.id}\t$tag" in favouriteTagFilters
+    }
+
     // Filter options based on search query, but always include items with active filter modes
     fun filterOptions(options: List<String>, filters: Map<String, TagFilterMode>): List<String> {
         if (searchQuery.isBlank()) return options
@@ -688,6 +850,20 @@ private fun FilterSheetContent(
                 )
             }
 
+            val visibleFavourites = parseFavouriteKeys(favouriteTagFilters, searchQuery)
+            if (visibleFavourites.isNotEmpty()) {
+                item {
+                    FavouriteTagsFilterSection(
+                        favourites = visibleFavourites,
+                        filterState = filterState,
+                        expanded = FilterSection.FAVOURITES in expandedSections,
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FAVOURITES) },
+                        onToggleFilter = { tagType, tag -> screenModel.toggleTagFilter(tagType, tag) },
+                        onToggleFavourite = { tagType, tag -> screenModel.toggleFavouriteTag(tagType, tag) }
+                    )
+                }
+            }
+
             // Reading Status filter section (always show)
             item {
                 ReadingStatusFilterSection(
@@ -707,7 +883,9 @@ private fun FilterSheetContent(
                         filters = filterState.ratingFilters,
                         onToggle = { screenModel.toggleRating(it) },
                         expanded = FilterSection.RATING in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RATING) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RATING) },
+                        isFavourite = { isFavourite(TagType.RATING, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.RATING, it) }
                     )
                 }
             }
@@ -721,7 +899,9 @@ private fun FilterSheetContent(
                         filters = filterState.warningFilters,
                         onToggle = { screenModel.toggleWarning(it) },
                         expanded = FilterSection.WARNING in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.WARNING) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.WARNING) },
+                        isFavourite = { isFavourite(TagType.WARNING, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.WARNING, it) }
                     )
                 }
             }
@@ -735,7 +915,9 @@ private fun FilterSheetContent(
                         filters = filterState.categoryFilters,
                         onToggle = { screenModel.toggleCategory(it) },
                         expanded = FilterSection.CATEGORY in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CATEGORY) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CATEGORY) },
+                        isFavourite = { isFavourite(TagType.CATEGORY, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.CATEGORY, it) }
                     )
                 }
             }
@@ -749,7 +931,9 @@ private fun FilterSheetContent(
                         filters = filterState.fandomFilters,
                         onToggle = { screenModel.toggleFandom(it) },
                         expanded = FilterSection.FANDOM in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FANDOM) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FANDOM) },
+                        isFavourite = { isFavourite(TagType.FANDOM, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.FANDOM, it) }
                     )
                 }
             }
@@ -763,7 +947,9 @@ private fun FilterSheetContent(
                         filters = filterState.relationshipFilters,
                         onToggle = { screenModel.toggleRelationship(it) },
                         expanded = FilterSection.RELATIONSHIP in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RELATIONSHIP) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.RELATIONSHIP) },
+                        isFavourite = { isFavourite(TagType.RELATIONSHIP, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.RELATIONSHIP, it) }
                     )
                 }
             }
@@ -777,7 +963,9 @@ private fun FilterSheetContent(
                         filters = filterState.characterFilters,
                         onToggle = { screenModel.toggleCharacter(it) },
                         expanded = FilterSection.CHARACTER in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CHARACTER) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.CHARACTER) },
+                        isFavourite = { isFavourite(TagType.CHARACTER, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.CHARACTER, it) }
                     )
                 }
             }
@@ -791,7 +979,9 @@ private fun FilterSheetContent(
                         filters = filterState.freeformFilters,
                         onToggle = { screenModel.toggleFreeformTag(it) },
                         expanded = FilterSection.FREEFORM in expandedSections,
-                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FREEFORM) }
+                        onExpandedChange = { screenModel.toggleFilterSectionExpanded(FilterSection.FREEFORM) },
+                        isFavourite = { isFavourite(TagType.FREEFORM, it) },
+                        onLongClick = { screenModel.toggleFavouriteTag(TagType.FREEFORM, it) }
                     )
                 }
             }
@@ -803,6 +993,119 @@ private fun FilterSheetContent(
     }
 }
 
+/**
+ * Cross-type favourites section pinned to the top of the filter sheet.
+ * Each chip dispatches its tap to the underlying per-type filter map, so
+ * filter state stays in one place. Long-press unfavourites the tag.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FavouriteTagsFilterSection(
+    favourites: List<Pair<TagType, String>>,
+    filterState: FilterState,
+    expanded: Boolean,
+    onExpandedChange: () -> Unit,
+    onToggleFilter: (TagType, String) -> Unit,
+    onToggleFavourite: (TagType, String) -> Unit
+) {
+    val activeCount = favourites.count { (tagType, tag) ->
+        filterModeFor(filterState, tagType, tag) != TagFilterMode.DEFAULT
+    }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onExpandedChange() }
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "Favourites",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (activeCount > 0) "($activeCount/${favourites.size})" else "(${favourites.size})",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (activeCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) {
+                favourites.forEach { (tagType, tag) ->
+                    TriStateFilterChip(
+                        mode = filterModeFor(filterState, tagType, tag),
+                        onClick = { onToggleFilter(tagType, tag) },
+                        label = tag,
+                        isFavourite = true,
+                        onLongClick = { onToggleFavourite(tagType, tag) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun filterModeFor(state: FilterState, tagType: TagType, tag: String): TagFilterMode {
+    val map = when (tagType) {
+        TagType.RATING -> state.ratingFilters
+        TagType.WARNING -> state.warningFilters
+        TagType.CATEGORY -> state.categoryFilters
+        TagType.FANDOM -> state.fandomFilters
+        TagType.RELATIONSHIP -> state.relationshipFilters
+        TagType.CHARACTER -> state.characterFilters
+        TagType.FREEFORM -> state.freeformFilters
+        TagType.UNKNOWN -> return TagFilterMode.DEFAULT
+    }
+    return map[tag] ?: TagFilterMode.DEFAULT
+}
+
+/**
+ * Decode the `"${tagType.id}\t$tag"` key set into typed pairs, filter by the
+ * shared search query, and sort by tag type then tag name so similar tags
+ * cluster together.
+ */
+private fun parseFavouriteKeys(
+    favouriteKeys: Set<String>,
+    searchQuery: String
+): List<Pair<TagType, String>> {
+    val parsed = favouriteKeys.mapNotNull { key ->
+        val sep = key.indexOf('\t')
+        if (sep <= 0) return@mapNotNull null
+        val typeId = key.substring(0, sep).toIntOrNull() ?: return@mapNotNull null
+        val tagType = TagType.fromId(typeId)
+        if (tagType == TagType.UNKNOWN) return@mapNotNull null
+        tagType to key.substring(sep + 1)
+    }.sortedWith(compareBy({ it.first.id }, { it.second.lowercase() }))
+
+    if (searchQuery.isBlank()) return parsed
+    val q = searchQuery.lowercase()
+    return parsed.filter { (_, tag) -> tag.lowercase().contains(q) }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TagFilterSection(
@@ -811,9 +1114,15 @@ private fun TagFilterSection(
     filters: Map<String, TagFilterMode>,
     onToggle: (String) -> Unit,
     expanded: Boolean,
-    onExpandedChange: () -> Unit
+    onExpandedChange: () -> Unit,
+    isFavourite: (String) -> Boolean = { false },
+    onLongClick: ((String) -> Unit)? = null
 ) {
     val activeCount = options.count { filters[it] != null && filters[it] != TagFilterMode.DEFAULT }
+    val sortedOptions = remember(options, isFavourite) {
+        // Pinned favourites first; otherwise preserve incoming order.
+        options.sortedByDescending { isFavourite(it) }
+    }
 
     Column {
         Row(
@@ -849,15 +1158,17 @@ private fun TagFilterSection(
         AnimatedVisibility(visible = expanded) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(-8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
-                options.forEach { option ->
+                sortedOptions.forEach { option ->
                     val filterMode = filters[option] ?: TagFilterMode.DEFAULT
                     TriStateFilterChip(
                         mode = filterMode,
                         onClick = { onToggle(option) },
-                        label = option
+                        label = option,
+                        isFavourite = isFavourite(option),
+                        onLongClick = onLongClick?.let { handler -> { handler(option) } }
                     )
                 }
             }
@@ -865,11 +1176,14 @@ private fun TagFilterSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TriStateFilterChip(
     mode: TagFilterMode,
     onClick: () -> Unit,
-    label: String
+    label: String,
+    onLongClick: (() -> Unit)? = null,
+    isFavourite: Boolean = false
 ) {
     val containerColor = when (mode) {
         TagFilterMode.DEFAULT -> MaterialTheme.colorScheme.surface
@@ -887,31 +1201,39 @@ private fun TriStateFilterChip(
         TagFilterMode.EXCLUDE -> MaterialTheme.colorScheme.error
     }
 
-    FilterChip(
-        selected = mode != TagFilterMode.DEFAULT,
-        onClick = onClick,
-        label = {
+    Surface(
+        color = containerColor,
+        contentColor = labelColor,
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, borderColor),
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            if (isFavourite) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = labelColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Text(
                 text = when (mode) {
                     TagFilterMode.EXCLUDE -> "✗ $label"
                     else -> label
                 },
-                color = labelColor
+                color = labelColor,
+                style = MaterialTheme.typography.labelLarge
             )
-        },
-        colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-            containerColor = containerColor,
-            selectedContainerColor = containerColor,
-            labelColor = labelColor,
-            selectedLabelColor = labelColor
-        ),
-        border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = mode != TagFilterMode.DEFAULT,
-            borderColor = borderColor,
-            selectedBorderColor = borderColor
-        )
-    )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -970,7 +1292,7 @@ private fun ReadingStatusFilterSection(
         AnimatedVisibility(visible = expanded) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(-8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
                 ReadingStatus.entries.forEach { status ->

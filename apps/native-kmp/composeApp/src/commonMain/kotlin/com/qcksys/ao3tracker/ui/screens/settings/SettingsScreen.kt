@@ -72,12 +72,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.qcksys.ao3tracker.data.auth.AuthRepository
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationType
@@ -112,6 +115,7 @@ fun SettingsScreen() {
     val devModeEnabled by appSettings.devModeEnabled.collectAsState()
     val apiEnvironment by appSettings.apiEnvironment.collectAsState()
     val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
+    val incognitoModeEnabled by appSettings.incognitoModeEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lastSyncResult by syncRepository.lastSyncResult.collectAsState()
@@ -193,6 +197,29 @@ fun SettingsScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Incognito mode", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = incognitoModeEnabled,
+                            onCheckedChange = appSettings::setIncognitoModeEnabled,
+                            modifier = Modifier.semantics { contentDescription = "Incognito mode" }
+                        )
+                    }
+                    Text(
+                        "Stops saving works, chapters and reading progress on this device. " +
+                            "AO3 stays signed in, and your existing library can still sync.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            Ao3LinkSettings()
+
             // Account section
             AccountSection(
                 authState = authState,
@@ -215,14 +242,13 @@ fun SettingsScreen() {
                         try {
                             // 1. Full sync to server
                             snackbarHostState.showSnackbar("Syncing data to server...")
-                            syncRepository.forceFullSync()
-                            // Wait for sync to complete
-                            while (syncRepository.syncState.value.isSyncing) {
-                                kotlinx.coroutines.delay(100)
+                            val result = syncRepository.sync(forceFull = true, clearOnSuccess = true)
+                            if (result !is SyncResult.Success) {
+                                snackbarHostState.showSnackbar(
+                                    (result as? SyncResult.Error)?.message ?: "Sign in before syncing and clearing data"
+                                )
+                                return@launch
                             }
-                            // 2. Delete all local data
-                            snackbarHostState.showSnackbar("Clearing local data...")
-                            screenModel.deleteAllLocalData { }
                             // 3. Unregister push token and sign out
                             pushRepository.unregisterToken()
                             authRepository.signOut()
@@ -550,7 +576,7 @@ fun SettingsScreen() {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Contact: ao3tracker@qcksys.com",
+                        text = "Contact: hello@ao3tracker.com",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -563,7 +589,11 @@ fun SettingsScreen() {
                 onDevModeChanged = { enabled ->
                     if (!enabled) {
                         // Reset to production API when turning off dev mode
-                        appSettings.setApiEnvironment(ApiEnvironment.PRODUCTION)
+                        scope.launch {
+                            pushRepository.unregisterToken()
+                            authRepository.signOut()
+                            appSettings.setApiEnvironment(ApiEnvironment.PRODUCTION)
+                        }
                     }
                     appSettings.setDevModeEnabled(enabled)
                 },
@@ -574,10 +604,10 @@ fun SettingsScreen() {
                         scope.launch {
                             pushRepository.unregisterToken()
                             authRepository.signOut()
+                            appSettings.setApiEnvironment(env)
                             snackbarHostState.showSnackbar("Signed out due to API change")
                         }
                     }
-                    appSettings.setApiEnvironment(env)
                 },
                 currentUserEmail = (authState as? AuthState.Authenticated)?.user?.email
             )

@@ -29,7 +29,7 @@ import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerializationException
 
-class AuthService(
+open class AuthService(
     private val appSettings: AppSettings
 ) {
     private val baseUrl: String
@@ -50,7 +50,7 @@ class AuthService(
 
     fun getClient(): HttpClient = client
 
-    suspend fun signIn(email: String, password: String): Result<SignInResponse> {
+    open suspend fun signIn(email: String, password: String, baseUrl: String = this.baseUrl): Result<SignInResponse> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/sign-in/email") {
                 contentType(ContentType.Application.Json)
@@ -60,14 +60,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(response.body<SignInResponse>())
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse auth error response", TAG, e)
-                    AuthError(message = "Sign in failed")
-                }
-                Result.failure(Exception(error.message ?: "Sign in failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Sign in failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Sign in request failed", TAG, e)
@@ -75,7 +68,7 @@ class AuthService(
         }
     }
 
-    suspend fun signUp(name: String, email: String, password: String): Result<SignUpResponse> {
+    suspend fun signUp(name: String, email: String, password: String, baseUrl: String = this.baseUrl): Result<SignUpResponse> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/sign-up/email") {
                 contentType(ContentType.Application.Json)
@@ -85,14 +78,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(response.body<SignUpResponse>())
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse auth error response", TAG, e)
-                    AuthError(message = "Sign up failed")
-                }
-                Result.failure(Exception(error.message ?: "Sign up failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Sign up failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Sign up request failed", TAG, e)
@@ -100,7 +86,22 @@ class AuthService(
         }
     }
 
-    suspend fun getSession(token: String): Result<SessionResponse> {
+    /**
+     * Decode an `AuthError` JSON body from a failed auth request. Empty bodies
+     * (common on 4xx/5xx without a JSON payload) fall back silently; non-JSON
+     * bodies are logged at warn so we can spot misbehaving endpoints.
+     */
+    private fun parseAuthErrorMessage(body: String, fallback: String): String {
+        if (body.isBlank()) return fallback
+        return try {
+            JsonConfig.json.decodeFromString<AuthError>(body).message ?: fallback
+        } catch (e: SerializationException) {
+            AppLogger.w("Failed to parse auth error response: $body", TAG, e)
+            fallback
+        }
+    }
+
+    open suspend fun getSession(token: String, baseUrl: String = this.baseUrl): Result<SessionResponse> {
         return try {
             val response: HttpResponse = client.get("$baseUrl/get-session") {
                 header("Authorization", "Bearer $token")
@@ -126,7 +127,7 @@ class AuthService(
         }
     }
 
-    suspend fun signOut(token: String): Result<Unit> {
+    open suspend fun signOut(token: String, baseUrl: String = this.baseUrl): Result<Unit> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/sign-out") {
                 header("Authorization", "Bearer $token")
@@ -174,14 +175,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(Unit)
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse passkey error response", TAG, e)
-                    AuthError(message = "Passkey registration failed")
-                }
-                Result.failure(Exception(error.message ?: "Passkey registration failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Passkey registration failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Verify passkey registration request failed", TAG, e)
@@ -210,7 +204,7 @@ class AuthService(
         }
     }
 
-    suspend fun verifyPasskeyAuthentication(credentialResponse: String): Result<SessionResponse> {
+    suspend fun verifyPasskeyAuthentication(credentialResponse: String, baseUrl: String = this.baseUrl): Result<SessionResponse> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/passkey/verify-authentication") {
                 contentType(ContentType.Application.Json)
@@ -220,14 +214,7 @@ class AuthService(
             if (response.status.isSuccess()) {
                 Result.success(response.body<SessionResponse>())
             } else {
-                val errorBody = response.bodyAsText()
-                val error = try {
-                    JsonConfig.json.decodeFromString<AuthError>(errorBody)
-                } catch (e: SerializationException) {
-                    AppLogger.w("Failed to parse passkey error response", TAG, e)
-                    AuthError(message = "Passkey authentication failed")
-                }
-                Result.failure(Exception(error.message ?: "Passkey authentication failed"))
+                Result.failure(Exception(parseAuthErrorMessage(response.bodyAsText(), "Passkey authentication failed")))
             }
         } catch (e: Exception) {
             AppLogger.e("Verify passkey authentication request failed", TAG, e)

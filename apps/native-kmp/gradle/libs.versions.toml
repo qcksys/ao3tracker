@@ -1,43 +1,43 @@
 [versions]
-agp = "8.13.1"
+agp = "8.13.2"
 android-compileSdk = "36"
 android-minSdk = "24"
 android-targetSdk = "36"
-androidx-activity = "1.11.0"
-androidx-appcompat = "1.7.1"
-androidx-core = "1.17.0"
+androidx-activity = "1.13.0"
+androidx-appcompat = "1.8.0"
+androidx-core = "1.19.1"
 androidx-espresso = "3.7.0"
-androidx-lifecycle = "2.9.5"
+androidx-lifecycle = "2.10.0"
 androidx-testExt = "1.3.0"
-composeHotReload = "1.0.0-rc02"
-composeMultiplatform = "1.9.1"
+composeHotReload = "1.2.0"
+composeMultiplatform = "1.11.1"
 junit = "4.13.2"
-kotlin = "2.1.21"
-kotlinx-coroutines = "1.10.2"
-kotlinx-serialization = "1.8.1"
-kotlinx-datetime = "0.7.0"
-ksp = "2.1.21-2.0.1"
-room = "2.7.1"
-sqlite = "2.5.0"
-koin = "4.0.3"
-voyager = "1.1.0-beta03" # Latest available as of Nov 2025, no stable 1.1.0 yet
-coil = "3.1.0"
-ktor = "3.1.2"
-credentials = "1.5.0"
-security-crypto = "1.1.0-alpha06"
+kotlin = "2.4.20"
+kotlinx-coroutines = "1.11.0"
+kotlinx-serialization = "1.11.0"
+kotlinx-datetime = "0.8.0"
+ksp = "2.3.12"
+room = "2.8.5"
+sqlite = "2.7.1"
+koin = "4.2.2"
+voyager = "1.1.0-beta03" # Retain the existing line; newer Kotlin/CMP-aligned releases are prereleases.
+coil = "3.5.0"
+ktor = "3.5.2"
+credentials = "1.6.0"
+security-crypto = "1.1.0"
 # Logging
 napier = "2.7.1"
 # Sentry
-sentry-kmp = "0.21.0"
+sentry-kmp = "0.27.0"
 
 # Firebase
-firebase-messaging = "24.0.3"
-google-services = "4.4.2"
+firebase-messaging = "25.1.3"
+google-services = "4.5.0"
 
 # Testing
-kotlinx-coroutines-test = "1.10.2"
-mockk = "1.13.13"
-turbine = "1.2.0"
+kotlinx-coroutines-test = "1.11.0"
+mockk = "1.14.11"
+turbine = "1.2.1"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -93,7 +93,7 @@ credentials-play-services = { module = "androidx.credentials:credentials-play-se
 security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
 
 # Firebase
-firebase-messaging = { module = "com.google.firebase:firebase-messaging-ktx", version.ref = "firebase-messaging" }
+firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebase-messaging" }
 
 # Logging
 napier = { module = "io.github.aakira:napier", version.ref = "napier" }

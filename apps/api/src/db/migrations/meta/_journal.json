@@ -1,62 +1,97 @@
 {
-    "version": "7",
-    "dialect": "mysql",
-    "entries": [
-        {
-            "idx": 0,
-            "version": "5",
-            "when": 1764469999315,
-            "tag": "0000_dashing_shinko_yamashiro",
-            "breakpoints": true
-        },
-        {
-            "idx": 1,
-            "version": "5",
-            "when": 1764481612793,
-            "tag": "0001_steep_sasquatch",
-            "breakpoints": true
-        },
-        {
-            "idx": 2,
-            "version": "5",
-            "when": 1764487289163,
-            "tag": "0002_mute_marvex",
-            "breakpoints": true
-        },
-        {
-            "idx": 3,
-            "version": "5",
-            "when": 1764489402612,
-            "tag": "0003_flashy_drax",
-            "breakpoints": true
-        },
-        {
-            "idx": 4,
-            "version": "5",
-            "when": 1764590933517,
-            "tag": "0004_odd_peter_parker",
-            "breakpoints": true
-        },
-        {
-            "idx": 5,
-            "version": "5",
-            "when": 1764595767522,
-            "tag": "0005_salty_deadpool",
-            "breakpoints": true
-        },
-        {
-            "idx": 6,
-            "version": "5",
-            "when": 1767173476040,
-            "tag": "0006_icy_rick_jones",
-            "breakpoints": true
-        },
-        {
-            "idx": 7,
-            "version": "5",
-            "when": 1767196066543,
-            "tag": "0007_amused_gideon",
-            "breakpoints": true
-        }
-    ]
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1764469999315,
+      "tag": "0000_dashing_shinko_yamashiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1764481612793,
+      "tag": "0001_steep_sasquatch",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1764487289163,
+      "tag": "0002_mute_marvex",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1764489402612,
+      "tag": "0003_flashy_drax",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1764590933517,
+      "tag": "0004_odd_peter_parker",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1764595767522,
+      "tag": "0005_salty_deadpool",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1767173476040,
+      "tag": "0006_icy_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1767196066543,
+      "tag": "0007_amused_gideon",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1778748756208,
+      "tag": "0008_concerned_snowbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1778825598718,
+      "tag": "0009_panoramic_sue_storm",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1782214471598,
+      "tag": "0010_shiny_black_cat",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1790761835099,
+      "tag": "0011_sync-mutation-cursors",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1790764717971,
+      "tag": "0012_auth-two-factor-lockout",
+      "breakpoints": true
+    }
+  ]
 }

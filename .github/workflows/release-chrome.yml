@@ -1,0 +1,89 @@
+name: Release Chrome extension
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact commit that passed CI
+        required: true
+        type: string
+      build_only:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      build_only:
+        description: Build a ZIP without uploading (use for the first store listing)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chrome-web-store-release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: chrome-web-store
+    env:
+      CHROME_BUILD_ONLY: ${{ inputs.build_only }}
+      CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
+      CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Reject stale automatic release retries
+        if: github.event_name == 'workflow_run'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+        run: node scripts/release-main.mjs assert-current-source
+      - name: Allocate a fresh release version
+        id: version
+        run: node scripts/release-version.mjs
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check shared packages and extension
+        run: |
+          node --test scripts/release-chrome.test.mjs
+          pnpm --filter @qcksys/ao3tracker-core --filter @qcksys/ao3tracker-sync-client typecheck
+          pnpm --filter @qcksys/ao3tracker-browser-extension compile
+          pnpm --filter @qcksys/ao3tracker-core --filter @qcksys/ao3tracker-sync-client --filter @qcksys/ao3tracker-browser-extension test
+      - name: Build Chrome ZIP
+        env:
+          CHROME_VERSION: ${{ steps.version.outputs.chrome_version }}
+          CHROME_VERSION_NAME: ${{ steps.version.outputs.android_version_name }}
+        run: pnpm --filter @qcksys/ao3tracker-browser-extension zip -b chrome
+      - name: Save Chrome release artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: chrome-extension-${{ steps.version.outputs.chrome_version }}-${{ inputs.source_ref || github.sha }}
+          path: apps/browser-extension/.output/*-chrome.zip
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+      - name: Verify store identity and API origins
+        run: node scripts/release-chrome.mjs verify
+      - name: Prepare Google service-account credentials
+        if: ${{ !inputs.build_only }}
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          credentials_json: ${{ secrets.CHROME_SERVICE_ACCOUNT_JSON }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - name: Upload draft to Chrome Web Store v2
+        if: ${{ !inputs.build_only }}
+        run: node scripts/release-chrome.mjs upload

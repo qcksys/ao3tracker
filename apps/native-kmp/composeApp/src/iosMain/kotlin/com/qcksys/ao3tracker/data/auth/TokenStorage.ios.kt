@@ -12,19 +12,19 @@ actual fun getTokenStorage(): TokenStorage = TokenStorage()
  * encrypted at rest on iOS when device has a passcode, but Keychain provides additional
  * security features like access control and data protection classes.
  */
-actual class TokenStorage {
+actual class TokenStorage : SessionTokenStorage {
     private val userDefaults = NSUserDefaults.standardUserDefaults
 
-    actual fun getToken(): String? {
+    actual override fun getToken(): String? {
         return userDefaults.stringForKey(TOKEN_KEY)
     }
 
-    actual fun saveToken(token: String) {
+    actual override fun saveToken(token: String) {
         userDefaults.setObject(token, TOKEN_KEY)
         userDefaults.synchronize()
     }
 
-    actual fun clearToken() {
+    actual override fun clearToken() {
         userDefaults.removeObjectForKey(TOKEN_KEY)
         userDefaults.synchronize()
     }
