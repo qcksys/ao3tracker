@@ -20,6 +20,7 @@ class SyncTriggers(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val favouritesPing = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
+    private val savedSearchesPing = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
 
     companion object {
         private const val TAG = "SyncTriggers"
@@ -32,10 +33,21 @@ class SyncTriggers(
                 syncRepository.sync()
             }
         }
+        scope.launch {
+            savedSearchesPing.collect {
+                AppLogger.d("Saved search changed, syncing", TAG)
+                syncRepository.sync()
+            }
+        }
     }
 
     /** Mark a favourite-tag toggle; sync fires straight away. */
     fun notifyFavouriteChanged() {
         favouritesPing.tryEmit(Unit)
+    }
+
+    /** Mark a saved-search add/rename/delete; sync fires straight away. */
+    fun notifySavedSearchChanged() {
+        savedSearchesPing.tryEmit(Unit)
     }
 }

@@ -6,13 +6,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
@@ -49,6 +55,16 @@ fun ReadScreen() {
 
     val showProgressBar = remember(currentUrl) {
         WORK_URL_REGEX.containsMatchIn(currentUrl)
+    }
+
+    // Naming dialog for the in-page "Save this search" button.
+    val pendingSaveSearch by screenModel.pendingSaveSearch.collectAsState()
+    pendingSaveSearch?.let { event ->
+        SaveSearchDialog(
+            suggestedName = event.name?.takeIf { it.isNotBlank() } ?: "AO3 search",
+            onConfirm = { name -> screenModel.confirmSaveSearch(name, event.url) },
+            onDismiss = { screenModel.dismissSaveSearch() }
+        )
     }
 
     Column(
@@ -88,4 +104,39 @@ fun ReadScreen() {
             jsInjectionFlow = screenModel.jsInjectionFlow
         )
     }
+}
+
+@Composable
+private fun SaveSearchDialog(
+    suggestedName: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(suggestedName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save this search") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(191) },
+                label = { Text("Name") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

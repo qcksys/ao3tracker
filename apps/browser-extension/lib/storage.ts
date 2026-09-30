@@ -1,4 +1,9 @@
-import type { FavouriteTagItem, SyncTagMetadata, SyncWorkMetadata } from "@qcksys/ao3tracker-core";
+import type {
+  FavouriteTagItem,
+  SavedSearchItem,
+  SyncTagMetadata,
+  SyncWorkMetadata,
+} from "@qcksys/ao3tracker-core";
 import { storage } from "@wxt-dev/storage";
 
 /**
@@ -29,6 +34,7 @@ export interface TrackedChapter {
   lastReadAt: string;
   markedCompleteAt: string | null;
   readProgress: number;
+  deleted?: boolean;
   pendingSync: boolean;
 }
 
@@ -58,6 +64,29 @@ export const apiBaseUrlPresets = [
     url: "https://ao3tracker.localhost",
   },
 ] as const satisfies readonly ApiBaseUrlPreset[];
+
+/**
+ * Presets the running build is allowed to select / resolve to. Production
+ * builds ship only the real endpoints (prod + dev); the `proxy`/`local` dev
+ * conveniences are stripped so a tampered stored value can't redirect the
+ * bearer token to an attacker origin. Non-production builds expose all of them.
+ */
+export const availableApiBaseUrlPresets: readonly ApiBaseUrlPreset[] =
+  // Gate on MODE (not PROD) so this stays aligned with the manifest
+  // host_permissions in wxt.config.ts, which also keys off `mode`.
+  import.meta.env.MODE === "production"
+    ? apiBaseUrlPresets.filter((p) => p.id === "prod" || p.id === "dev")
+    : apiBaseUrlPresets;
+
+/**
+ * Coerce a stored api base url to a known-safe value. The stored item is
+ * free-form, so anything that builds a fetch/auth base url must route through
+ * here to guarantee the host is one of the build's allowed presets.
+ */
+export function resolveApiBaseUrl(value: string | null | undefined): string {
+  const allowed = availableApiBaseUrlPresets.map((p) => p.url);
+  return value && allowed.includes(value) ? value : apiBaseUrlPresets[0].url;
+}
 
 export const apiBaseUrlItem = storage.defineItem<string>("local:apiBaseUrl", {
   fallback: apiBaseUrlPresets[0].url,
@@ -90,15 +119,24 @@ export const workMetadataItem = storage.defineItem<Record<number, SyncWorkMetada
   { fallback: {} },
 );
 
-export const tagMetadataItem = storage.defineItem<SyncTagMetadata[]>(
-  "local:tagMetadata",
-  { fallback: [] },
-);
+export const tagMetadataItem = storage.defineItem<SyncTagMetadata[]>("local:tagMetadata", {
+  fallback: [],
+});
 
-export const favouriteTagsItem = storage.defineItem<FavouriteTagItem[]>(
-  "local:favouriteTags",
-  { fallback: [] },
-);
+export type LocalFavouriteTag = FavouriteTagItem & { pendingSync?: boolean };
+export type LocalSavedSearch = SavedSearchItem & { pendingSync?: boolean };
+
+export const favouriteTagsItem = storage.defineItem<LocalFavouriteTag[]>("local:favouriteTags", {
+  fallback: [],
+});
+
+/**
+ * Named AO3 filter/search URLs the user saved from a list page. Per-row LWW
+ * (id-keyed) so renames/deletes converge across devices; mirrored remotely.
+ */
+export const savedSearchesItem = storage.defineItem<LocalSavedSearch[]>("local:savedSearches", {
+  fallback: [],
+});
 
 /**
  * The highest notification id we've already surfaced as a chrome notification.
@@ -114,18 +152,17 @@ export const lastSeenNotificationIdItem = storage.defineItem<number | null>(
  * chrome notifications. Defaults to true so users get push by default after
  * sign-in (matching native KMP behaviour).
  */
-export const notificationsEnabledItem = storage.defineItem<boolean>(
-  "local:notificationsEnabled",
-  { fallback: true },
-);
+export const notificationsEnabledItem = storage.defineItem<boolean>("local:notificationsEnabled", {
+  fallback: true,
+});
 
 /**
  * Map of chrome notification id → AO3 work id. Lets the click handler look up
  * which work to open without re-fetching from the api.
  */
-export const notificationWorkIdsItem = storage.defineItem<
-  Record<string, number>
->("local:notificationWorkIds", { fallback: {} });
+export const notificationWorkIdsItem = storage.defineItem<Record<string, number>>(
+  "local:notificationWorkIds",
+  { fallback: {} },
+);
 
-export const chapterKey = (workId: number, chapterId: number): string =>
-  `${workId}:${chapterId}`;
+export const chapterKey = (workId: number, chapterId: number): string => `${workId}:${chapterId}`;

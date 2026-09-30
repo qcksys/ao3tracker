@@ -80,6 +80,17 @@ export const favouriteTagItemSchema = z.object({
 });
 export type FavouriteTagItem = z.infer<typeof favouriteTagItemSchema>;
 
+// Mirror of apps/api/src/routes/api.track.ts savedSearchItemSchema — keep in
+// lockstep (id is a client-generated uuid; url cap matches the DB column).
+export const savedSearchItemSchema = z.object({
+  id: z.uuid(),
+  name: z.string().min(1).max(191),
+  url: z.string().min(1).max(8192),
+  updatedAt: isoDatetime,
+  deleted: z.boolean(),
+});
+export type SavedSearchItem = z.infer<typeof savedSearchItemSchema>;
+
 export const syncFilterSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("workIds"),
@@ -99,15 +110,24 @@ export const getSyncResponseSchema = z.object({
   serverLastUpdated: isoDatetime,
   latestWorkLastReadAt: isoDatetime.nullable(),
   favouriteTags: z.array(favouriteTagItemSchema).optional(),
+  savedSearches: z.array(savedSearchItemSchema).optional(),
 });
 export type GetSyncResponse = z.infer<typeof getSyncResponseSchema>;
 
 export const postSyncRequestSchema = z.object({
-  works: z.array(syncWorkRowSchema.omit({ deleted: true }).extend({ deleted: z.boolean().default(false) })).max(50).optional(),
-  chapters: z.array(syncChapterRowSchema.omit({ deleted: true })).optional(),
+  works: z
+    .array(
+      syncWorkRowSchema.omit({ deleted: true }).extend({ deleted: z.boolean().default(false) }),
+    )
+    .max(50)
+    .optional(),
+  chapters: z
+    .array(syncChapterRowSchema.extend({ deleted: z.boolean().optional().default(false) }))
+    .optional(),
   favouriteTags: z.array(favouriteTagItemSchema).max(500).optional(),
+  savedSearches: z.array(savedSearchItemSchema).max(500).optional(),
 });
-export type PostSyncRequest = z.infer<typeof postSyncRequestSchema>;
+export type PostSyncRequest = z.input<typeof postSyncRequestSchema>;
 
 const itemStatus = z.enum(["accepted", "ignored", "deleted"]);
 const favouriteItemStatus = z.enum(["accepted", "ignored"]);
@@ -124,6 +144,7 @@ export const postSyncResponseSchema = z.object({
       }),
     )
     .optional(),
+  savedSearches: z.array(z.object({ id: z.uuid(), status: favouriteItemStatus })).optional(),
   syncedAt: isoDatetime,
 });
 export type PostSyncResponse = z.infer<typeof postSyncResponseSchema>;

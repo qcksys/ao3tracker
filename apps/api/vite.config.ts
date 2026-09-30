@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite-plus";
@@ -26,36 +26,30 @@ import { defineConfig } from "vite-plus";
  * out of package.json scripts.
  */
 export default defineConfig(({ mode }) => {
-    if (mode === "dev" || mode === "prod") {
-        process.env.CLOUDFLARE_ENV = mode;
-    }
-    return {
-        resolve: {
-            tsconfigPaths: true,
-            alias: {
-                // `html-minifier-terser` is pulled in transitively via
-                // `@scalar/openapi-to-markdown` purely as a build-time helper —
-                // the markdown conversion path never minifies HTML at runtime.
-                // Stubbing the root drops it AND its CJS-only deps (`clean-css`,
-                // `relateurl`, `terser`, `entities`) which use
-                // `require("http")` / `require("url")` calls Rolldown doesn't
-                // tree-shake (unlike esbuild). See src/stubs/html-minifier-terser.ts.
-                "html-minifier-terser": fileURLToPath(
-                    new URL(
-                        "./src/stubs/html-minifier-terser.ts",
-                        import.meta.url,
-                    ),
-                ),
-            },
-        },
-        plugins: [
-            cloudflare({ viteEnvironment: { name: "ssr" } }),
-            tailwindcss(),
-        ],
-        ssr: {
-            resolve: {
-                conditions: ["workerd", "worker", "browser"],
-            },
-        },
-    };
+  if (mode === "dev" || mode === "prod") {
+    process.env.CLOUDFLARE_ENV = mode;
+  }
+  return {
+    resolve: {
+      tsconfigPaths: true,
+      alias: {
+        // `html-minifier-terser` is pulled in transitively via
+        // `@scalar/openapi-to-markdown` purely as a build-time helper —
+        // the markdown conversion path never minifies HTML at runtime.
+        // Stubbing the root drops it AND its CJS-only deps (`clean-css`,
+        // `relateurl`, `terser`, `entities`) which use
+        // `require("http")` / `require("url")` calls Rolldown doesn't
+        // tree-shake (unlike esbuild). See src/stubs/html-minifier-terser.ts.
+        "html-minifier-terser": fileURLToPath(
+          new URL("./src/stubs/html-minifier-terser.ts", import.meta.url),
+        ),
+      },
+    },
+    plugins: [cloudflare({ viteEnvironment: { name: "ssr" } }), tailwindcss()],
+    ssr: {
+      resolve: {
+        conditions: ["workerd", "worker", "browser"],
+      },
+    },
+  };
 });

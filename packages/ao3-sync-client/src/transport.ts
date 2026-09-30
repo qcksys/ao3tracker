@@ -29,9 +29,10 @@ export async function request<T>(
   const text = await res.text();
   const body = text.length > 0 ? safeJson(text) : null;
   if (!res.ok) {
-    const message = typeof body === "object" && body !== null && "message" in body
-      ? String((body as { message: unknown }).message)
-      : res.statusText;
+    const message =
+      typeof body === "object" && body !== null && "message" in body
+        ? String((body as { message: unknown }).message)
+        : res.statusText;
     throw new SyncApiError(res.status, url, message, body);
   }
 

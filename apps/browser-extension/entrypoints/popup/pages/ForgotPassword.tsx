@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { apiBaseUrlItem } from "@/lib/storage";
+import { apiBaseUrlItem, resolveApiBaseUrl } from "@/lib/storage";
 import { authClient } from "~popup/lib/auth-client";
 
 const schema = z.object({
@@ -32,7 +32,7 @@ export default function ForgotPassword() {
   const onSubmit = async (values: ForgotValues): Promise<void> => {
     // The server hosts the static reset page at `${baseUrl}/reset-password`,
     // which reads `?token=...` from the URL and POSTs to /auth/reset-password.
-    const baseUrl = await apiBaseUrlItem.getValue();
+    const baseUrl = resolveApiBaseUrl(await apiBaseUrlItem.getValue());
     const { error } = await authClient.requestPasswordReset({
       email: values.email,
       redirectTo: `${baseUrl.replace(/\/$/, "")}/reset-password`,
@@ -56,8 +56,7 @@ export default function ForgotPassword() {
           </p>
         </header>
         <p className="text-muted-foreground text-xs">
-          The link will open a page where you can pick a new password. It
-          expires in 1 hour.
+          The link will open a page where you can pick a new password. It expires in 1 hour.
         </p>
         <Link to="/login" className="text-primary text-sm hover:underline">
           ← Back to sign in
@@ -75,10 +74,7 @@ export default function ForgotPassword() {
         </p>
       </header>
       <Form {...form}>
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={form.handleSubmit(onSubmit)}
-        >
+        <form className="flex flex-col gap-3" onSubmit={form.handleSubmit(onSubmit)}>
           <FormField
             control={form.control}
             name="email"

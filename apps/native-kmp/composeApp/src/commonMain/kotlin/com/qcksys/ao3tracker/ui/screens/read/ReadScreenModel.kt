@@ -3,7 +3,9 @@ package com.qcksys.ao3tracker.ui.screens.read
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.qcksys.ao3tracker.data.model.DataException
+import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.model.ListWorksEvent
+import com.qcksys.ao3tracker.data.model.SaveSearchEvent
 import com.qcksys.ao3tracker.data.model.ScrollProgressEvent
 import com.qcksys.ao3tracker.data.model.WebViewMessage
 import com.qcksys.ao3tracker.data.model.WorkBadgePayload
@@ -11,8 +13,11 @@ import com.qcksys.ao3tracker.data.model.WorkChapterIndexEvent
 import com.qcksys.ao3tracker.data.model.WorkInfoEvent
 import com.qcksys.ao3tracker.data.model.WorkTagsEvent
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
+import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
+import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.util.JsonConfig
+import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,11 +33,19 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class ReadScreenModel(
-    private val repository: Ao3Repository
+    private val repository: Ao3Repository,
+    private val savedSearchRepository: SavedSearchRepository,
+    private val syncTriggers: SyncTriggers,
+    private val accountData: AccountDataStore
 ) : ScreenModel {
 
     private val _currentUrl = MutableStateFlow("https://archiveofourown.org")
     val currentUrl: StateFlow<String> = _currentUrl.asStateFlow()
+
+    // Set when the in-page "Save this search" button is tapped; the UI shows a
+    // naming dialog and clears this on confirm/cancel.
+    private val _pendingSaveSearch = MutableStateFlow<SaveSearchEvent?>(null)
+    val pendingSaveSearch: StateFlow<SaveSearchEvent?> = _pendingSaveSearch.asStateFlow()
 
     private val _canGoBack = MutableStateFlow(false)
     val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
@@ -64,6 +77,22 @@ class ReadScreenModel(
         private const val TAG = "ReadScreenModel"
     }
 
+    init {
+        screenModelScope.launch {
+            var previousOwner: String? = null
+            accountData.active.collect { account ->
+                if (account?.owner != previousOwner) {
+                    pendingWorkInfo = null
+                    pendingWorkTags = null
+                    previousChapter = null
+                    _pendingSaveSearch.value = null
+                    navigateToHome()
+                    previousOwner = account?.owner
+                }
+            }
+        }
+    }
+
     fun updateNavigationState(canGoBack: Boolean, canGoForward: Boolean) {
         _canGoBack.value = canGoBack
         _canGoForward.value = canGoForward
@@ -78,7 +107,9 @@ class ReadScreenModel(
     }
 
     fun handleWebViewMessage(messageJson: String) {
+        val owner = accountData.active.value?.owner
         screenModelScope.launch {
+            if (accountData.active.value?.owner != owner) return@launch
             try {
                 val message = parseWebViewMessage(messageJson)
                 processMessage(message)
@@ -112,6 +143,9 @@ class ReadScreenModel(
             "listWorks" -> WebViewMessage.ListWorks(
                 JsonConfig.json.decodeFromString<ListWorksEvent>(messageJson)
             )
+            "saveSearch" -> WebViewMessage.SaveSearch(
+                JsonConfig.json.decodeFromString<SaveSearchEvent>(messageJson)
+            )
             else -> {
                 AppLogger.w("Unknown WebView message type: $type", TAG)
                 WebViewMessage.Unknown(type, messageJson)
@@ -139,14 +173,33 @@ class ReadScreenModel(
             is WebViewMessage.ListWorks -> {
                 handleListWorks(message.event)
             }
+            is WebViewMessage.SaveSearch -> {
+                _pendingSaveSearch.value = message.event
+            }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
             }
         }
     }
 
+    /** Persist a saved search after the user confirms the name, then trigger a sync. */
+    fun confirmSaveSearch(name: String, url: String) {
+        _pendingSaveSearch.value = null
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || !isTrustedAo3Url(url)) return
+        screenModelScope.launch {
+            savedSearchRepository.save(trimmed, url)
+            syncTriggers.notifySavedSearchChanged()
+        }
+    }
+
+    /** Dismiss the save-search naming dialog without saving. */
+    fun dismissSaveSearch() {
+        _pendingSaveSearch.value = null
+    }
+
     private suspend fun handleListWorks(event: ListWorksEvent) {
-        if (event.workIds.isEmpty()) return
+        if (event.workIds.isEmpty() || !isTrustedAo3Url(event.url)) return
         val badges = repository.getWorkBadges(event.workIds)
         if (badges.isEmpty()) return
 
@@ -158,6 +211,7 @@ class ReadScreenModel(
         // re-escaping inside a JS string template.
         val script = """
             (function() {
+                if (location.href !== ${jsStringLiteral(event.url)}) return;
                 if (window.__ao3Tracker && window.__ao3Tracker.applyListBadges) {
                     window.__ao3Tracker.applyListBadges(${jsStringLiteral(payloadJson)});
                 }
@@ -228,6 +282,7 @@ class ReadScreenModel(
     }
 
     fun navigateToUrl(url: String) {
+        if (!isTrustedAo3Url(url)) return
         // Reset scroll progress when navigating to a new page
         _scrollProgress.value = 0f
         // Add #chapters fragment for work URLs to auto-scroll to content
@@ -248,6 +303,7 @@ class ReadScreenModel(
 
     @OptIn(ExperimentalTime::class)
     fun navigateToUrlWithScroll(url: String, scrollProgress: Float) {
+        if (!isTrustedAo3Url(url)) return
         // Build URL with scrollTo param and timestamp to force reload
         val timestamp = Clock.System.now().toEpochMilliseconds()
         val scrollPercent = (scrollProgress * 100).toInt()

@@ -17,7 +17,7 @@ fun initializeTokenStorage(context: Context) {
 
 actual fun getTokenStorage(): TokenStorage = TokenStorage()
 
-actual class TokenStorage {
+actual class TokenStorage : SessionTokenStorage {
     private var usingFallback = false
 
     private val prefs: SharedPreferences by lazy {
@@ -106,7 +106,7 @@ actual class TokenStorage {
         }
     }
 
-    actual fun getToken(): String? {
+    actual override fun getToken(): String? {
         val token = try {
             prefs.getString(TOKEN_KEY, null)
         } catch (e: Exception) {
@@ -117,7 +117,7 @@ actual class TokenStorage {
         return token
     }
 
-    actual fun saveToken(token: String) {
+    actual override fun saveToken(token: String) {
         Napier.d("saveToken: saving token (${token.take(8)}...)")
         // Use commit() for synchronous write
         val saved = try {
@@ -133,7 +133,7 @@ actual class TokenStorage {
         }
     }
 
-    actual fun clearToken() {
+    actual override fun clearToken() {
         Napier.d("clearToken: clearing token")
         try {
             prefs.edit().remove(TOKEN_KEY).commit()

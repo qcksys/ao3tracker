@@ -17,7 +17,22 @@ import kotlinx.serialization.Serializable
 data class SyncPostRequest(
     val works: List<SyncWorkRequest>,
     val chapters: List<SyncChapterRequest>,
-    val favouriteTags: List<SyncFavouriteTagItem>? = null
+    val favouriteTags: List<SyncFavouriteTagItem>? = null,
+    val savedSearches: List<SyncSavedSearchItem>? = null
+)
+
+/**
+ * Saved-search row, shared by GET response and POST request/response.
+ * `deleted=true` is a tombstone kept so the deletion can propagate to other
+ * devices via LWW on `updatedAt`. `id` is a client-generated uuid.
+ */
+@Serializable
+data class SyncSavedSearchItem(
+    val id: String,
+    val name: String,
+    val url: String,
+    val deleted: Boolean,
+    val updatedAt: String
 )
 
 /**
@@ -77,7 +92,9 @@ data class SyncGetResponse(
      * page of a sync run (when `workCursor` is not set in the request); subsequent
      * paginated pages have this as null.
      */
-    val favouriteTags: List<SyncFavouriteTagItem>? = null
+    val favouriteTags: List<SyncFavouriteTagItem>? = null,
+    /** Saved-search rows updated since `lastSyncedAt`. First page only (like favouriteTags). */
+    val savedSearches: List<SyncSavedSearchItem>? = null
 )
 
 @Serializable
@@ -111,7 +128,14 @@ data class SyncPostResponse(
     val works: List<SyncWorkStatus>,
     val chapters: List<SyncChapterStatus>,
     val syncedAt: String,
-    val favouriteTags: List<SyncFavouriteTagStatus>? = null
+    val favouriteTags: List<SyncFavouriteTagStatus>? = null,
+    val savedSearches: List<SyncSavedSearchStatus>? = null
+)
+
+@Serializable
+data class SyncSavedSearchStatus(
+    val id: String,
+    val status: String // "accepted", "ignored"
 )
 
 @Serializable

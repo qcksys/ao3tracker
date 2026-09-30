@@ -1,51 +1,35 @@
-import {
-    type InferInsertModel,
-    type InferSelectModel,
-    relations,
-} from "drizzle-orm";
-import {
-    boolean,
-    datetime,
-    index,
-    int,
-    mysqlTable,
-    text,
-    varchar,
-} from "drizzle-orm/mysql-core";
-import {
-    createInsertSchema,
-    createSelectSchema,
-    createUpdateSchema,
-} from "drizzle-zod";
+import { type InferInsertModel, type InferSelectModel, relations } from "drizzle-orm";
+import { boolean, datetime, index, int, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { tAuthUser } from "~/db/schema/auth.user";
 
 export const tAuthPasskey = mysqlTable(
-    `${DB_TABLE_PREFIX}auth_passkey`,
-    {
-        id: varchar({ length: 36 }).primaryKey(),
-        name: text(),
-        publicKey: text().notNull(),
-        userId: varchar({ length: 36 }).notNull(),
-        credentialID: varchar({ length: 255 }).notNull(),
-        counter: int().notNull(),
-        deviceType: text().notNull(),
-        backedUp: boolean().notNull(),
-        transports: text(),
-        createdAt: datetime(),
-        aaguid: text(),
-    },
-    (table) => [
-        index("passkey_userId_idx").on(table.userId),
-        index("passkey_credentialID_idx").on(table.credentialID),
-    ],
+  `${DB_TABLE_PREFIX}auth_passkey`,
+  {
+    id: varchar({ length: 36 }).primaryKey(),
+    name: text(),
+    publicKey: text().notNull(),
+    userId: varchar({ length: 36 }).notNull(),
+    credentialID: varchar({ length: 255 }).notNull(),
+    counter: int().notNull(),
+    deviceType: text().notNull(),
+    backedUp: boolean().notNull(),
+    transports: text(),
+    createdAt: datetime(),
+    aaguid: text(),
+  },
+  (table) => [
+    index("passkey_userId_idx").on(table.userId),
+    index("passkey_credentialID_idx").on(table.credentialID),
+  ],
 );
 
 export const rAuthPasskey = relations(tAuthPasskey, ({ one }) => ({
-    user: one(tAuthUser, {
-        fields: [tAuthPasskey.userId],
-        references: [tAuthUser.id],
-    }),
+  user: one(tAuthUser, {
+    fields: [tAuthPasskey.userId],
+    references: [tAuthUser.id],
+  }),
 }));
 
 export type TAuthPasskeyS = InferSelectModel<typeof tAuthPasskey>;

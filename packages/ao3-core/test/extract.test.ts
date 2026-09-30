@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { findListWorkIds, getWorkInfo } from "~/dom/extract";
+import {
+  findListWorkIds,
+  getWorkInfo,
+  injectSaveSearchButton,
+  isFilterableListPage,
+} from "~/dom/extract";
 
 function makeDoc(html: string): Document {
   const parser = new DOMParser();
@@ -41,7 +46,10 @@ describe("getWorkInfo", () => {
         </dl>
       </div>
     `);
-    const location = { href: "https://archiveofourown.org/works/1", pathname: "/works/1" } as Location;
+    const location = {
+      href: "https://archiveofourown.org/works/1",
+      pathname: "/works/1",
+    } as Location;
     const info = getWorkInfo(doc, location);
     expect(info.type).toBe("workInfo");
     expect(info.workName).toBe("My Work");
@@ -50,5 +58,79 @@ describe("getWorkInfo", () => {
     expect(info.wordCount).toBe("12345");
     expect(info.totalChapters).toBe("3/5");
     expect(info.isPrivate).toBe(false);
+  });
+});
+
+const listLocation = (href: string): Location => ({ href }) as Location;
+
+describe("isFilterableListPage", () => {
+  it("is true when the filter form is present on a list URL", () => {
+    const doc = makeDoc(`<div id="main"><form id="work-filters"></form></div>`);
+    expect(
+      isFilterableListPage(doc, listLocation("https://archiveofourown.org/tags/Foo/works")),
+    ).toBe(true);
+  });
+
+  it("is true when a results list is present even without the form", () => {
+    const doc = makeDoc(`<ol><li id="work_123"></li></ol>`);
+    expect(
+      isFilterableListPage(
+        doc,
+        listLocation("https://archiveofourown.org/works?work_search[query]=x"),
+      ),
+    ).toBe(true);
+  });
+
+  it("is true for a bookmarks listing", () => {
+    const doc = makeDoc(`<ol><li id="bookmark_99"></li></ol>`);
+    expect(
+      isFilterableListPage(doc, listLocation("https://archiveofourown.org/users/foo/bookmarks")),
+    ).toBe(true);
+  });
+
+  it("is false on a single work page", () => {
+    const doc = makeDoc(`<div id="main"><form id="work-filters"></form></div>`);
+    expect(isFilterableListPage(doc, listLocation("https://archiveofourown.org/works/123"))).toBe(
+      false,
+    );
+  });
+
+  it("is false on a list URL with no filter form or results", () => {
+    const doc = makeDoc(`<div id="main"></div>`);
+    expect(isFilterableListPage(doc, listLocation("https://archiveofourown.org/"))).toBe(false);
+  });
+});
+
+describe("injectSaveSearchButton", () => {
+  const filterHtml = `<div id="main"><h2 class="heading">Works</h2><form id="work-filters"></form></div>`;
+
+  it("injects a single button and calls back with the href on click", () => {
+    const doc = makeDoc(filterHtml);
+    const location = listLocation("https://archiveofourown.org/tags/Foo/works");
+    const seen: string[] = [];
+    const btn = injectSaveSearchButton(doc, location, (url) => seen.push(url));
+
+    expect(btn).not.toBeNull();
+    expect(doc.querySelectorAll("button.ao3-tracker-save-search")).toHaveLength(1);
+
+    btn?.click();
+    expect(seen).toEqual(["https://archiveofourown.org/tags/Foo/works"]);
+  });
+
+  it("is idempotent — a second call reuses the existing button", () => {
+    const doc = makeDoc(filterHtml);
+    const location = listLocation("https://archiveofourown.org/tags/Foo/works");
+    const first = injectSaveSearchButton(doc, location, () => {});
+    const second = injectSaveSearchButton(doc, location, () => {});
+
+    expect(second).toBe(first);
+    expect(doc.querySelectorAll("button.ao3-tracker-save-search")).toHaveLength(1);
+  });
+
+  it("returns null on a non-filterable page", () => {
+    const doc = makeDoc(`<div id="main"></div>`);
+    expect(
+      injectSaveSearchButton(doc, listLocation("https://archiveofourown.org/works/123"), () => {}),
+    ).toBeNull();
   });
 });

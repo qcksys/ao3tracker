@@ -69,6 +69,7 @@ export type WorkChapterIndexMessage = z.infer<typeof workChapterIndexMessageSche
 export const scrollProgressMessageSchema = z.object({
   type: z.literal("scrollProgress"),
   url: z.string(),
+  chapterId: z.string().nullable().optional(),
   scrollPercentage: z.number(),
 });
 export type ScrollProgressMessage = z.infer<typeof scrollProgressMessageSchema>;
@@ -79,6 +80,23 @@ export const listWorksMessageSchema = z.object({
   workIds: z.array(z.number().int()),
 });
 export type ListWorksMessage = z.infer<typeof listWorksMessageSchema>;
+
+/**
+ * Page → host request to save the current filter/search URL. Posted by the
+ * "Save this search" button injected on AO3 list pages. `name` is a suggested
+ * name derived from the page heading (the host prompts the user to confirm it).
+ *
+ * Kept out of `webViewMessageSchema` below because, like the browser
+ * extension's `saveSearch` message, it's a side-channel request handled
+ * separately from the per-page tracking events — not a tracking event the
+ * extension's `pageEvent` ingestion should have to branch on.
+ */
+export const saveSearchMessageSchema = z.object({
+  type: z.literal("saveSearch"),
+  url: z.string(),
+  name: z.string().nullable(),
+});
+export type SaveSearchMessage = z.infer<typeof saveSearchMessageSchema>;
 
 export const webViewMessageSchema = z.discriminatedUnion("type", [
   workInfoMessageSchema,

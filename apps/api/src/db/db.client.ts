@@ -15,40 +15,40 @@ import { rWorkTag, tWorkTag } from "~/db/schema/work.tag";
 
 export type TDatabase = ReturnType<typeof createDbConnection>;
 export const createDbConnection = (url: string) => {
-    const client = new Client({
-        url,
-        fetch: (url, init) => {
-            if (init) {
-                delete init.cache;
-            }
-            return fetch(url, init);
-        },
-    });
-    return drizzle(client, {
-        schema: {
-            tAuthAccount,
-            rAuthAccount,
-            tAuthPasskey,
-            rAuthPasskey,
-            tAuthSession,
-            rAuthSession,
-            tAuthTwoFactor,
-            rAuthTwoFactor,
-            tAuthUser,
-            rAuthUser,
-            tAuthVerification,
-            tTrackChapter,
-            rTrackChapter,
-            tTrackWork,
-            rTrackWork,
-            tWork,
-            rWork,
-            tWorkBackup,
-            rWorkBackup,
-            tWorkChapter,
-            rWorkChapter,
-            tWorkTag,
-            rWorkTag,
-        },
-    });
+  const client = new Client({
+    url,
+    fetch: (url, init) => {
+      if (init) {
+        delete init.cache;
+      }
+      return fetch(url, init);
+    },
+  });
+  return drizzle(client, {
+    schema: {
+      tAuthAccount,
+      rAuthAccount,
+      tAuthPasskey,
+      rAuthPasskey,
+      tAuthSession,
+      rAuthSession,
+      tAuthTwoFactor,
+      rAuthTwoFactor,
+      tAuthUser,
+      rAuthUser,
+      tAuthVerification,
+      tTrackChapter,
+      rTrackChapter,
+      tTrackWork,
+      rTrackWork,
+      tWork,
+      rWork,
+      tWorkBackup,
+      rWorkBackup,
+      tWorkChapter,
+      rWorkChapter,
+      tWorkTag,
+      rWorkTag,
+    },
+  });
 };

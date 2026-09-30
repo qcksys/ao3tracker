@@ -2,6 +2,7 @@ package com.qcksys.ao3tracker.data.repository
 
 import com.qcksys.ao3tracker.data.database.FavouriteTagDao
 import com.qcksys.ao3tracker.data.database.FavouriteTagEntity
+import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.model.TagType
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -16,7 +17,8 @@ import kotlinx.coroutines.flow.map
  * the format `"${tagType.id}\t$tag"` (tab-separated).
  */
 class FavouriteTagRepository(
-    private val dao: FavouriteTagDao
+    private val dao: FavouriteTagDao,
+    private val accountData: AccountDataStore? = null
 ) {
     /** Observe the currently-favourited set as `"${tagType.id}\t$tag"` strings. */
     fun observeFavourites(): Flow<Set<String>> {
@@ -36,7 +38,7 @@ class FavouriteTagRepository(
      * Returns true if the tag is now favourited, false otherwise.
      */
     @OptIn(ExperimentalTime::class)
-    suspend fun toggleFavourite(tagType: TagType, tag: String): Boolean {
+    suspend fun toggleFavourite(tagType: TagType, tag: String): Boolean = edit {
         val now = Clock.System.now().toEpochMilliseconds()
         val current = dao.getOne(tagType.id, tag)
         val nextFavourited = current?.favourited != true
@@ -49,7 +51,7 @@ class FavouriteTagRepository(
                 pendingSync = true
             )
         )
-        return nextFavourited
+        nextFavourited
     }
 
     /** Rows with local changes that haven't been pushed to the server yet. */
@@ -58,8 +60,8 @@ class FavouriteTagRepository(
     }
 
     /** Mark a row as synced (called after the server accepts a push). */
-    suspend fun markSynced(tagType: Int, tag: String) {
-        dao.clearPending(tagType, tag)
+    suspend fun markSynced(entity: FavouriteTagEntity) {
+        dao.clearPending(entity.tagType, entity.tag, entity.updatedAt, entity.favourited)
     }
 
     /**
@@ -74,7 +76,7 @@ class FavouriteTagRepository(
         val toUpsert = mutableListOf<FavouriteTagEntity>()
         for (item in items) {
             val local = dao.getOne(item.tagType, item.tag)
-            if (local != null && local.updatedAt >= item.updatedAt) continue
+            if (local != null && local.updatedAt > item.updatedAt) continue
             toUpsert.add(
                 FavouriteTagEntity(
                     tagType = item.tagType,
@@ -89,6 +91,9 @@ class FavouriteTagRepository(
     }
 
     private fun entityKey(tagType: Int, tag: String): String = "$tagType\t$tag"
+
+    private suspend fun <T> edit(block: suspend () -> T): T =
+        accountData?.edit(block) ?: block()
 }
 
 /** Wire-format row from the server (decoded from the sync DTO). */

@@ -1,3 +1,3 @@
 interface CloudflareBindings {
-    NOTIFICATION_QUEUE: Queue<NotificationQueueMessage>;
+  NOTIFICATION_QUEUE: Queue<NotificationQueueMessage>;
 }

@@ -1,5 +1,6 @@
 import {
   type FavouriteTagItem,
+  type SavedSearchItem,
   tagTypeIdSchema,
   type WebViewMessage,
   type WorkBadgeData,
@@ -15,6 +16,11 @@ import { z } from "zod";
 export const contentToBackgroundSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("pageEvent"), payload: webViewMessageSchema }),
   z.object({ kind: z.literal("requestBadges"), workIds: z.array(z.number().int().positive()) }),
+  z.object({
+    kind: z.literal("saveSearch"),
+    name: z.string().min(1).max(191),
+    url: z.string().url().max(8192),
+  }),
 ]);
 export type ContentToBackground = z.infer<typeof contentToBackgroundSchema>;
 
@@ -34,7 +40,23 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("getState") }),
   z.object({ kind: z.literal("syncNow") }),
-  z.object({ kind: z.literal("toggleFavouriteTag"), tagType: tagTypeIdSchema, tag: z.string().min(1), favourited: z.boolean() }),
+  z.object({
+    kind: z.literal("setAuthSession"),
+    token: z.string().min(1).nullable(),
+    baseUrl: z.string().url(),
+  }),
+  z.object({
+    kind: z.literal("toggleFavouriteTag"),
+    tagType: tagTypeIdSchema,
+    tag: z.string().min(1),
+    favourited: z.boolean(),
+  }),
+  z.object({
+    kind: z.literal("renameSavedSearch"),
+    id: z.string().min(1),
+    name: z.string().min(1).max(191),
+  }),
+  z.object({ kind: z.literal("deleteSavedSearch"), id: z.string().min(1) }),
   z.object({ kind: z.literal("setApiBaseUrl"), baseUrl: z.string().url() }),
   z.object({ kind: z.literal("setNotificationsEnabled"), enabled: z.boolean() }),
 ]);
@@ -59,9 +81,8 @@ export const popupStateSchema = z.object({
       favourite: z.boolean(),
     })
     .nullable(),
-  favouriteTags: z.array(
-    z.custom<FavouriteTagItem>(),
-  ),
+  favouriteTags: z.array(z.custom<FavouriteTagItem>()),
+  savedSearches: z.array(z.custom<SavedSearchItem>()),
 });
 export type PopupState = z.infer<typeof popupStateSchema>;
 

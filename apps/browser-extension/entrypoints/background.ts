@@ -5,26 +5,24 @@ import type {
   PopupState,
   PopupToBackground,
 } from "@/lib/messaging";
-import {
-  contentToBackgroundSchema,
-  popupToBackgroundSchema,
-} from "@/lib/messaging";
+import { contentToBackgroundSchema, popupToBackgroundSchema } from "@/lib/messaging";
 import { loadAuthToken } from "@/lib/auth-token-cache";
 import { toggleFavouriteTag } from "@/lib/favourite-tags-repo";
-import {
-  attachNotificationClickHandler,
-  pollAndDisplayNotifications,
-} from "@/lib/notifications";
+import { deleteSavedSearch, renameSavedSearch, saveSearch } from "@/lib/saved-searches-repo";
+import { attachNotificationClickHandler, pollAndDisplayNotifications } from "@/lib/notifications";
 import {
   apiBaseUrlItem,
   authTokenItem,
   favouriteTagsItem,
-  lastSeenNotificationIdItem,
   lastSyncErrorItem,
   lastSyncedAtItem,
   notificationsEnabledItem,
+  resolveApiBaseUrl,
+  savedSearchesItem,
 } from "@/lib/storage";
-import { runSync } from "@/lib/sync";
+import { runSync, StaleSyncSessionError } from "@/lib/sync";
+import { initializeAccount, setApiEndpoint, setAuthSession } from "@/lib/account-state";
+import { withLocalState } from "@/lib/local-state";
 import {
   buildBadgePayloads,
   currentWorkSummary,
@@ -35,6 +33,18 @@ import {
 const SYNC_DEBOUNCE_MS = 2_000;
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 let syncing = false;
+let syncRequested = false;
+
+/** True when `url` is served from an AO3 host (archiveofourown.org or a subdomain). */
+function isAo3Url(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const { host } = new URL(url);
+    return host === "archiveofourown.org" || host.endsWith(".archiveofourown.org");
+  } catch {
+    return false;
+  }
+}
 
 function scheduleSync(): void {
   if (syncTimer) clearTimeout(syncTimer);
@@ -45,32 +55,30 @@ function scheduleSync(): void {
 }
 
 async function triggerSync(): Promise<void> {
-  if (syncing) return;
-  const token = await authTokenItem.getValue();
-  if (!token) return;
+  if (syncing) {
+    syncRequested = true;
+    return;
+  }
   syncing = true;
   try {
     await runSync();
   } catch (err) {
+    if (err instanceof StaleSyncSessionError) return;
     const message = err instanceof Error ? err.message : String(err);
     await lastSyncErrorItem.setValue(message);
     console.warn("[ao3-tracker] sync failed", err);
   } finally {
     syncing = false;
+    if (syncRequested) {
+      syncRequested = false;
+      scheduleSync();
+    }
   }
 }
 
 async function pollNotifications(): Promise<void> {
-  const [enabled, lastSeenId] = await Promise.all([
-    notificationsEnabledItem.getValue(),
-    lastSeenNotificationIdItem.getValue(),
-  ]);
   try {
-    await pollAndDisplayNotifications({
-      notificationsEnabled: enabled,
-      lastSeenId,
-      setLastSeenId: (id) => lastSeenNotificationIdItem.setValue(id),
-    });
+    await pollAndDisplayNotifications();
   } catch (err) {
     console.warn("[ao3-tracker] notification poll failed", err);
   }
@@ -82,6 +90,7 @@ async function getPopupState(): Promise<PopupState> {
     lastSyncedAt,
     lastSyncError,
     favouriteTags,
+    savedSearches,
     currentWork,
     trackedCount,
     notificationsEnabled,
@@ -90,12 +99,15 @@ async function getPopupState(): Promise<PopupState> {
     lastSyncedAtItem.getValue(),
     lastSyncErrorItem.getValue(),
     favouriteTagsItem.getValue(),
+    savedSearchesItem.getValue(),
     currentWorkSummary(),
     trackedWorkCount(),
     notificationsEnabledItem.getValue(),
   ]);
   return {
-    apiBaseUrl: baseUrl,
+    // Coerce so the popup's "Active" endpoint matches what requests actually
+    // use (every network/auth consumer routes through resolveApiBaseUrl).
+    apiBaseUrl: resolveApiBaseUrl(baseUrl),
     lastSyncedAt,
     lastSyncError,
     syncing,
@@ -103,6 +115,7 @@ async function getPopupState(): Promise<PopupState> {
     notificationsEnabled,
     currentWork,
     favouriteTags,
+    savedSearches,
   };
 }
 
@@ -119,40 +132,54 @@ async function handleContentMessage(
       const entries = await buildBadgePayloads(msg.workIds);
       return { kind: "badges", entries };
     }
+    case "saveSearch": {
+      await saveSearch(msg.name, msg.url);
+      scheduleSync();
+      return { kind: "ok" };
+    }
   }
 }
 
-async function handlePopupMessage(
-  msg: PopupToBackground,
-): Promise<BackgroundToPopupResponse> {
+async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToPopupResponse> {
   switch (msg.kind) {
     case "getState":
-      return { kind: "state", state: await getPopupState() };
+      return withLocalState(async () => ({ kind: "state", state: await getPopupState() }));
+
+    case "setAuthSession":
+      await setAuthSession(msg.token, msg.baseUrl);
+      return { kind: "ok" };
 
     case "setApiBaseUrl":
-      await apiBaseUrlItem.setValue(msg.baseUrl);
+      await setApiEndpoint(msg.baseUrl);
       return { kind: "state", state: await getPopupState() };
 
     case "syncNow": {
-      try {
-        if (!syncing) {
-          syncing = true;
-          await runSync();
-        }
-        return { kind: "state", state: await getPopupState() };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        await lastSyncErrorItem.setValue(message);
-        return { kind: "error", message };
-      } finally {
-        syncing = false;
-      }
+      await triggerSync();
+      return { kind: "state", state: await getPopupState() };
     }
 
     case "toggleFavouriteTag": {
-      await toggleFavouriteTag(msg.tagType, msg.tag, msg.favourited);
-      scheduleSync();
-      return { kind: "state", state: await getPopupState() };
+      return withLocalState(async () => {
+        await toggleFavouriteTag(msg.tagType, msg.tag, msg.favourited);
+        scheduleSync();
+        return { kind: "state", state: await getPopupState() };
+      });
+    }
+
+    case "renameSavedSearch": {
+      return withLocalState(async () => {
+        await renameSavedSearch(msg.id, msg.name);
+        scheduleSync();
+        return { kind: "state", state: await getPopupState() };
+      });
+    }
+
+    case "deleteSavedSearch": {
+      return withLocalState(async () => {
+        await deleteSavedSearch(msg.id);
+        scheduleSync();
+        return { kind: "state", state: await getPopupState() };
+      });
     }
 
     case "setNotificationsEnabled": {
@@ -169,6 +196,7 @@ export default defineBackground(() => {
   // Seed the token cache so the auth client can read synchronously, and
   // re-trigger sync whenever the popup signs in / out.
   void loadAuthToken();
+  const initialized = initializeAccount();
   authTokenItem.watch((next) => {
     if (next) {
       scheduleSync();
@@ -179,12 +207,27 @@ export default defineBackground(() => {
   attachNotificationClickHandler();
 
   browser.runtime.onMessage.addListener((rawMessage, sender, sendResponse) => {
+    // Only accept messages from our own extension's content scripts / popup.
+    // External senders (other extensions, web pages) are rejected outright.
+    if (sender.id !== browser.runtime.id) {
+      sendResponse({ kind: "error", message: "Untrusted sender" });
+      return false;
+    }
+
     // The same channel handles content-script and popup messages. We try the
     // content-script schema first because it's the hot path; popup messages
     // will fail that parse and fall through to the popup schema.
     const fromContent = contentToBackgroundSchema.safeParse(rawMessage);
     if (fromContent.success) {
-      void handleContentMessage(fromContent.data)
+      // Content messages must originate from an AO3 page. This blocks a
+      // malicious iframe embedded on an AO3 page (which would still pass the
+      // sender.id check) from posting valid-shaped pageEvent payloads.
+      if (!isAo3Url(sender.url)) {
+        sendResponse({ kind: "error", message: "Untrusted sender" });
+        return false;
+      }
+      void initialized
+        .then(() => withLocalState(() => handleContentMessage(fromContent.data)))
         .then(sendResponse)
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
@@ -195,7 +238,12 @@ export default defineBackground(() => {
 
     const fromPopup = popupToBackgroundSchema.safeParse(rawMessage);
     if (fromPopup.success) {
-      void handlePopupMessage(fromPopup.data)
+      if (!sender.url?.startsWith(browser.runtime.getURL("/"))) {
+        sendResponse({ kind: "error", message: "Untrusted sender" });
+        return false;
+      }
+      void initialized
+        .then(() => handlePopupMessage(fromPopup.data))
         .then(sendResponse)
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
@@ -218,6 +266,6 @@ export default defineBackground(() => {
     }
   });
 
-  void triggerSync();
-  void pollNotifications();
+  void initialized.then(triggerSync);
+  void initialized.then(pollNotifications);
 });

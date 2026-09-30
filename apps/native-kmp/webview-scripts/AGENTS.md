@@ -6,10 +6,10 @@ Canonical guidance for AI coding agents (Claude Code, etc.) working in `apps/nat
 
 TypeScript source for the JavaScript injected into the native KMP app's AO3 WebView. Two side-effect-only IIFE bundles are produced:
 
-| Output | Purpose |
-|---|---|
-| `dist/ao3-tracking.min.js` | Extracts work metadata + scroll progress and posts JSON messages back to the host platform (AndroidBridge / WKWebKit / desktop bridge). Renders list-page badges when native pushes payloads via `window.__ao3Tracker.applyListBadges(...)`. |
-| `dist/scroll-restore.min.js` | Reads the `scrollTo` query param and scrolls into `#chapters`. Clears the param. |
+| Output                       | Purpose                                                                                                                                                                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dist/ao3-tracking.min.js`   | Extracts work metadata + scroll progress and posts JSON messages back to the host platform (AndroidBridge / WKWebKit / desktop bridge). Renders list-page badges when native pushes payloads via `window.__ao3Tracker.applyListBadges(...)`. |
+| `dist/scroll-restore.min.js` | Reads the `scrollTo` query param and scrolls into `#chapters`. Clears the param.                                                                                                                                                             |
 
 DOM logic lives in [`@qcksys/ao3tracker-core`](../../../packages/ao3-core) — this package is the **WebView entry layer** that wires those helpers to platform-specific `postMessage` channels.
 
@@ -49,6 +49,7 @@ After `pnpm run build`, the Gradle `generateWebviewScriptKotlin` task reads `dis
 
 ## Conventions
 
+- **Formatting** uses workspace-root Oxfmt (`pnpm exec vp fmt`) with two-space indentation. Biome runs lint and import organization only, with its formatter disabled.
 - **Subpath imports only** from `@qcksys/ao3tracker-core`: use `/dom`, `/badges`, `/schemas`. Importing the root pulls zod into the IIFE bundle and inflates it from ~7.5 kB to ~330 kB.
 - **`~/` aliases are fine here** because this package is a leaf consumer — nothing else compiles our source. Use them for cross-directory imports (e.g. tests reference `~/ao3-tracking` and `~/fixtures`). Sibling barrels can still use `./`.
 - **No top-level side effects in modules that are only imported.** The two entry files own the IIFE side effects; everything else must be pure to keep tree-shaking honest.

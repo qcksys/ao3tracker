@@ -19,10 +19,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 
+interface SyncRemote {
+    suspend fun fetchSyncData(token: String, lastSyncedAt: String? = null, workCursor: Long? = null, limit: Int? = null): Result<SyncGetResponse>
+    suspend fun sendSyncData(token: String, request: SyncPostRequest): Result<SyncPostResponse>
+}
+
 class SyncService(
     private val appSettings: AppSettings,
     private val authService: AuthService
-) {
+) : SyncRemote {
     private val baseUrl: String
         get() = appSettings.getApiBaseUrl()
 
@@ -42,11 +47,11 @@ class SyncService(
      * @param limit Max works per page (default: 50, max: 50)
      * @return Result containing the sync response or an error
      */
-    suspend fun fetchSyncData(
+    override suspend fun fetchSyncData(
         token: String,
-        lastSyncedAt: String? = null,
-        workCursor: Long? = null,
-        limit: Int? = null
+        lastSyncedAt: String?,
+        workCursor: Long?,
+        limit: Int?
     ): Result<SyncGetResponse> {
         return try {
             AppLogger.d("Fetching sync data from $baseUrl/track/sync", TAG)
@@ -87,7 +92,7 @@ class SyncService(
      * @param request The sync request containing local changes to send
      * @return Result containing the sync response or an error
      */
-    suspend fun sendSyncData(token: String, request: SyncPostRequest): Result<SyncPostResponse> {
+    override suspend fun sendSyncData(token: String, request: SyncPostRequest): Result<SyncPostResponse> {
         return try {
             AppLogger.d("Sending sync data to $baseUrl/track/sync", TAG)
 

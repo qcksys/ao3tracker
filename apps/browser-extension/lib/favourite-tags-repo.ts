@@ -2,6 +2,7 @@ import type { FavouriteTagItem, TagTypeId } from "@qcksys/ao3tracker-core";
 import { favouriteTagKey } from "@qcksys/ao3tracker-core";
 import { mergeFavouriteTags } from "@qcksys/ao3tracker-sync-client";
 import { favouriteTagsItem } from "./storage";
+import { nextUpdatedAt } from "./local-state";
 
 /**
  * Toggle a favourite tag in place. Tombstones an existing row to false rather
@@ -14,11 +15,13 @@ export async function toggleFavouriteTag(
   favourited: boolean,
 ): Promise<FavouriteTagItem> {
   const current = await favouriteTagsItem.getValue();
-  const updatedAt = new Date().toISOString();
   const key = favouriteTagKey(tagType, tag);
+  const updatedAt = nextUpdatedAt(
+    current.find((row) => favouriteTagKey(row.tagType, row.tag) === key)?.updatedAt,
+  );
 
   const next = current.filter((row) => favouriteTagKey(row.tagType, row.tag) !== key);
-  const row: FavouriteTagItem = { tagType, tag, favourited, updatedAt };
+  const row = { tagType, tag, favourited, updatedAt, pendingSync: true };
   next.push(row);
   await favouriteTagsItem.setValue(next);
   return row;
@@ -29,21 +32,22 @@ export async function applyRemoteFavouriteTags(
   remote: ReadonlyArray<FavouriteTagItem>,
 ): Promise<FavouriteTagItem[]> {
   const local = await favouriteTagsItem.getValue();
-  const merged = mergeFavouriteTags(local, remote);
+  const merged = mergeFavouriteTags(local, remote).map((row) => {
+    const key = favouriteTagKey(row.tagType, row.tag);
+    const previous = local.find((item) => favouriteTagKey(item.tagType, item.tag) === key);
+    const incoming = remote.find((item) => favouriteTagKey(item.tagType, item.tag) === key);
+    const remoteWon =
+      incoming && (!previous || Date.parse(incoming.updatedAt) >= Date.parse(previous.updatedAt));
+    return { ...row, pendingSync: remoteWon ? false : (previous?.pendingSync ?? true) };
+  });
   await favouriteTagsItem.setValue(merged);
   return merged;
 }
 
 /**
- * Rows that need to be pushed to the server. A simple heuristic: anything
- * updated after the last successful sync. The caller passes the cutoff so we
- * don't keep a per-row pendingSync flag for this table.
+ * Missing flags belong to the legacy store and are safely retried once.
  */
-export async function favouriteTagsToPush(
-  lastSyncedAt: string | null,
-): Promise<FavouriteTagItem[]> {
+export async function favouriteTagsToPush(): Promise<FavouriteTagItem[]> {
   const rows = await favouriteTagsItem.getValue();
-  if (lastSyncedAt === null) return rows;
-  const cutoff = Date.parse(lastSyncedAt);
-  return rows.filter((row) => Date.parse(row.updatedAt) > cutoff);
+  return rows.filter((row) => row.pendingSync !== false);
 }

@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { setAuthToken } from "@/lib/auth-token-cache";
-import { apiBaseUrlPresets } from "@/lib/storage";
+import { apiBaseUrlPresets, availableApiBaseUrlPresets } from "@/lib/storage";
 import { authClient } from "~popup/lib/auth-client";
 import { usePopupState } from "~popup/lib/state";
 
@@ -26,9 +26,8 @@ export default function Settings() {
   if (!state) return <div className="text-muted-foreground text-sm">Loading…</div>;
 
   const selectedId = draftId ?? activePreset?.id ?? null;
-  const selectedPreset = apiBaseUrlPresets.find((p) => p.id === selectedId);
-  const canSave =
-    selectedPreset !== undefined && selectedPreset.url !== state.apiBaseUrl;
+  const selectedPreset = availableApiBaseUrlPresets.find((p) => p.id === selectedId);
+  const canSave = selectedPreset !== undefined && selectedPreset.url !== state.apiBaseUrl;
 
   const onSignOut = async (): Promise<void> => {
     await authClient.signOut();
@@ -65,9 +64,7 @@ export default function Settings() {
             <>
               <div>
                 Signed in as{" "}
-                <span className="font-medium">
-                  {session.user.name || session.user.email}
-                </span>
+                <span className="font-medium">{session.user.name || session.user.email}</span>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={onSignOut}>
@@ -93,8 +90,7 @@ export default function Settings() {
             <div className="flex-1">
               <div>Push notifications</div>
               <p className="text-muted-foreground text-xs">
-                Show alerts for new chapters and completed works on your
-                tracked subscriptions.
+                Show alerts for new chapters and completed works on your tracked subscriptions.
               </p>
             </div>
             <Button
@@ -127,7 +123,7 @@ export default function Settings() {
               <SelectValue placeholder="Pick an environment" />
             </SelectTrigger>
             <SelectContent>
-              {apiBaseUrlPresets.map((preset) => (
+              {availableApiBaseUrlPresets.map((preset) => (
                 <SelectItem key={preset.id} value={preset.id}>
                   {preset.label}
                 </SelectItem>
@@ -139,8 +135,7 @@ export default function Settings() {
               <>
                 Active: <span className="font-mono">{state.apiBaseUrl}</span>
                 <br />
-                After save:{" "}
-                <span className="font-mono">{selectedPreset.url}</span>
+                After save: <span className="font-mono">{selectedPreset.url}</span>
               </>
             ) : (
               <>

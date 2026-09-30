@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 @Entity(
     tableName = "works",
@@ -19,6 +20,7 @@ import androidx.room.PrimaryKey
         Index("rowDeletedAt")
     ]
 )
+@Serializable
 data class WorkEntity(
     @PrimaryKey
     val id: Long,
@@ -70,6 +72,7 @@ data class WorkEntity(
         Index("rowDeletedAt")
     ]
 )
+@Serializable
 data class ChapterEntity(
     val workId: Long,
     /** Chapter ID from AO3. Use 0 for single-chapter works where chapter ID is not available. */
@@ -102,6 +105,7 @@ data class ChapterEntity(
         Index("rowCreatedAt")
     ]
 )
+@Serializable
 data class TagEntity(
     val workId: Long,
     val tag: String,
@@ -126,6 +130,7 @@ data class TagEntity(
         Index("pendingSync")
     ]
 )
+@Serializable
 data class FavouriteTagEntity(
     val tagType: Int,
     val tag: String,
@@ -134,4 +139,49 @@ data class FavouriteTagEntity(
     val updatedAt: Long,
     /** True if this row has a local change that hasn't been pushed to the server yet. */
     val pendingSync: Boolean
+)
+
+/**
+ * A named AO3 filter/search URL the user saved. Synced across devices via
+ * /api/track/sync's `savedSearches` block.
+ *
+ * Tombstones-in-place: deleting sets `deleted = true` rather than removing the
+ * row, so concurrent deletes propagate to other devices via LWW on `updatedAt`.
+ * The live set is `WHERE deleted = 0`. The push set is `WHERE pendingSync = 1`.
+ * `id` is a client-generated uuid (stable identity, so name/url can change).
+ */
+@Entity(
+    tableName = "saved_search",
+    indices = [
+        Index("deleted"),
+        Index("pendingSync")
+    ]
+)
+@Serializable
+data class SavedSearchEntity(
+    @PrimaryKey
+    val id: String,
+    val name: String,
+    val url: String,
+    val deleted: Boolean,
+    /** Epoch millis of the last save/edit/delete. Used for LWW against the server. */
+    val updatedAt: Long,
+    /** True if this row has a local change that hasn't been pushed to the server yet. */
+    val pendingSync: Boolean
+)
+
+@Entity(tableName = "active_account")
+data class ActiveAccountEntity(
+    @PrimaryKey val id: Int = 0,
+    val owner: String,
+    val remoteCursor: String? = null,
+    val localCursor: Long? = null
+)
+
+@Entity(tableName = "account_archive")
+data class AccountArchiveEntity(
+    @PrimaryKey val owner: String,
+    val data: String,
+    val remoteCursor: String? = null,
+    val localCursor: Long? = null
 )

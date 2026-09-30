@@ -23,7 +23,7 @@ function nowIso(): string {
 
 function parseChapterIdFromUrl(url: string): number | null {
   const match = new URL(url).pathname.match(/\/chapters\/(\d+)/);
-  if (!match) return null;
+  if (!match?.[1]) return null;
   const n = Number.parseInt(match[1], 10);
   return Number.isNaN(n) ? null : n;
 }
@@ -100,7 +100,11 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
       return [workId];
     }
     case "scrollProgress": {
-      const chapterId = parseChapterIdFromUrl(message.url) ?? 0;
+      const extractedChapterId = Number(message.chapterId);
+      const chapterId =
+        Number.isSafeInteger(extractedChapterId) && extractedChapterId > 0
+          ? extractedChapterId
+          : (parseChapterIdFromUrl(message.url) ?? 0);
       const chapters = await loadChapters();
       const key = chapterKey(workId, chapterId);
       const existing = chapters[key];
@@ -192,10 +196,7 @@ export async function buildBadgePayloads(workIds: number[]): Promise<WorkBadgeDa
       const hasAnyProgress = workChapters.some((c) => c.readProgress > 0);
       const allComplete =
         workChapters.length > 0 && workChapters.every((c) => c.readProgress >= 0.95);
-      const maxProgress = workChapters.reduce(
-        (acc, c) => Math.max(acc, c.readProgress),
-        0,
-      );
+      const maxProgress = workChapters.reduce((acc, c) => Math.max(acc, c.readProgress), 0);
 
       let status: WorkBadgeData["status"] = "not-started";
       if (w.private) status = "private";

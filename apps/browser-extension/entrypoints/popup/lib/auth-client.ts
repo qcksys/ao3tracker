@@ -1,10 +1,7 @@
 import { passkeyClient } from "@better-auth/passkey/client";
 import { twoFactorClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
-import {
-  getCachedAuthToken,
-  setAuthToken,
-} from "@/lib/auth-token-cache";
+import { getCachedAuthToken, setAuthToken } from "@/lib/auth-token-cache";
 
 function createClient(baseURL: string) {
   // The api mounts Better Auth at `/auth` (see apps/api/src/lib/auth.ts), but
@@ -20,7 +17,7 @@ function createClient(baseURL: string) {
       },
       onSuccess: async (ctx) => {
         const token = ctx.response.headers.get("set-auth-token");
-        if (token) await setAuthToken(token);
+        if (token) await setAuthToken(token, baseURL);
       },
     },
   });

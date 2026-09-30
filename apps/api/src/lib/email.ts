@@ -5,29 +5,29 @@
  * `SYSTEM_EMAIL_ADDRESS` for that environment.
  */
 export interface SendEmailArgs {
-    binding: SendEmail;
-    to: string;
-    fromAddress: string;
-    fromName: string;
-    subject: string;
-    text?: string;
-    html?: string;
+  binding: SendEmail;
+  to: string;
+  fromAddress: string;
+  fromName: string;
+  subject: string;
+  text?: string;
+  html?: string;
 }
 
 export async function sendEmail({
-    binding,
-    to,
-    fromAddress,
-    fromName,
-    subject,
-    text,
-    html,
+  binding,
+  to,
+  fromAddress,
+  fromName,
+  subject,
+  text,
+  html,
 }: SendEmailArgs) {
-    return await binding.send({
-        from: { name: fromName, email: fromAddress },
-        to,
-        subject,
-        ...(text !== undefined ? { text } : {}),
-        ...(html !== undefined ? { html } : {}),
-    });
+  return await binding.send({
+    from: { name: fromName, email: fromAddress },
+    to,
+    subject,
+    ...(text !== undefined ? { text } : {}),
+    ...(html !== undefined ? { html } : {}),
+  });
 }

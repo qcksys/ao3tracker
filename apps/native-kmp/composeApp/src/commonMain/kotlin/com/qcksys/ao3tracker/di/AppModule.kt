@@ -2,23 +2,30 @@ package com.qcksys.ao3tracker.di
 
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.qcksys.ao3tracker.data.auth.AuthRepository
+import com.qcksys.ao3tracker.data.auth.SyncAuthentication
+import com.qcksys.ao3tracker.data.auth.SessionTokenStorage
 import com.qcksys.ao3tracker.data.auth.AuthService
 import com.qcksys.ao3tracker.data.auth.getTokenStorage
 import com.qcksys.ao3tracker.data.database.Ao3Database
+import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_1_2
 import com.qcksys.ao3tracker.data.database.MIGRATION_2_3
 import com.qcksys.ao3tracker.data.database.MIGRATION_3_4
 import com.qcksys.ao3tracker.data.database.MIGRATION_4_5
+import com.qcksys.ao3tracker.data.database.MIGRATION_5_6
 import com.qcksys.ao3tracker.data.database.getDatabaseBuilder
 import com.qcksys.ao3tracker.data.push.PushRepository
 import com.qcksys.ao3tracker.data.push.PushTokenService
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
+import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.getSettingsStorage
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.sync.SyncService
+import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
 import com.qcksys.ao3tracker.ui.screens.track.TrackScreenModel
@@ -36,28 +43,35 @@ val appModule = module {
                 MIGRATION_1_2,
                 MIGRATION_2_3,
                 MIGRATION_3_4,
-                MIGRATION_4_5
+                MIGRATION_4_5,
+                MIGRATION_5_6,
+                MIGRATION_6_7
             )
             .build()
     }
 
-    singleOf(::Ao3Repository)
+    single { AccountDataStore(get()) }
+    single { Ao3Repository(get(), get()) }
 
     // Settings
     single { getSettingsStorage() }
     single { AppSettings(get()) }
 
     // Favourite tag filters (Room-backed; synced via /api/track/sync's favouriteTags block)
-    single { FavouriteTagRepository(get<Ao3Database>().favouriteTagDao()) }
+    single { FavouriteTagRepository(get<Ao3Database>().favouriteTagDao(), get()) }
+
+    // Saved searches (Room-backed; synced via /api/track/sync's savedSearches block)
+    single { SavedSearchRepository(get<Ao3Database>().savedSearchDao(), get()) }
 
     // Auth
     single { AuthService(get()) }
-    single { getTokenStorage() }
-    single { AuthRepository(get(), get()) }
+    single<SessionTokenStorage> { getTokenStorage() }
+    single { AuthRepository(get(), get(), get(), get()) }
+    single<SyncAuthentication> { get<AuthRepository>() }
 
     // Sync
-    single { SyncService(get(), get()) }
-    single { SyncRepository(get(), get(), get(), get(), get()) }
+    single<SyncRemote> { SyncService(get(), get()) }
+    single { SyncRepository(get(), get(), get(), get(), get(), get()) }
     // Eager so the favourites subscriber is wired before the first user action.
     single(createdAtStart = true) { SyncTriggers(get()) }
 
@@ -70,5 +84,5 @@ val appModule = module {
     singleOf(::ReadScreenModel)
 
     // TrackScreenModel as singleton to preserve filter state
-    single { TrackScreenModel(get(), get(), get(), get()) }
+    single { TrackScreenModel(get(), get(), get(), get(), get()) }
 }

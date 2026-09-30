@@ -65,7 +65,8 @@ data class WorkChapterIndexEvent(
 data class ScrollProgressEvent(
     val type: String = "scrollProgress",
     val url: String,
-    val scrollPercentage: Int
+    val scrollPercentage: Int,
+    val chapterId: String? = null
 )
 
 @Serializable
@@ -73,6 +74,18 @@ data class ListWorksEvent(
     val type: String = "listWorks",
     val url: String,
     val workIds: List<Long> = emptyList()
+)
+
+/**
+ * Page → host request to save the current filter/search URL. `name` is a
+ * suggested name derived from the page heading; the host confirms it with the
+ * user before persisting.
+ */
+@Serializable
+data class SaveSearchEvent(
+    val type: String = "saveSearch",
+    val url: String,
+    val name: String? = null
 )
 
 /**

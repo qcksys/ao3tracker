@@ -7,16 +7,15 @@ import {
   getWorkChapterSelect,
   getWorkInfo,
   getWorkTagInfo,
+  injectSaveSearchButton,
   publishScrollPercentage,
+  SAVE_SEARCH_LABEL,
   type WebViewMessage,
 } from "@qcksys/ao3tracker-core";
-import type {
-  BackgroundToContentResponse,
-  ContentToBackground,
-} from "@/lib/messaging";
+import type { BackgroundToContentResponse, ContentToBackground } from "@/lib/messaging";
 
 export default defineContentScript({
-  matches: ["*://*.archiveofourown.org/*"],
+  matches: ["https://archiveofourown.org/*"],
   runAt: "document_end",
   async main() {
     if ((window as Window & { __ao3TrackerInitialized?: boolean }).__ao3TrackerInitialized) return;
@@ -52,6 +51,36 @@ export default defineContentScript({
     }
 
     consumeScrollToParam(document, window);
+
+    // On filterable list/search pages, offer a "Save this search" button that
+    // names + persists the current filter URL (synced via the background).
+    let saveFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
+    const flashSaveButton = (button: HTMLButtonElement, label: string): void => {
+      if (saveFeedbackTimer) clearTimeout(saveFeedbackTimer);
+      button.textContent = label;
+      saveFeedbackTimer = setTimeout(() => {
+        button.textContent = SAVE_SEARCH_LABEL;
+      }, 2000);
+    };
+    injectSaveSearchButton(document, window.location, (url, button) => {
+      const heading = document.querySelector("#main h2.heading")?.textContent?.trim();
+      const suggested = heading && heading.length > 0 ? heading : "AO3 search";
+      const name = window.prompt("Name this saved search:", suggested);
+      if (!name || name.trim().length === 0) return;
+      void send({ kind: "saveSearch", name: name.trim(), url })
+        .then((res) => {
+          if (res.kind === "ok") {
+            flashSaveButton(button, "Saved ✓");
+          } else if (res.kind === "error") {
+            flashSaveButton(button, "Couldn't save");
+            console.warn("[ao3-tracker] save search rejected", res.message);
+          }
+        })
+        .catch((err) => {
+          flashSaveButton(button, "Couldn't save");
+          console.warn("[ao3-tracker] save search failed", err);
+        });
+    });
 
     const listWorkIds = findListWorkIds(document);
     if (listWorkIds.length > 0) {

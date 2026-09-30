@@ -5,7 +5,7 @@ import type {
   WorkInfoMessage,
   WorkTagsMessage,
 } from "../schemas/messages";
-import { normalizeWhitespace } from "./utils";
+import { classifyAo3Url, normalizeWhitespace } from "./utils";
 
 /**
  * Extract per-tag-type info from the work meta block.
@@ -20,9 +20,9 @@ function getArrayOfTagsFromAnchorElements(doc: Document, type: string): TagInfo[
   }));
 }
 
-function extractChapterId(doc: Document, location: Location): string | null {
+export function extractChapterId(doc: Document, location: Location): string | null {
   const urlMatch = location.pathname.match(/\/chapters\/(\d+)/);
-  if (urlMatch) return urlMatch[1];
+  if (urlMatch?.[1]) return urlMatch[1];
 
   const dropdown = doc.querySelector<HTMLSelectElement>("#selected_id");
   if (dropdown?.value) return dropdown.value;
@@ -30,7 +30,7 @@ function extractChapterId(doc: Document, location: Location): string | null {
   const chapterLink = doc.querySelector<HTMLAnchorElement>("#chapters div.chapter h3.title a");
   if (chapterLink) {
     const linkMatch = chapterLink.href.match(/\/chapters\/(\d+)/);
-    if (linkMatch) return linkMatch[1];
+    if (linkMatch?.[1]) return linkMatch[1];
   }
 
   return null;
@@ -118,9 +118,7 @@ export function getWorkTagInfo(doc: Document, location: Location): WorkTagsMessa
 }
 
 export function getWorkChapterIndex(doc: Document, location: Location): WorkChapterIndexMessage {
-  const items = Array.from(
-    doc.querySelectorAll<HTMLLIElement>("#main ol.chapter.index.group li"),
-  );
+  const items = Array.from(doc.querySelectorAll<HTMLLIElement>("#main ol.chapter.index.group li"));
   const chapters: ChapterInfo[] = items.map((el) => {
     const anchor = el.querySelector<HTMLAnchorElement>("a");
     const date = el.querySelector<HTMLSpanElement>("span.datetime");
@@ -135,8 +133,9 @@ export function getWorkChapterIndex(doc: Document, location: Location): WorkChap
     type: "workChapterIndex",
     url: location.href,
     authorUrl:
-      doc.querySelector<HTMLAnchorElement>("#main .heading a[rel='author']")?.getAttribute("href") ??
-      null,
+      doc
+        .querySelector<HTMLAnchorElement>("#main .heading a[rel='author']")
+        ?.getAttribute("href") ?? null,
     chapters,
   };
 }
@@ -169,12 +168,77 @@ export function getWorkChapterSelect(
   };
 }
 
+/**
+ * True when the page is an AO3 listing the user can filter/search (a works or
+ * bookmarks listing, a tag's works page, or a search results page) — i.e.
+ * somewhere a "Save this search" action makes sense.
+ *
+ * `classifyAo3Url().isList` is a negative catch-all (true for the homepage,
+ * dashboards, etc.), so it's only a coarse gate. We additionally require the
+ * "Sort and Filter" sidebar form OR a results list to be present.
+ */
+export function isFilterableListPage(doc: Document, location: Location): boolean {
+  if (!classifyAo3Url(location.href).isList) return false;
+  return (
+    doc.querySelector("form#work-filters") !== null ||
+    doc.querySelector('li[id^="work_"], li[id^="bookmark_"]') !== null
+  );
+}
+
+/** Default label for the injected save button (and the target to revert to). */
+export const SAVE_SEARCH_LABEL = "Save this search";
+
+/**
+ * Inject a "Save this search" button into an AO3 filterable list page. The
+ * button calls `onSave` with the current `location.href` (captured at click
+ * time, since AO3 mutates the URL as filters change) and the button element
+ * itself (so callers can show transient feedback). Idempotent: re-running
+ * returns the existing button instead of adding a second one. Returns null when
+ * the page isn't filterable or no suitable anchor is found.
+ */
+export function injectSaveSearchButton(
+  doc: Document,
+  location: Location,
+  onSave: (url: string, button: HTMLButtonElement) => void,
+): HTMLButtonElement | null {
+  if (!isFilterableListPage(doc, location)) return null;
+
+  const existing = doc.querySelector<HTMLButtonElement>("button.ao3-tracker-save-search");
+  if (existing) return existing;
+
+  const anchor =
+    doc.querySelector("#main ul.navigation.actions") ??
+    doc.querySelector("#main h2.heading") ??
+    doc.querySelector("form#work-filters");
+  if (!anchor) return null;
+
+  const btn = doc.createElement("button");
+  btn.type = "button";
+  btn.className = "ao3-tracker-save-search";
+  btn.textContent = SAVE_SEARCH_LABEL;
+  btn.style.cssText = [
+    "display:inline-block",
+    "margin:0 0 0 .5em",
+    "padding:2px 10px",
+    "background:#990000",
+    "color:#fff",
+    "border:0",
+    "border-radius:4px",
+    "font-size:13px",
+    "font-weight:600",
+    "cursor:pointer",
+  ].join("; ");
+  btn.addEventListener("click", () => onSave(location.href, btn));
+  anchor.appendChild(btn);
+  return btn;
+}
+
 export function findListWorkIds(doc: Document): number[] {
   const blurbs = doc.querySelectorAll<HTMLLIElement>('li[id^="work_"]');
   const ids: number[] = [];
   for (const blurb of blurbs) {
     const match = blurb.id.match(/^work_(\d+)$/);
-    if (match) {
+    if (match?.[1]) {
       const id = Number.parseInt(match[1], 10);
       if (!Number.isNaN(id)) ids.push(id);
     }

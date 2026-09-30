@@ -1,20 +1,18 @@
 import { z } from "zod";
 
 import {
-  apiBaseUrlItem,
   authTokenItem,
+  lastSeenNotificationIdItem,
   notificationWorkIdsItem,
+  notificationsEnabledItem,
 } from "./storage";
+import { accountContextItem, isCurrentSession, type SyncSession } from "./account-state";
+import { withLocalState } from "./local-state";
 
 const notificationItemSchema = z.object({
   id: z.number(),
   workId: z.number(),
-  type: z.enum([
-    "new_chapters",
-    "work_completed",
-    "work_restricted",
-    "work_deleted",
-  ]),
+  type: z.enum(["new_chapters", "work_completed", "work_restricted", "work_deleted"]),
   title: z.string(),
   body: z.string(),
   sentAt: z.string().nullable(),
@@ -76,9 +74,7 @@ function workUrl(notification: NotificationItem): string {
  * Create a chrome notification for each item. Records the (chromeId → workId)
  * mapping so the click handler can open the right tab without re-fetching.
  */
-async function showSystemNotifications(
-  items: NotificationItem[],
-): Promise<void> {
+async function showSystemNotifications(items: NotificationItem[]): Promise<void> {
   const workIdMap = await notificationWorkIdsItem.getValue();
   for (const n of items) {
     const cid = chromeNotificationId(n);
@@ -104,15 +100,18 @@ async function showSystemNotifications(
  * Tracks the highest-seen id locally so we never re-show the same notification
  * even across reloads of the service worker.
  */
-export async function pollAndDisplayNotifications(opts: {
-  notificationsEnabled: boolean;
-  lastSeenId: number | null;
-  setLastSeenId: (id: number) => Promise<void>;
-}): Promise<void> {
-  if (!opts.notificationsEnabled) return;
-  const token = await authTokenItem.getValue();
-  if (!token) return;
-  const baseUrl = await apiBaseUrlItem.getValue();
+export async function pollAndDisplayNotifications(): Promise<void> {
+  const snapshot = await withLocalState(async () => {
+    const context = await accountContextItem.getValue();
+    const token = await authTokenItem.getValue();
+    if (!context?.userId || !token || !(await notificationsEnabledItem.getValue())) return null;
+    return {
+      session: { ...context, token },
+      lastSeenId: await lastSeenNotificationIdItem.getValue(),
+    };
+  });
+  if (!snapshot) return;
+  const { session, lastSeenId } = snapshot;
 
   // Walk forward (newer notifications first); stop once we hit one we've
   // already seen, or once the api says hasMore=false.
@@ -120,34 +119,34 @@ export async function pollAndDisplayNotifications(opts: {
   let cursor: number | undefined;
   const cap = 200; // hard cap so a long-stale client doesn't notification-flood
   while (newItems.length < cap) {
-    const page = await fetchNotifications(baseUrl, token, cursor);
+    const page = await fetchNotifications(session.baseUrl, session.token, cursor);
+    if (!(await isCurrentSession(session))) return;
     for (const n of page.notifications) {
-      if (opts.lastSeenId !== null && n.id <= opts.lastSeenId) {
+      if (lastSeenId !== null && n.id <= lastSeenId) {
         // From here on, everything is older — we're done.
-        return await finalize(newItems, opts);
+        return await finalize(newItems, session);
       }
       newItems.push(n);
     }
     if (!page.hasMore || page.nextCursor === null) break;
     cursor = page.nextCursor;
   }
-  await finalize(newItems, opts);
+  await finalize(newItems, session);
 }
 
-async function finalize(
-  newItems: NotificationItem[],
-  opts: {
-    notificationsEnabled: boolean;
-    lastSeenId: number | null;
-    setLastSeenId: (id: number) => Promise<void>;
-  },
-): Promise<void> {
+async function finalize(newItems: NotificationItem[], session: SyncSession): Promise<void> {
   if (newItems.length === 0) return;
   // Show oldest-first so the user perceives chronological order.
   const sorted = [...newItems].sort((a, b) => a.id - b.id);
-  await showSystemNotifications(sorted);
-  const highestId = sorted[sorted.length - 1].id;
-  await opts.setLastSeenId(highestId);
+  await withLocalState(async () => {
+    if (!(await isCurrentSession(session)) || !(await notificationsEnabledItem.getValue())) return;
+    const seen = await lastSeenNotificationIdItem.getValue();
+    const unseen = sorted.filter((item) => seen === null || item.id > seen);
+    const latest = unseen.at(-1);
+    if (!latest) return;
+    await showSystemNotifications(unseen);
+    await lastSeenNotificationIdItem.setValue(latest.id);
+  });
 }
 
 /**
@@ -159,17 +158,16 @@ export function attachNotificationClickHandler(): void {
   if (clickHandlerInstalled) return;
   clickHandlerInstalled = true;
   browser.notifications.onClicked.addListener(async (notificationId) => {
-    const map = await notificationWorkIdsItem.getValue();
-    const workId = map[notificationId];
-    void browser.notifications.clear(notificationId);
-    if (workId) {
-      await browser.tabs.create({
-        url: `https://archiveofourown.org/works/${workId}`,
-      });
-      // Tidy up: drop this id from the click map.
-      delete map[notificationId];
-      await notificationWorkIdsItem.setValue(map);
-    }
+    await withLocalState(async () => {
+      const map = await notificationWorkIdsItem.getValue();
+      const workId = map[notificationId];
+      void browser.notifications.clear(notificationId);
+      if (workId) {
+        await browser.tabs.create({ url: `https://archiveofourown.org/works/${workId}` });
+        delete map[notificationId];
+        await notificationWorkIdsItem.setValue(map);
+      }
+    });
   });
 }
 

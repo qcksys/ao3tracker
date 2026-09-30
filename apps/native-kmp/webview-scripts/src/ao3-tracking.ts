@@ -8,10 +8,7 @@
  * `@qcksys/ao3tracker-core`; this file is the native-WebView entry that wires those
  * helpers to the platform-specific `postMessage` channels.
  */
-import {
-  applyListBadges as applyBadges,
-  type WorkBadgeData,
-} from "@qcksys/ao3tracker-core/badges";
+import { applyListBadges as applyBadges, type WorkBadgeData } from "@qcksys/ao3tracker-core/badges";
 import {
   classifyAo3Url,
   consumeScrollToParam,
@@ -20,11 +17,11 @@ import {
   getWorkChapterSelect,
   getWorkInfo,
   getWorkTagInfo,
+  injectSaveSearchButton,
+  normalizeWhitespace,
   publishScrollPercentage,
 } from "@qcksys/ao3tracker-core/dom";
-import type { ListWorksMessage } from "@qcksys/ao3tracker-core/schemas";
-
-export {};
+import type { ListWorksMessage, SaveSearchMessage } from "@qcksys/ao3tracker-core/schemas";
 
 declare global {
   interface Window {
@@ -90,6 +87,21 @@ function init(): void {
   }
 
   consumeScrollToParam(document, window);
+
+  // On filterable list/search pages, inject a "Save this search" button. The
+  // host shows a naming dialog and persists the URL, so we just post the URL +
+  // a suggested name (the page heading) over the bridge on click.
+  injectSaveSearchButton(document, window.location, (url) => {
+    // Collapse internal whitespace in the heading and cap to the server's name
+    // length so the suggested default is clean and never over-long.
+    const heading = normalizeWhitespace(document.querySelector("#main h2.heading")?.textContent);
+    const message: SaveSearchMessage = {
+      type: "saveSearch",
+      url,
+      name: heading ? heading.slice(0, 191) : null,
+    };
+    postMessage(JSON.stringify(message));
+  });
 
   const listWorkIds = findListWorkIds(document);
   if (listWorkIds.length > 0) {

@@ -1,10 +1,6 @@
-import { type InferInsertModel, type InferSelectModel } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { bigint, int, mysqlTable, varchar } from "drizzle-orm/mysql-core";
-import {
-    createInsertSchema,
-    createSelectSchema,
-    createUpdateSchema,
-} from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { DB_TABLE_PREFIX } from "~/const";
 
 /**
@@ -14,10 +10,10 @@ import { DB_TABLE_PREFIX } from "~/const";
  * the shape Better Auth expects (id, key, count, lastRequest).
  */
 export const tAuthRateLimit = mysqlTable(`${DB_TABLE_PREFIX}auth_rate_limit`, {
-    id: varchar({ length: 36 }).primaryKey(),
-    key: varchar({ length: 255 }).notNull().unique(),
-    count: int().notNull().default(0),
-    lastRequest: bigint({ mode: "number" }).notNull(),
+  id: varchar({ length: 36 }).primaryKey(),
+  key: varchar({ length: 255 }).notNull().unique(),
+  count: int().notNull().default(0),
+  lastRequest: bigint({ mode: "number" }).notNull(),
 });
 
 export type TAuthRateLimitS = InferSelectModel<typeof tAuthRateLimit>;

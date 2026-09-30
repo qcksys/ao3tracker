@@ -9,7 +9,7 @@
  * Aliased in [vite.config.ts](../../vite.config.ts).
  */
 export async function minify(value: string): Promise<string> {
-    return value;
+  return value;
 }
 
 export default { minify };

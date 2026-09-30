@@ -1,4 +1,5 @@
-import { authTokenItem } from "./storage";
+import { apiBaseUrlItem, authTokenItem, resolveApiBaseUrl } from "./storage";
+import { backgroundToPopupResponseSchema } from "./messaging";
 
 /**
  * Better Auth's bearer plugin reads the token via a synchronous accessor,
@@ -24,7 +25,14 @@ export function getCachedAuthToken(): string | null {
   return cachedToken;
 }
 
-export async function setAuthToken(token: string | null): Promise<void> {
-  cachedToken = token;
-  await authTokenItem.setValue(token);
+export async function setAuthToken(token: string | null, baseUrl?: string): Promise<void> {
+  const response = backgroundToPopupResponseSchema.parse(
+    await browser.runtime.sendMessage({
+      kind: "setAuthSession",
+      token,
+      baseUrl: baseUrl ?? resolveApiBaseUrl(await apiBaseUrlItem.getValue()),
+    }),
+  );
+  if (response.kind === "error") throw new Error(response.message);
+  cachedToken = await authTokenItem.getValue();
 }

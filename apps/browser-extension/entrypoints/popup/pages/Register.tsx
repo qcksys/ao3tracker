@@ -39,16 +39,14 @@ export default function Register() {
       form.setError("password", { message: error.message ?? "Sign up failed" });
       return;
     }
-    navigate("/");
+    await navigate("/");
   };
 
   return (
     <div className="flex h-full flex-col gap-4">
       <header>
         <h1 className="text-lg font-semibold">Create account</h1>
-        <p className="text-muted-foreground text-sm">
-          Free, cross-device AO3 progress sync.
-        </p>
+        <p className="text-muted-foreground text-sm">Free, cross-device AO3 progress sync.</p>
       </header>
       <Form {...form}>
         <form className="flex flex-col gap-3" onSubmit={form.handleSubmit(onSubmit)}>

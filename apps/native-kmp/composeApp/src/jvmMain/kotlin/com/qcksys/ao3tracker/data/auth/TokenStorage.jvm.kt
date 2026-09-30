@@ -4,18 +4,18 @@ import java.util.prefs.Preferences
 
 actual fun getTokenStorage(): TokenStorage = TokenStorage()
 
-actual class TokenStorage {
+actual class TokenStorage : SessionTokenStorage {
     private val prefs: Preferences = Preferences.userNodeForPackage(TokenStorage::class.java)
 
-    actual fun getToken(): String? {
+    actual override fun getToken(): String? {
         return prefs.get(TOKEN_KEY, null)
     }
 
-    actual fun saveToken(token: String) {
+    actual override fun saveToken(token: String) {
         prefs.put(TOKEN_KEY, token)
     }
 
-    actual fun clearToken() {
+    actual override fun clearToken() {
         prefs.remove(TOKEN_KEY)
     }
 

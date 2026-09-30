@@ -1,25 +1,67 @@
 package com.qcksys.ao3tracker.data.auth
 
 import com.qcksys.ao3tracker.data.model.AuthState
+import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.data.settings.ApiEnvironment
+import com.qcksys.ao3tracker.data.model.User
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+interface SyncAuthentication {
+    val authState: StateFlow<AuthState>
+    fun currentOwner(): String?
+    fun isCurrentSession(token: String, owner: String): Boolean
+    suspend fun invalidateSession()
+    suspend fun prepareSession(): Boolean = true
+}
 
 class AuthRepository(
     private val authService: AuthService,
-    private val tokenStorage: TokenStorage
-) {
+    private val tokenStorage: SessionTokenStorage,
+    private val accountData: AccountDataStore,
+    private val appSettings: AppSettings
+) : SyncAuthentication {
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
-    val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    override val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     private val credentialHelper: CredentialHelper? = createCredentialHelper()
 
     private var isInitialized = false
+    private val authMutex = Mutex()
+    private var authGeneration = 0L
+
+    private data class AuthOperation(val generation: Long, val environment: ApiEnvironment)
+
+    private suspend fun beginOperation(loading: Boolean = true): AuthOperation = authMutex.withLock {
+        authGeneration++
+        if (loading) _authState.value = AuthState.Loading
+        AuthOperation(authGeneration, appSettings.apiEnvironment.value)
+    }
+
+    private fun isCurrent(operation: AuthOperation): Boolean =
+        operation.generation == authGeneration && operation.environment == appSettings.apiEnvironment.value
+
+    private suspend fun complete(operation: AuthOperation, action: suspend () -> Unit): Boolean = authMutex.withLock {
+        if (!isCurrent(operation)) return@withLock false
+        action()
+        true
+    }
+
+    private suspend fun acceptSession(operation: AuthOperation, user: User, token: String, claimLegacy: Boolean = false): Boolean = complete(operation) {
+        accountData.activate(AccountDataStore.owner(operation.environment.name, user.id), claimLegacy)
+        if (isCurrent(operation)) {
+            tokenStorage.saveToken(token)
+            _authState.value = AuthState.Authenticated(user, token)
+        }
+    }
 
     /**
      * Initialize auth state from stored token.
-     * This restores auth state without server validation to avoid logout on server issues.
-     * Session validity is checked lazily when making authenticated requests.
+     * Keep the stored token on network failures, but resolve its owner before syncing.
      */
     suspend fun initialize() {
         // Skip if already authenticated or currently loading
@@ -33,18 +75,19 @@ class AuthRepository(
             return
         }
 
+        val operation = beginOperation(loading = false)
+        accountData.initialize()
         val token = tokenStorage.getToken()
         if (token != null) {
-            // Trust the stored token - don't validate with server on every app start
-            // This prevents logout when server has session persistence issues
-            // Session will be validated when making authenticated requests (e.g., sync)
-            _authState.value = AuthState.Authenticated(
-                user = null, // User details will be fetched on demand if needed
-                token = token
-            )
+            if (!complete(operation) { _authState.value = AuthState.Authenticated(null, token) }) return
+            authService.getSession(token, operation.environment.authBaseUrl).onSuccess { response ->
+                acceptSession(operation, response.user, response.session.token, claimLegacy = true)
+            }
+        } else {
+            complete(operation) { accountData.activate(AccountDataStore.GUEST) }
         }
 
-        isInitialized = true
+        if (isCurrent(operation)) isInitialized = true
     }
 
     /**
@@ -57,50 +100,44 @@ class AuthRepository(
             return false
         }
 
-        return authService.getSession(currentState.token)
+        val operation = beginOperation(loading = false)
+        return authService.getSession(currentState.token, operation.environment.authBaseUrl)
             .onSuccess { response ->
-                _authState.value = AuthState.Authenticated(response.user, response.session.token)
+                acceptSession(operation, response.user, response.session.token, claimLegacy = true)
             }
             .onFailure { error ->
                 if (error is InvalidSessionException) {
-                    tokenStorage.clearToken()
-                    _authState.value = AuthState.Idle
+                    complete(operation) { clearSession() }
                 }
             }
             .isSuccess
     }
 
     suspend fun signIn(email: String, password: String) {
-        _authState.value = AuthState.Loading
-        authService.signIn(email, password)
+        val operation = beginOperation()
+        authService.signIn(email, password, operation.environment.authBaseUrl)
             .onSuccess { response ->
-                tokenStorage.saveToken(response.token)
-                // Save credential to password manager
-                credentialHelper?.savePassword(email, password)
-                _authState.value = AuthState.Authenticated(response.user, response.token)
+                if (acceptSession(operation, response.user, response.token)) credentialHelper?.savePassword(email, password)
             }
             .onFailure { error ->
-                _authState.value = AuthState.Error(error.message ?: "Sign in failed")
+                complete(operation) { _authState.value = AuthState.Error(error.message ?: "Sign in failed") }
             }
     }
 
     suspend fun signUp(name: String, email: String, password: String) {
-        _authState.value = AuthState.Loading
-        authService.signUp(name, email, password)
+        val operation = beginOperation()
+        authService.signUp(name, email, password, operation.environment.authBaseUrl)
             .onSuccess { response ->
                 val token = response.token
                 if (token != null) {
-                    tokenStorage.saveToken(token)
-                    // Save credential to password manager
-                    credentialHelper?.savePassword(email, password)
-                    _authState.value = AuthState.Authenticated(response.user, token)
+                    if (acceptSession(operation, response.user, token)) credentialHelper?.savePassword(email, password)
                 } else {
                     // Sign up succeeded but no token (email verification required?)
-                    _authState.value = AuthState.Error("Account created. Please check your email to verify.")
+                    complete(operation) { _authState.value = AuthState.Error("Account created. Please check your email to verify.") }
                 }
             }
             .onFailure { error ->
-                _authState.value = AuthState.Error(error.message ?: "Sign up failed")
+                complete(operation) { _authState.value = AuthState.Error(error.message ?: "Sign up failed") }
             }
     }
 
@@ -127,14 +164,13 @@ class AuthRepository(
             }
             is CredentialResult.Passkey -> {
                 // Sign in with passkey
-                _authState.value = AuthState.Loading
-                authService.verifyPasskeyAuthentication(result.credential.responseJson)
+                val operation = beginOperation()
+                authService.verifyPasskeyAuthentication(result.credential.responseJson, operation.environment.authBaseUrl)
                     .onSuccess { response ->
-                        tokenStorage.saveToken(response.session.token)
-                        _authState.value = AuthState.Authenticated(response.user, response.session.token)
+                        acceptSession(operation, response.user, response.session.token)
                     }
                     .onFailure { error ->
-                        _authState.value = AuthState.Error(error.message ?: "Passkey sign in failed")
+                        complete(operation) { _authState.value = AuthState.Error(error.message ?: "Passkey sign in failed") }
                     }
                 result
             }
@@ -175,12 +211,10 @@ class AuthRepository(
 
     suspend fun signOut() {
         val currentState = _authState.value
-        if (currentState is AuthState.Authenticated) {
-            _authState.value = AuthState.Loading
-            authService.signOut(currentState.token)
-            tokenStorage.clearToken()
-            _authState.value = AuthState.Idle
-        }
+        val operation = beginOperation()
+        complete(operation) { clearSession() }
+        if (currentState is AuthState.Authenticated)
+            authService.signOut(currentState.token, operation.environment.authBaseUrl)
     }
 
     fun clearError() {
@@ -193,9 +227,34 @@ class AuthRepository(
      * Called when the session is invalidated externally (e.g., token expired during sync).
      * Clears the token and resets auth state.
      */
-    fun invalidateSession() {
+    override suspend fun invalidateSession() {
+        val operation = beginOperation(loading = false)
+        complete(operation) { clearSession() }
+    }
+
+    private suspend fun clearSession() {
         tokenStorage.clearToken()
         _authState.value = AuthState.Idle
+        accountData.activate(AccountDataStore.GUEST)
         isInitialized = false // Allow re-initialization on next attempt
+    }
+
+    private fun accountOwner(userId: String): String =
+        AccountDataStore.owner(appSettings.apiEnvironment.value.name, userId)
+
+    override fun currentOwner(): String? {
+        val state = _authState.value as? AuthState.Authenticated ?: return null
+        return state.user?.let { accountOwner(it.id) }
+    }
+
+    private fun isCurrentToken(token: String): Boolean =
+        (_authState.value as? AuthState.Authenticated)?.token == token
+
+    override fun isCurrentSession(token: String, owner: String): Boolean =
+        isCurrentToken(token) && currentOwner() == owner && accountData.active.value?.owner == owner
+
+    override suspend fun prepareSession(): Boolean {
+        val state = _authState.value as? AuthState.Authenticated ?: return false
+        return state.user != null || validateSession()
     }
 }

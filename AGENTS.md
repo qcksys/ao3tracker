@@ -8,13 +8,13 @@ Canonical guidance for AI coding agents (Claude Code, etc.) working in this repo
 
 This is a pnpm monorepo. Top-level tooling is Vite+ (the `vp` CLI), but most apps use their own toolchain — the root scripts are mainly for cross-cutting tasks like `pnpm install` and changesets.
 
-| Path | Stack | Per-app guide |
-|---|---|---|
-| [apps/api/](apps/api/) | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale MySQL, Better Auth, Vitest | [apps/api/AGENTS.md](apps/api/AGENTS.md) |
-| [apps/browser-extension/](apps/browser-extension/) | WXT, React 19, Tailwind 4, shadcn/ui (Base UI variant), react-router | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
-| [apps/native-kmp/](apps/native-kmp/) | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM); embedded WebView scripts use pnpm+vitest | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md) |
-| [packages/ao3-core/](packages/ao3-core/) | Shared AO3 DOM extraction + zod wire schemas (consumed by browser-extension and native-kmp/webview-scripts) | — |
-| [packages/ao3-sync-client/](packages/ao3-sync-client/) | Typed sync/auth client for the `/api/track/sync` and Better Auth endpoints | — |
+| Path                                                   | Stack                                                                                                           | Per-app guide                                                        |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [apps/api/](apps/api/)                                 | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale MySQL, Better Auth, Vitest                                   | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
+| [apps/browser-extension/](apps/browser-extension/)     | WXT, React 19, Tailwind 4, shadcn/ui (Base UI variant), react-router                                            | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
+| [apps/native-kmp/](apps/native-kmp/)                   | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM); embedded WebView scripts use pnpm+vitest | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md)               |
+| [packages/ao3-core/](packages/ao3-core/)               | Shared AO3 DOM extraction + zod wire schemas (consumed by browser-extension and native-kmp/webview-scripts)     | —                                                                    |
+| [packages/ao3-sync-client/](packages/ao3-sync-client/) | Typed sync/auth client for the `/api/track/sync` and Better Auth endpoints                                      | —                                                                    |
 
 Workspace config: [pnpm-workspace.yaml](pnpm-workspace.yaml) (`apps/*`, `apps/native-kmp/webview-scripts`, `packages/*`). Lockfile: [pnpm-lock.yaml](pnpm-lock.yaml). Changesets: [.changeset/](.changeset/).
 
@@ -35,8 +35,8 @@ These operate across the workspace via Vite+:
 ```bash
 pnpm install      # Install all workspace dependencies
 vp run ready      # fmt + lint + test + build, recursive across apps
-vp run test -r    # Run tests in every workspace package
-vp run build -r   # Build every workspace package
+vp run -r test    # Run tests in every workspace package
+vp run -r build   # Build every workspace package
 ```
 
 For app-specific commands (running dev servers, deploying, building a single platform), use the app's own AGENTS.md.
@@ -44,6 +44,7 @@ For app-specific commands (running dev servers, deploying, building a single pla
 ## Conventions that apply everywhere
 
 - **Package manager**: pnpm everywhere, including `apps/native-kmp/webview-scripts/`. Don't introduce `npm`/`yarn`/`bun` lockfiles. The Gradle build at [apps/native-kmp/composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts) invokes `pnpm install` at the workspace root before `pnpm run build` in `webview-scripts/`.
+- **Formatting**: `pnpm exec vp fmt` is the only formatter for workspace source and documentation. The root `vite.config.ts` sets two-space indentation and LF endings; generated Worker types and database snapshots retain their generator's formatting. API and WebView Biome configurations run lint and import organization with formatting disabled. Run `pnpm exec vp fmt --check`, `pnpm exec vp lint`, and the app's `biome:ci` checks after changes.
 - **Don't commit secrets**: `.env`, `.dev.vars`, `local.properties`, `release.keystore` are all gitignored — keep it that way.
 - **No root-level `CLAUDE.md` content**: this file (`AGENTS.md`) is the source of truth; `CLAUDE.md` is a symlink to it. Same pattern in each app. Don't reintroduce the Vite+ template stub.
 
@@ -54,6 +55,7 @@ Versioning and changelog generation use [Changesets](https://github.com/changese
 ### When to write one
 
 Add a changeset for any user-visible change to a tracked package:
+
 - New features
 - Bug fixes that users would notice
 - Breaking API changes (for `apps/api`)
@@ -63,13 +65,13 @@ Skip changesets for: pure refactors with no behaviour change, internal tooling t
 
 ### Tracked packages
 
-| Package | Path | Notes |
-|---|---|---|
-| `@qcksys/ao3tracker-api` | `apps/api` | Cloudflare Worker; no auto-publish |
-| `@qcksys/ao3tracker-browser-extension` | `apps/browser-extension` | WXT build; no auto-publish |
-| `@qcksys/ao3tracker-native-kmp` | `apps/native-kmp` | Kotlin/Gradle. The [package.json](apps/native-kmp/package.json) exists **only** as a changeset versioning anchor — actual build is `./gradlew`. **Bumping the changeset version does not propagate** to the Android `versionName` ([composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts)) or iOS `MARKETING_VERSION` ([iosApp/Configuration/Config.xcconfig](apps/native-kmp/iosApp/Configuration/Config.xcconfig)) — sync those manually before each release. |
-| `@qcksys/ao3tracker-core` | `packages/ao3-core` | Internal workspace package; never published. Consumers reference it as `workspace:*`. |
-| `@qcksys/ao3tracker-sync-client` | `packages/ao3-sync-client` | Internal workspace package; never published. |
+| Package                                | Path                       | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@qcksys/ao3tracker-api`               | `apps/api`                 | Cloudflare Worker; no auto-publish                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `@qcksys/ao3tracker-browser-extension` | `apps/browser-extension`   | WXT build; no auto-publish                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `@qcksys/ao3tracker-native-kmp`        | `apps/native-kmp`          | Kotlin/Gradle. The [package.json](apps/native-kmp/package.json) exists **only** as a changeset versioning anchor — actual build is `./gradlew`. **Bumping the changeset version does not propagate** to the Android `versionName` ([composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts)) or iOS `MARKETING_VERSION` ([iosApp/Configuration/Config.xcconfig](apps/native-kmp/iosApp/Configuration/Config.xcconfig)) — sync those manually before each release. |
+| `@qcksys/ao3tracker-core`              | `packages/ao3-core`        | Internal workspace package; never published. Consumers reference it as `workspace:*`.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `@qcksys/ao3tracker-sync-client`       | `packages/ao3-sync-client` | Internal workspace package; never published.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### How to add one
 
@@ -115,10 +117,22 @@ This project is using Vite+, a unified toolchain built on top of Vite, Rolldown,
 
 Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.dev/guide/.
 
+## Built-in Commands vs Scripts
+
+`vp <name>` runs a built-in command. `vp run <name>` runs a `package.json` script or a `vite.config.ts` task. Scripts cannot overwrite built-ins, so `vp dev` and `vp run dev` may do different things. Check `package.json` and `vite.config.ts` first, and run `vp run <name>` when the project defines a script or task with that name.
+
+## Tool Versions
+
+Run `vp toolchain` to show versions and relationships in the active Vite+
+release. Add a tool name to select part of the graph. For example, run
+`vp toolchain vite`. Use `--global` to ignore the local `vite-plus` package. Use
+`vp why <package>` to show the package-manager dependency graph.
+
 ## Review Checklist
 
 - [ ] Run `vp install` after pulling remote changes and before getting started.
 - [ ] Run `vp check` and `vp test` to format, lint, type check and test changes.
 - [ ] Check if there are `vite.config.ts` tasks or `package.json` scripts necessary for validation, run via `vp run <script>`.
+- [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->

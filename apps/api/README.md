@@ -15,12 +15,12 @@ A Cloudflare Workers REST API for tracking Archive of Our Own (AO3) fanfiction w
 
 ### Public
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | Landing page |
-| `GET /ping` | Health check |
-| `GET /openapi` | Interactive API documentation (Scalar UI) |
-| `GET /llms.txt` | API docs in markdown for LLMs |
+| Endpoint        | Description                               |
+| --------------- | ----------------------------------------- |
+| `GET /`         | Landing page                              |
+| `GET /ping`     | Health check                              |
+| `GET /openapi`  | Interactive API documentation (Scalar UI) |
+| `GET /llms.txt` | API docs in markdown for LLMs             |
 
 ### Authentication (`/auth/*`)
 
@@ -28,14 +28,14 @@ Better Auth handles all auth endpoints including sign-in, sign-up, password rese
 
 ### Protected (`/api/*`)
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/parse/{workId}` | Parse work metadata and tags from AO3 |
-| `GET /api/parse/{workId}/chapters` | Parse chapter index from AO3 |
-| `GET/POST /api/track/sync` | Bidirectional sync of tracked works/chapters |
-| `GET /api/notifications` | Get notification history with cursor pagination |
-| `POST /api/backup` | Create work backup (html/pdf/mobi/epub/azw3) |
-| `GET /api/backup/{workId}` | List backups for a work |
+| Endpoint                           | Description                                     |
+| ---------------------------------- | ----------------------------------------------- |
+| `GET /api/parse/{workId}`          | Parse work metadata and tags from AO3           |
+| `GET /api/parse/{workId}/chapters` | Parse chapter index from AO3                    |
+| `GET/POST /api/track/sync`         | Bidirectional sync of tracked works/chapters    |
+| `GET /api/notifications`           | Get notification history with cursor pagination |
+| `POST /api/backup`                 | Create work backup (html/pdf/mobi/epub/azw3)    |
+| `GET /api/backup/{workId}`         | List backups for a work                         |
 
 ## Development
 
@@ -124,6 +124,7 @@ src/
 ### Scheduled Tasks
 
 Runs every 5 minutes:
+
 - **Refresh Works**: Updates stale work metadata from AO3 (12 works/run), creates notifications for new chapters/completion/deletion
 - **Fetch Missing Works**: Populates data for newly tracked works (12 works/run)
 
@@ -131,17 +132,18 @@ Runs every 5 minutes:
 
 The sync API uses cursor-based pagination with per-field Last-Write-Wins (LWW) conflict resolution:
 
-| Field Group | Compared Using |
-|-------------|----------------|
-| `lastReadAt`, `markedCompleteAt`, `private` | `lastReadAt` |
-| `subscribed` | `subscribedUpdatedAt` (fallback: `lastReadAt`) |
-| `favourite` | `favouriteUpdatedAt` (fallback: `lastReadAt`) |
+| Field Group                                 | Compared Using                                 |
+| ------------------------------------------- | ---------------------------------------------- |
+| `lastReadAt`, `markedCompleteAt`, `private` | `lastReadAt`                                   |
+| `subscribed`                                | `subscribedUpdatedAt` (fallback: `lastReadAt`) |
+| `favourite`                                 | `favouriteUpdatedAt` (fallback: `lastReadAt`)  |
 
 This allows independent sync of reading progress and preferences across multiple devices without conflicts.
 
 ## Deployment
 
 Auto-deploys via GitHub Actions:
+
 - `dev` branch -> dev environment
 - `main` branch -> production
 

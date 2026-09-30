@@ -20,11 +20,7 @@ import {
  */
 export async function sendToBackground(
   message: PopupToBackground,
-): Promise<
-  | { ok: true; state: PopupState }
-  | { ok: true }
-  | { ok: false; error: string }
-> {
+): Promise<{ ok: true; state: PopupState } | { ok: true } | { ok: false; error: string }> {
   const raw = await browser.runtime.sendMessage(message);
   const parsed = backgroundToPopupResponseSchema.safeParse(raw);
   if (!parsed.success) {
@@ -45,11 +41,9 @@ interface PopupStateContextValue {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  dispatch: (message: PopupToBackground) => Promise<
-    | { ok: true; state: PopupState }
-    | { ok: true }
-    | { ok: false; error: string }
-  >;
+  dispatch: (
+    message: PopupToBackground,
+  ) => Promise<{ ok: true; state: PopupState } | { ok: true } | { ok: false; error: string }>;
 }
 
 const PopupStateContext = createContext<PopupStateContextValue | null>(null);

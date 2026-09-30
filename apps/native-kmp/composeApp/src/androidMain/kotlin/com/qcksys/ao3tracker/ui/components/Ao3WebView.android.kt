@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.qcksys.ao3tracker.webview.Ao3TrackingScript
 import com.qcksys.ao3tracker.webview.ScrollRestoreScriptGenerated
+import com.qcksys.ao3tracker.webview.isTrustedAo3Url
+import com.qcksys.ao3tracker.webview.guardAo3Script
 import kotlinx.coroutines.flow.SharedFlow
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -52,7 +54,7 @@ actual fun Ao3WebView(
     LaunchedEffect(jsInjectionFlow, webViewRef) {
         val view = webViewRef ?: return@LaunchedEffect
         jsInjectionFlow?.collect { script ->
-            view.evaluateJavascript(script, null)
+            if (isTrustedAo3Url(view.url)) view.evaluateJavascript(guardAo3Script(script), null)
         }
     }
 
@@ -89,7 +91,9 @@ actual fun Ao3WebView(
                     object {
                         @JavascriptInterface
                         fun postMessage(message: String) {
-                            onMessage(message)
+                            post {
+                                if (isTrustedAo3Url(this@apply.url)) onMessage(message)
+                            }
                         }
                     },
                     "AndroidBridge"
@@ -107,10 +111,13 @@ actual fun Ao3WebView(
                         onLoadingStateChange(false)
                         view?.let {
                             onNavigationStateChange(it.canGoBack(), it.canGoForward())
-                            // Inject tracking script
-                            it.evaluateJavascript(Ao3TrackingScript.script, null)
-                            // Inject scroll restore script (reads scrollTo from URL param)
-                            it.evaluateJavascript(ScrollRestoreScriptGenerated.script, null)
+                            // Only inject scripts on real AO3 pages
+                            if (isTrustedAo3Url(url)) {
+                                // Inject tracking script
+                                it.evaluateJavascript(Ao3TrackingScript.script, null)
+                                // Inject scroll restore script (reads scrollTo from URL param)
+                                it.evaluateJavascript(ScrollRestoreScriptGenerated.script, null)
+                            }
                         }
                     }
 
@@ -118,20 +125,19 @@ actual fun Ao3WebView(
                         view: WebView?,
                         request: WebResourceRequest?
                     ): Boolean {
-                        // Allow navigation within AO3
-                        val requestUrl = request?.url?.toString() ?: return false
-                        return !requestUrl.contains("archiveofourown.org")
+                        // Only allow navigation within AO3; override (block) everything else
+                        return !isTrustedAo3Url(request?.url?.toString())
                     }
                 }
 
                 webChromeClient = WebChromeClient()
 
-                loadUrl(url)
+                if (isTrustedAo3Url(url)) loadUrl(url)
             }.also { webViewRef = it }
         },
         modifier = modifier,
         update = { webView ->
-            if (webView.url != url && url.isNotBlank()) {
+            if (webView.url != url && isTrustedAo3Url(url)) {
                 webView.loadUrl(url)
             }
         }

@@ -1,28 +1,28 @@
 {
-    "name": "ao3tracker-webview-scripts",
-    "version": "1.0.0",
-    "private": true,
-    "description": "WebView scripts for AO3 Tracker (native KMP app)",
-    "type": "module",
-    "scripts": {
-        "build": "node build.ts",
-        "typecheck": "tsc --noEmit",
-        "test": "vp test run",
-        "test:watch": "vp test watch",
-        "biome:check:unsafe": "biome check --write --unsafe",
-        "biome:ci": "biome ci"
-    },
-    "dependencies": {
-        "@qcksys/ao3tracker-core": "workspace:*",
-        "zod": "^4.4.3"
-    },
-    "devDependencies": {
-        "@biomejs/biome": "^2.3.10",
-        "@types/node": "catalog:",
-        "happy-dom": "^20.0.11",
-        "typescript": "^5.9.3",
-        "vite": "catalog:",
-        "vite-plus": "catalog:",
-        "vitest": "catalog:"
-    }
+  "name": "ao3tracker-webview-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebView scripts for AO3 Tracker (native KMP app)",
+  "type": "module",
+  "scripts": {
+    "build": "node build.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vp test run",
+    "test:watch": "vp test watch",
+    "biome:check:unsafe": "biome check --write --unsafe",
+    "biome:ci": "biome ci"
+  },
+  "dependencies": {
+    "@qcksys/ao3tracker-core": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "@types/node": "catalog:",
+    "happy-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
 }

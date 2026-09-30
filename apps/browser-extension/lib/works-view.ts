@@ -1,8 +1,4 @@
-import type {
-  SyncTagMetadata,
-  SyncWorkMetadata,
-  WorkBadgeStatus,
-} from "@qcksys/ao3tracker-core";
+import type { SyncTagMetadata, SyncWorkMetadata, WorkBadgeStatus } from "@qcksys/ao3tracker-core";
 
 import type { TrackedChapter, TrackedWork } from "./storage";
 
@@ -86,10 +82,7 @@ export function deriveStatus(
   const hasAnyProgress = chapters.some((c) => c.readProgress > 0);
   const allComplete =
     chapters.length > 0 && chapters.every((c) => c.readProgress >= COMPLETE_THRESHOLD);
-  const maxProgress = chapters.reduce(
-    (acc, c) => Math.max(acc, c.readProgress),
-    0,
-  );
+  const maxProgress = chapters.reduce((acc, c) => Math.max(acc, c.readProgress), 0);
   const progressPercent = Math.round(maxProgress * 100);
 
   let status: WorkBadgeStatus = "not-started";
@@ -160,64 +153,42 @@ export function buildWorksList(input: {
   return rows;
 }
 
-export function applyFilters(
-  rows: WorksListRow[],
-  filter: WorksFilterState,
-): WorksListRow[] {
+export function applyFilters(rows: WorksListRow[], filter: WorksFilterState): WorksListRow[] {
   const q = filter.searchQuery.trim().toLowerCase();
-  const includeTags =
-    filter.includeTags.size > 0 ? Array.from(filter.includeTags) : null;
+  const includeTags = filter.includeTags.size > 0 ? Array.from(filter.includeTags) : null;
   return rows.filter((row) => {
     if (filter.favouritesOnly && !row.favourite) return false;
     if (filter.subscribedOnly && !row.subscribed) return false;
-    if (filter.statuses.length > 0 && !filter.statuses.includes(row.status))
-      return false;
+    if (filter.statuses.length > 0 && !filter.statuses.includes(row.status)) return false;
     if (includeTags !== null) {
       for (const tag of includeTags) {
         if (!row.tags.has(tag)) return false;
       }
     }
     if (q.length > 0) {
-      const haystack = [row.title ?? "", row.author ?? ""]
-        .join(" ")
-        .toLowerCase();
+      const haystack = [row.title ?? "", row.author ?? ""].join(" ").toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
   });
 }
 
-function compareNullable(
-  a: number | string | null,
-  b: number | string | null,
-): number {
+function compareNullable(a: number | string | null, b: number | string | null): number {
   if (a === b) return 0;
   if (a === null) return 1;
   if (b === null) return -1;
   return a < b ? -1 : 1;
 }
 
-export function applySort(
-  rows: WorksListRow[],
-  sort: WorksSortState,
-): WorksListRow[] {
+export function applySort(rows: WorksListRow[], sort: WorksSortState): WorksListRow[] {
   const sorted = [...rows].sort((a, b) => {
     switch (sort.field) {
       case "lastRead":
-        return compareNullable(
-          Date.parse(a.lastReadAt) || null,
-          Date.parse(b.lastReadAt) || null,
-        );
+        return compareNullable(Date.parse(a.lastReadAt) || null, Date.parse(b.lastReadAt) || null);
       case "title":
-        return compareNullable(
-          a.title?.toLowerCase() ?? null,
-          b.title?.toLowerCase() ?? null,
-        );
+        return compareNullable(a.title?.toLowerCase() ?? null, b.title?.toLowerCase() ?? null);
       case "author":
-        return compareNullable(
-          a.author?.toLowerCase() ?? null,
-          b.author?.toLowerCase() ?? null,
-        );
+        return compareNullable(a.author?.toLowerCase() ?? null, b.author?.toLowerCase() ?? null);
       case "wordCount":
         return compareNullable(a.wordCount, b.wordCount);
       case "hits":

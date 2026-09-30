@@ -35,7 +35,6 @@ import {
   SORT_FIELD_LABELS,
   STATUS_LABELS,
   type SortField,
-  type SortOrder,
   type WorksFilterState,
   type WorksListRow,
   type WorksSortState,
@@ -103,14 +102,13 @@ export default function Works() {
   const [showFilters, setShowFilters] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [works, metadata, chapters, tagMetadata, favouriteTags] =
-      await Promise.all([
-        trackedWorksItem.getValue(),
-        workMetadataItem.getValue(),
-        trackedChaptersItem.getValue(),
-        tagMetadataItem.getValue(),
-        favouriteTagsItem.getValue(),
-      ]);
+    const [works, metadata, chapters, tagMetadata, favouriteTags] = await Promise.all([
+      trackedWorksItem.getValue(),
+      workMetadataItem.getValue(),
+      trackedChaptersItem.getValue(),
+      tagMetadataItem.getValue(),
+      favouriteTagsItem.getValue(),
+    ]);
     setRaw({ works, metadata, chapters, tagMetadata, favouriteTags });
   }, []);
 
@@ -137,10 +135,7 @@ export default function Works() {
       .map((t) => ({ ...t, typeName: tagTypeIdToName(t.tagType) }));
   }, [raw]);
 
-  const pinnedTagNames = useMemo(
-    () => new Set(pinnedTags.map((t) => t.tag)),
-    [pinnedTags],
-  );
+  const pinnedTagNames = useMemo(() => new Set(pinnedTags.map((t) => t.tag)), [pinnedTags]);
 
   const tagCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -159,11 +154,7 @@ export default function Works() {
     return <div className="text-muted-foreground text-sm">Loading…</div>;
   }
   if (!session?.user) {
-    return (
-      <p className="text-muted-foreground text-sm">
-        Sign in to view your tracked works.
-      </p>
-    );
+    return <p className="text-muted-foreground text-sm">Sign in to view your tracked works.</p>;
   }
 
   const toggleStatus = (status: WorkBadgeStatus): void => {
@@ -213,17 +204,13 @@ export default function Works() {
       <Input
         placeholder="Search title or author"
         value={filter.searchQuery}
-        onChange={(e) =>
-          setFilter((f) => ({ ...f, searchQuery: e.target.value }))
-        }
+        onChange={(e) => setFilter((f) => ({ ...f, searchQuery: e.target.value }))}
       />
 
       <div className="flex items-center gap-1">
         <Select
           value={sort.field}
-          onValueChange={(v) =>
-            setSort((s) => ({ ...s, field: v as SortField }))
-          }
+          onValueChange={(v) => setSort((s) => ({ ...s, field: v as SortField }))}
         >
           <SelectTrigger size="sm" className="flex-1">
             <SelectValue />
@@ -268,18 +255,14 @@ export default function Works() {
             <Button
               size="xs"
               variant={filter.favouritesOnly ? "default" : "outline"}
-              onClick={() =>
-                setFilter((f) => ({ ...f, favouritesOnly: !f.favouritesOnly }))
-              }
+              onClick={() => setFilter((f) => ({ ...f, favouritesOnly: !f.favouritesOnly }))}
             >
               ★ Favourites
             </Button>
             <Button
               size="xs"
               variant={filter.subscribedOnly ? "default" : "outline"}
-              onClick={() =>
-                setFilter((f) => ({ ...f, subscribedOnly: !f.subscribedOnly }))
-              }
+              onClick={() => setFilter((f) => ({ ...f, subscribedOnly: !f.subscribedOnly }))}
             >
               Subscribed
             </Button>
@@ -298,17 +281,13 @@ export default function Works() {
           </div>
           {pinnedTags.length > 0 ? (
             <div>
-              <div className="text-muted-foreground mb-1 text-xs">
-                Pinned tags
-              </div>
+              <div className="text-muted-foreground mb-1 text-xs">Pinned tags</div>
               <div className="flex flex-wrap gap-1">
                 {pinnedTags.map((t) => (
                   <Button
                     key={`${t.tagType}-${t.tag}`}
                     size="xs"
-                    variant={
-                      filter.includeTags.has(t.tag) ? "default" : "outline"
-                    }
+                    variant={filter.includeTags.has(t.tag) ? "default" : "outline"}
                     onClick={() => toggleTag(t.tag)}
                     className="capitalize"
                     title={t.typeName}
@@ -336,9 +315,7 @@ export default function Works() {
             No tracked works yet. Open a work on AO3 to start tracking.
           </p>
         ) : filteredAndSorted.length === 0 ? (
-          <p className="text-muted-foreground text-sm">
-            No works match the current filters.
-          </p>
+          <p className="text-muted-foreground text-sm">No works match the current filters.</p>
         ) : (
           <ul className="flex flex-col gap-1">
             {filteredAndSorted.map((row) => (
@@ -373,14 +350,10 @@ function WorkRow({ row }: { row: WorksListRow }) {
           <StarIcon className="size-3 shrink-0 fill-yellow-400 text-yellow-400" />
         ) : null}
       </div>
-      {row.author ? (
-        <div className="text-muted-foreground text-xs">by {row.author}</div>
-      ) : null}
+      {row.author ? <div className="text-muted-foreground text-xs">by {row.author}</div> : null}
       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
         <span
-          className={cn(
-            "rounded px-1.5 py-0.5 text-[10px] font-semibold text-white",
-          )}
+          className={cn("rounded px-1.5 py-0.5 text-[10px] font-semibold text-white")}
           style={{ background: badge.color }}
         >
           {badge.label}
@@ -389,9 +362,7 @@ function WorkRow({ row }: { row: WorksListRow }) {
           {chapterProgress(row)} ch · {formatCompactNumber(row.wordCount)} words
         </span>
         {row.kudos !== null ? (
-          <span className="text-muted-foreground">
-            {formatCompactNumber(row.kudos)} kudos
-          </span>
+          <span className="text-muted-foreground">{formatCompactNumber(row.kudos)} kudos</span>
         ) : null}
       </div>
     </li>

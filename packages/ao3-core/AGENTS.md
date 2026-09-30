@@ -20,16 +20,17 @@ There is no build step: the package ships TypeScript source via `main`/`types` p
 
 ### Layout
 
-| Subpath | Contents | Has zod at runtime? |
-|---|---|---|
-| `@qcksys/ao3tracker-core` | Root re-export of everything | yes (via `/schemas`) |
-| `@qcksys/ao3tracker-core/dom` | `getWorkInfo`, `getWorkTagInfo`, `getWorkChapterIndex`, `getWorkChapterSelect`, `findListWorkIds`, `publishScrollPercentage`, `consumeScrollToParam`, `classifyAo3Url`, `normalizeWhitespace`, `computeChapterScrollPercentage` | no |
-| `@qcksys/ao3tracker-core/badges` | `formatBadge`, `applyListBadges`, `WorkBadgeData`, `WorkBadgeStatus` | no |
-| `@qcksys/ao3tracker-core/schemas` | `webViewMessageSchema`, sync wire schemas, `tagTypeIds`, `tagTypeIdToName`, `favouriteTagKey`, … | yes |
+| Subpath                           | Contents                                                                                                                                                                                                                        | Has zod at runtime?  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| `@qcksys/ao3tracker-core`         | Root re-export of everything                                                                                                                                                                                                    | yes (via `/schemas`) |
+| `@qcksys/ao3tracker-core/dom`     | `getWorkInfo`, `getWorkTagInfo`, `getWorkChapterIndex`, `getWorkChapterSelect`, `findListWorkIds`, `publishScrollPercentage`, `consumeScrollToParam`, `classifyAo3Url`, `normalizeWhitespace`, `computeChapterScrollPercentage` | no                   |
+| `@qcksys/ao3tracker-core/badges`  | `formatBadge`, `applyListBadges`, `WorkBadgeData`, `WorkBadgeStatus`                                                                                                                                                            | no                   |
+| `@qcksys/ao3tracker-core/schemas` | `webViewMessageSchema`, sync wire schemas, `tagTypeIds`, `tagTypeIdToName`, `favouriteTagKey`, …                                                                                                                                | yes                  |
 
 Subpath exports are declared in [package.json](./package.json). **Prefer them over the root export** for size-sensitive bundles (the native KMP IIFE is 7.75 kB today; rooting the import would balloon it to ~330 kB by pulling zod in).
 
 ### Build / tooling
+
 - [vite.config.ts](./vite.config.ts) — `resolve.tsconfigPaths: true` so vite (and vitest under `vp test`) honour the `~/*` → `./src/*` mapping from [tsconfig.json](./tsconfig.json).
 - [tsconfig.json](./tsconfig.json) — strict mode, `verbatimModuleSyntax`, ESNext + Bundler resolution.
 
@@ -39,11 +40,14 @@ Subpath exports are declared in [package.json](./package.json). **Prefer them ov
 - **No `~/` aliases inside `src/`.** This package ships as TypeScript source; consumers' tsconfig path mappings are different, so `~/badges` from inside `src/` would not resolve when a consumer compiles its dependency tree. Use relative imports (`./foo`, `../foo`) for internal cross-directory references within `src/`. Tests in `test/` are private to this package and may freely use `~/`.
 - **Sibling barrel re-exports stay `./foo`** — `src/index.ts`, `src/dom/index.ts`, `src/schemas/index.ts`.
 - **API contract changes propagate.** When [apps/api/src/routes/api.track.ts](../../apps/api/src/routes/api.track.ts) changes shape, update [src/schemas/sync.ts](./src/schemas/sync.ts) in the same PR so the wire schemas stay in lockstep.
+- **Scroll chapter identity.** `scrollProgress.chapterId` is an optional nullable string. `publishScrollPercentage` uses the same DOM chapter extractor as `getWorkInfo`; extension and native receivers prefer it over the URL and retain URL fallback for older messages.
+- **Chapter tombstones.** POST `/api/track/sync` chapters accept optional `deleted` (default `false`), resolved using the chapter's `lastReadAt`. GET chapters always include `deleted`; full GETs include tombstones for reconciliation.
 - **Badge status set is cross-platform.** Any new `WorkBadgeStatus` needs matching cases in `formatBadge` here AND in the native Kotlin `WorkBadgePayload` / `Ao3Repository.buildBadgePayload`. See [apps/native-kmp/AGENTS.md](../../apps/native-kmp/AGENTS.md) → "List-page badges".
 
 ## Tests
 
 Pure DOM + utility tests under happy-dom live in [test/](./test/) — flat layout mirroring `src/dom/`:
+
 - [test/extract.test.ts](./test/extract.test.ts) covers `findListWorkIds`, `getWorkInfo`.
 - [test/utils.test.ts](./test/utils.test.ts) covers `normalizeWhitespace`, `classifyAo3Url`.
 

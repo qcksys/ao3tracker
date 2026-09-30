@@ -61,7 +61,7 @@ interface WorkDao {
     @Query("UPDATE works SET lastRead = :lastRead, rowUpdatedAt = :rowUpdatedAt WHERE id = :id")
     suspend fun updateLastRead(id: Long, lastRead: Long, rowUpdatedAt: Long)
 
-    @Query("UPDATE works SET rowDeletedAt = :rowDeletedAt, rowUpdatedAt = :rowUpdatedAt WHERE id = :id")
+    @Query("UPDATE works SET rowDeletedAt = :rowDeletedAt, lastRead = :rowDeletedAt, rowUpdatedAt = :rowUpdatedAt WHERE id = :id")
     suspend fun softDeleteWork(id: Long, rowDeletedAt: Long, rowUpdatedAt: Long)
 
     @Query("UPDATE works SET markedCompleteAt = :markedCompleteAt, rowUpdatedAt = :rowUpdatedAt WHERE id = :id")
@@ -130,13 +130,13 @@ interface ChapterDao {
     @Query("UPDATE chapters SET readProgress = 1.0, lastReadAt = :lastReadAt, markedCompleteAt = :markedCompleteAt, rowUpdatedAt = :rowUpdatedAt WHERE workId = :workId AND rowDeletedAt IS NULL")
     suspend fun markAllChaptersAsRead(workId: Long, lastReadAt: Long, markedCompleteAt: Long, rowUpdatedAt: Long)
 
-    @Query("UPDATE chapters SET readProgress = NULL, lastReadAt = NULL, markedCompleteAt = NULL, rowUpdatedAt = :rowUpdatedAt WHERE chapterId = :chapterId AND workId = :workId")
+    @Query("UPDATE chapters SET readProgress = 0, lastReadAt = :rowUpdatedAt, markedCompleteAt = NULL, rowUpdatedAt = :rowUpdatedAt WHERE chapterId = :chapterId AND workId = :workId")
     suspend fun markChapterAsUnread(chapterId: Long, workId: Long, rowUpdatedAt: Long)
 
-    @Query("UPDATE chapters SET readProgress = NULL, lastReadAt = NULL, markedCompleteAt = NULL, rowUpdatedAt = :rowUpdatedAt WHERE workId = :workId AND rowDeletedAt IS NULL")
+    @Query("UPDATE chapters SET readProgress = 0, lastReadAt = :rowUpdatedAt, markedCompleteAt = NULL, rowUpdatedAt = :rowUpdatedAt WHERE workId = :workId AND rowDeletedAt IS NULL")
     suspend fun markAllChaptersAsUnread(workId: Long, rowUpdatedAt: Long)
 
-    @Query("UPDATE chapters SET rowDeletedAt = :rowDeletedAt, rowUpdatedAt = :rowUpdatedAt WHERE chapterId = :chapterId AND workId = :workId")
+    @Query("UPDATE chapters SET rowDeletedAt = :rowDeletedAt, lastReadAt = :rowDeletedAt, rowUpdatedAt = :rowUpdatedAt WHERE chapterId = :chapterId AND workId = :workId")
     suspend fun softDeleteChapter(chapterId: Long, workId: Long, rowDeletedAt: Long, rowUpdatedAt: Long)
 
     @Query("DELETE FROM chapters WHERE chapterId = :chapterId AND workId = :workId")
@@ -193,6 +193,9 @@ interface TagDao {
 
     @Query("DELETE FROM tags")
     suspend fun deleteAllTags()
+
+    @Query("SELECT * FROM tags")
+    suspend fun getAll(): List<TagEntity>
 }
 
 @Dao
@@ -223,9 +226,55 @@ interface FavouriteTagDao {
     @Upsert
     suspend fun upsertAll(entities: List<FavouriteTagEntity>)
 
-    @Query("UPDATE favourite_tag SET pendingSync = 0 WHERE tagType = :tagType AND tag = :tag")
-    suspend fun clearPending(tagType: Int, tag: String)
+    @Query("UPDATE favourite_tag SET pendingSync = 0 WHERE tagType = :tagType AND tag = :tag AND updatedAt = :updatedAt AND favourited = :favourited")
+    suspend fun clearPending(tagType: Int, tag: String, updatedAt: Long, favourited: Boolean)
 
     @Query("DELETE FROM favourite_tag")
     suspend fun deleteAll()
+}
+
+@Dao
+interface SavedSearchDao {
+    /** Live (non-deleted) saved searches, newest edit first. */
+    @Query("SELECT * FROM saved_search WHERE deleted = 0 ORDER BY updatedAt DESC")
+    fun observeLive(): Flow<List<SavedSearchEntity>>
+
+    @Query("SELECT * FROM saved_search WHERE id = :id")
+    suspend fun getOne(id: String): SavedSearchEntity?
+
+    @Query("SELECT * FROM saved_search WHERE pendingSync = 1")
+    suspend fun getPendingSync(): List<SavedSearchEntity>
+
+    @Query("SELECT * FROM saved_search")
+    suspend fun getAll(): List<SavedSearchEntity>
+
+    @Query("SELECT COUNT(*) FROM saved_search")
+    suspend fun count(): Int
+
+    @Upsert
+    suspend fun upsert(entity: SavedSearchEntity)
+
+    @Upsert
+    suspend fun upsertAll(entities: List<SavedSearchEntity>)
+
+    @Query("UPDATE saved_search SET pendingSync = 0 WHERE id = :id AND updatedAt = :updatedAt AND name = :name AND url = :url AND deleted = :deleted")
+    suspend fun clearPending(id: String, updatedAt: Long, name: String, url: String, deleted: Boolean)
+
+    @Query("DELETE FROM saved_search")
+    suspend fun deleteAll()
+}
+
+@Dao
+interface AccountDao {
+    @Query("SELECT * FROM active_account WHERE id = 0")
+    suspend fun getActive(): ActiveAccountEntity?
+
+    @Upsert
+    suspend fun setActive(account: ActiveAccountEntity)
+
+    @Query("SELECT * FROM account_archive WHERE owner = :owner")
+    suspend fun getArchive(owner: String): AccountArchiveEntity?
+
+    @Upsert
+    suspend fun archive(account: AccountArchiveEntity)
 }

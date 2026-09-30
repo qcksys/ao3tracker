@@ -86,13 +86,13 @@ function FormLabel({ className, ...props }: React.ComponentProps<typeof Label>) 
   );
 }
 
-function FormControl({ ...props }: React.ComponentProps<typeof React.Fragment> & { children: React.ReactElement }) {
+function FormControl({
+  ...props
+}: React.ComponentProps<typeof React.Fragment> & { children: React.ReactElement }) {
   const { error, formItemId, formDescriptionId, formMessageId } = useFormField();
   return React.cloneElement(props.children, {
     id: formItemId,
-    "aria-describedby": error
-      ? `${formDescriptionId} ${formMessageId}`
-      : `${formDescriptionId}`,
+    "aria-describedby": error ? `${formDescriptionId} ${formMessageId}` : `${formDescriptionId}`,
     "aria-invalid": !!error,
     "data-slot": "form-control",
   } as Record<string, unknown>);

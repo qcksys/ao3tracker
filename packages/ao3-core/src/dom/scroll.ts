@@ -1,5 +1,5 @@
 import type { ScrollProgressMessage } from "../schemas/messages";
-import { computeChapterScrollPercentage } from "./extract";
+import { computeChapterScrollPercentage, extractChapterId } from "./extract";
 
 /**
  * Returns the next scroll message to emit when the user scrolls, or null if
@@ -24,6 +24,7 @@ export function publishScrollPercentage(doc: Document, win: Window): ScrollProgr
   return {
     type: "scrollProgress",
     url: url.toString(),
+    chapterId: extractChapterId(doc, win.location),
     scrollPercentage: Number.parseInt(rounded, 10),
   };
 }

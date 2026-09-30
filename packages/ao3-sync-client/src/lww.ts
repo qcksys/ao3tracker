@@ -1,4 +1,4 @@
-import type { FavouriteTagItem } from "@qcksys/ao3tracker-core";
+import type { FavouriteTagItem, SavedSearchItem } from "@qcksys/ao3tracker-core";
 import { favouriteTagKey } from "@qcksys/ao3tracker-core";
 
 /**
@@ -29,6 +29,35 @@ export function mergeFavouriteTags(
     }
   }
   return Array.from(byKey.values());
+}
+
+/**
+ * Per-row LWW for saved-search entries, keyed by the client-generated `id`
+ * (so renames don't change identity and two searches can share a URL).
+ * Mirrors `resolveSavedSearchMerge` on the server
+ * (apps/api/src/db/queries/user-saved-search.ts). Remote wins on tie.
+ */
+export function mergeSavedSearches(
+  local: ReadonlyArray<SavedSearchItem>,
+  remote: ReadonlyArray<SavedSearchItem>,
+): SavedSearchItem[] {
+  const byId = new Map<string, SavedSearchItem>();
+  for (const row of local) {
+    byId.set(row.id, row);
+  }
+  for (const row of remote) {
+    const existing = byId.get(row.id);
+    if (!existing) {
+      byId.set(row.id, row);
+      continue;
+    }
+    const localTs = Date.parse(existing.updatedAt);
+    const remoteTs = Date.parse(row.updatedAt);
+    if (remoteTs >= localTs) {
+      byId.set(row.id, row);
+    }
+  }
+  return Array.from(byId.values());
 }
 
 /**

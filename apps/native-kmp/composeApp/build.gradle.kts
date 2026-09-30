@@ -40,7 +40,12 @@ val compileWebviewScripts by tasks.registering(Exec::class) {
     workingDir = webviewScriptsDir
     commandLine = pnpmCommand + listOf("run", "build")
     inputs.dir(webviewScriptsDir.resolve("src"))
+    inputs.dir(workspaceRoot.resolve("packages/ao3-core/src"))
+    inputs.file(workspaceRoot.resolve("packages/ao3-core/package.json"))
+    inputs.file(workspaceRoot.resolve("pnpm-lock.yaml"))
     inputs.file(webviewScriptsDir.resolve("tsconfig.json"))
+    inputs.file(webviewScriptsDir.resolve("package.json"))
+    inputs.file(webviewScriptsDir.resolve("vite.config.ts"))
     inputs.file(webviewScriptsDir.resolve("build.ts"))
     outputs.dir(webviewScriptsDir.resolve("dist"))
 }

@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.data.repository
 
 import com.qcksys.ao3tracker.data.database.Ao3Database
+import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.ChapterEntity
 import com.qcksys.ao3tracker.data.database.TagEntity
 import com.qcksys.ao3tracker.data.database.WorkEntity
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-class Ao3Repository(private val database: Ao3Database) {
+class Ao3Repository(private val database: Ao3Database, private val accountData: AccountDataStore) {
     private val workDao = database.workDao()
     private val chapterDao = database.chapterDao()
     private val tagDao = database.tagDao()
@@ -220,10 +221,10 @@ class Ao3Repository(private val database: Ao3Database) {
         return tagDao.getDistinctTagsByType(type.id)
     }
 
-    suspend fun saveWorkFromWebView(workInfo: WorkInfoEvent, workTags: WorkTagsEvent?) {
-        val workId = extractWorkIdFromUrl(workInfo.url) ?: return
+    suspend fun saveWorkFromWebView(workInfo: WorkInfoEvent, workTags: WorkTagsEvent?) = accountData.edit {
+        val workId = extractWorkIdFromUrl(workInfo.url) ?: return@edit
         // Validate workId
-        if (workId <= 0) return
+        if (workId <= 0) return@edit
 
         val now = getCurrentTimestamp()
         val existingWork = workDao.getWorkById(workId)
@@ -343,10 +344,10 @@ class Ao3Repository(private val database: Ao3Database) {
         return tagEntities
     }
 
-    suspend fun saveChapterIndex(chapterIndex: WorkChapterIndexEvent) {
-        val workId = extractWorkIdFromUrl(chapterIndex.url) ?: return
+    suspend fun saveChapterIndex(chapterIndex: WorkChapterIndexEvent) = accountData.edit {
+        val workId = extractWorkIdFromUrl(chapterIndex.url) ?: return@edit
         // Validate workId
-        if (workId <= 0) return
+        if (workId <= 0) return@edit
 
         val now = getCurrentTimestamp()
 
@@ -393,13 +394,15 @@ class Ao3Repository(private val database: Ao3Database) {
         }
     }
 
-    suspend fun updateScrollProgress(progress: ScrollProgressEvent) {
-        val workId = extractWorkIdFromUrl(progress.url) ?: return
+    suspend fun updateScrollProgress(progress: ScrollProgressEvent) = accountData.edit {
+        val workId = extractWorkIdFromUrl(progress.url) ?: return@edit
         // Validate workId
-        if (workId <= 0) return
+        if (workId <= 0) return@edit
 
         // Use 0 for single-chapter works (no chapter ID in URL)
-        val chapterId = extractChapterIdFromUrl(progress.url) ?: 0L
+        val chapterId = progress.chapterId?.toLongOrNull()
+            ?: extractChapterIdFromUrl(progress.url)
+            ?: 0L
         val now = getCurrentTimestamp()
 
         val newProgress = progress.scrollPercentage / 100f
@@ -416,7 +419,7 @@ class Ao3Repository(private val database: Ao3Database) {
         }
     }
 
-    suspend fun deleteWork(workId: Long) {
+    suspend fun deleteWork(workId: Long) = accountData.edit {
         val now = getCurrentTimestamp()
         workDao.softDeleteWork(workId, now, now)
     }
@@ -424,7 +427,7 @@ class Ao3Repository(private val database: Ao3Database) {
     /**
      * Updates the subscription status for a work (for push notifications).
      */
-    suspend fun updateWorkSubscription(workId: Long, subscribed: Boolean) {
+    suspend fun updateWorkSubscription(workId: Long, subscribed: Boolean) = accountData.edit {
         val now = getCurrentTimestamp()
         workDao.updateSubscription(workId, subscribed, now, now)
     }
@@ -432,7 +435,7 @@ class Ao3Repository(private val database: Ao3Database) {
     /**
      * Updates the favourite status for a work.
      */
-    suspend fun updateWorkFavourite(workId: Long, favourite: Boolean) {
+    suspend fun updateWorkFavourite(workId: Long, favourite: Boolean) = accountData.edit {
         val now = getCurrentTimestamp()
         workDao.updateFavourite(workId, favourite, now, now)
     }
@@ -440,36 +443,42 @@ class Ao3Repository(private val database: Ao3Database) {
     /**
      * Updates the subscription status for all works.
      */
-    suspend fun updateAllWorksSubscription(subscribed: Boolean) {
+    suspend fun updateAllWorksSubscription(subscribed: Boolean) = accountData.edit {
         val now = getCurrentTimestamp()
         workDao.updateAllSubscriptions(subscribed, now, now)
     }
 
-    suspend fun deleteChapter(chapterId: Long, workId: Long) {
+    suspend fun deleteChapter(chapterId: Long, workId: Long) = accountData.edit {
         val now = getCurrentTimestamp()
         chapterDao.softDeleteChapter(chapterId, workId, now, now)
     }
 
-    suspend fun markChapterAsRead(chapterId: Long, workId: Long) {
+    suspend fun markChapterAsRead(chapterId: Long, workId: Long) = accountData.edit {
         val now = getCurrentTimestamp()
         chapterDao.markChapterAsRead(chapterId, workId, now, now, now)
         workDao.updateLastRead(workId, now, now)
     }
 
-    suspend fun markWorkAsRead(workId: Long) {
+    suspend fun markWorkAsRead(workId: Long) = accountData.edit {
         val now = getCurrentTimestamp()
         chapterDao.markAllChaptersAsRead(workId, now, now, now)
         workDao.updateLastRead(workId, now, now)
     }
 
-    suspend fun markChapterAsUnread(chapterId: Long, workId: Long) {
-        val now = getCurrentTimestamp()
+    suspend fun markChapterAsUnread(chapterId: Long, workId: Long) = accountData.edit {
+        val work = workDao.getWorkById(workId) ?: return@edit
+        val chapter = chapterDao.getChapterById(chapterId, workId) ?: return@edit
+        val now = maxOf(getCurrentTimestamp(), (work.lastRead ?: 0L) + 1, (chapter.lastReadAt ?: 0L) + 1)
         chapterDao.markChapterAsUnread(chapterId, workId, now)
+        workDao.upsertWork(work.copy(lastRead = now, markedCompleteAt = null, rowUpdatedAt = now))
     }
 
-    suspend fun markWorkAsUnread(workId: Long) {
-        val now = getCurrentTimestamp()
+    suspend fun markWorkAsUnread(workId: Long) = accountData.edit {
+        val work = workDao.getWorkById(workId) ?: return@edit
+        val lastChapterRead = chapterDao.getChaptersByWorkOnce(workId).maxOfOrNull { it.lastReadAt ?: 0L } ?: 0L
+        val now = maxOf(getCurrentTimestamp(), (work.lastRead ?: 0L) + 1, lastChapterRead + 1)
         chapterDao.markAllChaptersAsUnread(workId, now)
+        workDao.upsertWork(work.copy(lastRead = now, markedCompleteAt = null, rowUpdatedAt = now))
     }
 
     suspend fun getExportData(): ExportData {
@@ -553,10 +562,8 @@ class Ao3Repository(private val database: Ao3Database) {
         )
     }
 
-    suspend fun deleteAllLocalData() {
-        tagDao.deleteAllTags()
-        chapterDao.deleteAllChapters()
-        workDao.deleteAllWorks()
+    suspend fun deleteAllLocalData() = accountData.edit {
+        accountData.clearAccount()
     }
 
     private fun extractWorkIdFromUrl(url: String): Long? {

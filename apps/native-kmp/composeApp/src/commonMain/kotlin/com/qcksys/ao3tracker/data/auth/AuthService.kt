@@ -29,7 +29,7 @@ import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerializationException
 
-class AuthService(
+open class AuthService(
     private val appSettings: AppSettings
 ) {
     private val baseUrl: String
@@ -50,7 +50,7 @@ class AuthService(
 
     fun getClient(): HttpClient = client
 
-    suspend fun signIn(email: String, password: String): Result<SignInResponse> {
+    open suspend fun signIn(email: String, password: String, baseUrl: String = this.baseUrl): Result<SignInResponse> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/sign-in/email") {
                 contentType(ContentType.Application.Json)
@@ -68,7 +68,7 @@ class AuthService(
         }
     }
 
-    suspend fun signUp(name: String, email: String, password: String): Result<SignUpResponse> {
+    suspend fun signUp(name: String, email: String, password: String, baseUrl: String = this.baseUrl): Result<SignUpResponse> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/sign-up/email") {
                 contentType(ContentType.Application.Json)
@@ -101,7 +101,7 @@ class AuthService(
         }
     }
 
-    suspend fun getSession(token: String): Result<SessionResponse> {
+    open suspend fun getSession(token: String, baseUrl: String = this.baseUrl): Result<SessionResponse> {
         return try {
             val response: HttpResponse = client.get("$baseUrl/get-session") {
                 header("Authorization", "Bearer $token")
@@ -127,7 +127,7 @@ class AuthService(
         }
     }
 
-    suspend fun signOut(token: String): Result<Unit> {
+    open suspend fun signOut(token: String, baseUrl: String = this.baseUrl): Result<Unit> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/sign-out") {
                 header("Authorization", "Bearer $token")
@@ -204,7 +204,7 @@ class AuthService(
         }
     }
 
-    suspend fun verifyPasskeyAuthentication(credentialResponse: String): Result<SessionResponse> {
+    suspend fun verifyPasskeyAuthentication(credentialResponse: String, baseUrl: String = this.baseUrl): Result<SessionResponse> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/passkey/verify-authentication") {
                 contentType(ContentType.Application.Json)

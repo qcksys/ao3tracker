@@ -37,7 +37,7 @@ export default function Login() {
       form.setError("password", { message: error.message ?? "Sign in failed" });
       return;
     }
-    navigate("/");
+    await navigate("/");
   };
 
   const onPasskey = async (): Promise<void> => {
@@ -46,16 +46,14 @@ export default function Login() {
       form.setError("password", { message: error.message ?? "Passkey sign in failed" });
       return;
     }
-    navigate("/");
+    await navigate("/");
   };
 
   return (
     <div className="flex h-full flex-col gap-4">
       <header>
         <h1 className="text-lg font-semibold">Sign in</h1>
-        <p className="text-muted-foreground text-sm">
-          Sync your AO3 progress across devices.
-        </p>
+        <p className="text-muted-foreground text-sm">Sync your AO3 progress across devices.</p>
       </header>
       <Form {...form}>
         <form className="flex flex-col gap-3" onSubmit={form.handleSubmit(onSubmit)}>

@@ -9,27 +9,22 @@ import styles from "~/styles/index.css?inline";
  * runtime CSS request, no external CDN.
  */
 export const PageLayout: FC<{
-    title: string;
-    description?: string;
-    children?: Child;
+  title: string;
+  description?: string;
+  children?: Child;
 }> = (props) => {
-    return (
-        <html lang="en" class="dark">
-            <head>
-                <meta charset="UTF-8" />
-                <meta
-                    name="viewport"
-                    content="width=device-width, initial-scale=1.0"
-                />
-                <title>{props.title}</title>
-                {props.description ? (
-                    <meta name="description" content={props.description} />
-                ) : null}
-                <style>{html`${raw(styles)}`}</style>
-            </head>
-            <body class="min-h-screen bg-linear-to-br from-[#1a1a2e] to-[#16213e] text-white font-[system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,sans-serif]">
-                {props.children}
-            </body>
-        </html>
-    );
+  return (
+    <html lang="en" class="dark">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{props.title}</title>
+        {props.description ? <meta name="description" content={props.description} /> : null}
+        <style>{html`${raw(styles)}`}</style>
+      </head>
+      <body class="min-h-screen bg-linear-to-br from-[#1a1a2e] to-[#16213e] text-white font-[system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',Roboto,sans-serif]">
+        {props.children}
+      </body>
+    </html>
+  );
 };

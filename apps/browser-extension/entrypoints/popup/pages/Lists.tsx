@@ -2,12 +2,7 @@ import { useMemo } from "react";
 import { type TagTypeName, tagTypeIdToName } from "@qcksys/ao3tracker-core";
 
 import { Button } from "@/components/ui/button";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { authClient } from "~popup/lib/auth-client";
 import { usePopupState } from "~popup/lib/state";
 

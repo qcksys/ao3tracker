@@ -56,7 +56,7 @@ class FavouriteTagRepositoryTest {
     }
 
     @Test
-    fun `applyRemote ignores ties (server already won by definition)`() = runTest {
+    fun `applyRemote accepts the server value on ties`() = runTest {
         val (repo, dao) = build()
         dao.upsert(FavouriteTagEntity(4, "Fluff", true, 1_000L, pendingSync = false))
 
@@ -64,7 +64,7 @@ class FavouriteTagRepositoryTest {
             listOf(RemoteFavouriteTag(4, "Fluff", false, 1_000L))
         )
 
-        assertEquals(true, dao.getOne(4, "Fluff")?.favourited)
+        assertEquals(false, dao.getOne(4, "Fluff")?.favourited)
     }
 
     @Test
@@ -149,9 +149,10 @@ private class FakeFavouriteTagDao : FavouriteTagDao {
         rows.value = rows.value + entities.associateBy { it.tagType to it.tag }
     }
 
-    override suspend fun clearPending(tagType: Int, tag: String) {
+    override suspend fun clearPending(tagType: Int, tag: String, updatedAt: Long, favourited: Boolean) {
         val key = tagType to tag
         val existing = rows.value[key] ?: return
+        if (existing.updatedAt != updatedAt || existing.favourited != favourited) return
         rows.value = rows.value + (key to existing.copy(pendingSync = false))
     }
 

@@ -31,7 +31,12 @@ export async function getSync(
   cfg: SyncClientConfig,
   query: GetSyncQuery = {},
 ): Promise<GetSyncResponse> {
-  return request(cfg, `/api/track/sync${buildQuery(query)}`, { method: "GET" }, getSyncResponseSchema);
+  return request(
+    cfg,
+    `/api/track/sync${buildQuery(query)}`,
+    { method: "GET" },
+    getSyncResponseSchema,
+  );
 }
 
 export async function postSync(
@@ -69,7 +74,6 @@ export async function getFullSync(
     merged.tagMetadata = merged.tagMetadata.concat(page.tagMetadata);
     merged.hasMore = page.hasMore;
     merged.nextWorkCursor = page.nextWorkCursor;
-    merged.serverLastUpdated = page.serverLastUpdated;
     merged.latestWorkLastReadAt = page.latestWorkLastReadAt;
     cursor = page.nextWorkCursor;
   }

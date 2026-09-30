@@ -24,9 +24,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -91,6 +94,7 @@ import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
+import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.SettingsTab
@@ -108,6 +112,11 @@ fun TrackScreen() {
     val filterState by screenModel.filterState.collectAsState()
     val isFilterSheetVisible by screenModel.isFilterSheetVisible.collectAsState()
     val sheetState = rememberModalBottomSheetState()
+
+    // Saved searches
+    val savedSearches by screenModel.savedSearches.collectAsState()
+    val isSavedSearchSheetVisible by screenModel.isSavedSearchSheetVisible.collectAsState()
+    val savedSearchSheetState = rememberModalBottomSheetState()
 
     // Sort state
     val sortState by screenModel.sortState.collectAsState()
@@ -233,6 +242,12 @@ fun TrackScreen() {
                                 }
                             )
                         }
+                    }
+                    IconButton(onClick = { screenModel.showSavedSearchSheet() }) {
+                        Icon(
+                            imageVector = Icons.Default.Bookmarks,
+                            contentDescription = "Saved searches"
+                        )
                     }
                     IconButton(onClick = { screenModel.showFilterSheet() }) {
                         Icon(
@@ -501,7 +516,144 @@ fun TrackScreen() {
                 )
             }
         }
+
+        // Saved searches bottom sheet
+        if (isSavedSearchSheetVisible) {
+            ModalBottomSheet(
+                onDismissRequest = { screenModel.hideSavedSearchSheet() },
+                sheetState = savedSearchSheetState
+            ) {
+                SavedSearchesSheetContent(
+                    searches = savedSearches,
+                    onOpen = { url ->
+                        screenModel.hideSavedSearchSheet()
+                        NavigationState.navigateToRead(url)
+                        tabNavigator.current = ReadTab
+                    },
+                    onRename = { id, name -> screenModel.renameSavedSearch(id, name) },
+                    onDelete = { id -> screenModel.deleteSavedSearch(id) }
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun SavedSearchesSheetContent(
+    searches: List<SavedSearchEntity>,
+    onOpen: (String) -> Unit,
+    onRename: (String, String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var renaming by remember { mutableStateOf<SavedSearchEntity?>(null) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Saved searches",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        if (searches.isEmpty()) {
+            Text(
+                text = "No saved searches yet. Open an AO3 works or bookmarks page in the Read tab and tap \"Save this search\".",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                items(searches, key = { it.id }) { search ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onOpen(search.url) }
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = search.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = search.url,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        IconButton(onClick = { renaming = search }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Rename ${search.name}"
+                            )
+                        }
+                        IconButton(onClick = { onDelete(search.id) }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete ${search.name}"
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    renaming?.let { search ->
+        RenameSavedSearchDialog(
+            currentName = search.name,
+            onConfirm = { name ->
+                onRename(search.id, name)
+                renaming = null
+            },
+            onDismiss = { renaming = null }
+        )
+    }
+}
+
+@Composable
+private fun RenameSavedSearchDialog(
+    currentName: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf(currentName) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Rename search") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(191) },
+                label = { Text("Name") },
+                singleLine = true
+            )
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

@@ -10,11 +10,11 @@ import { defineConfig } from "vite-plus";
  * mapping declared in [tsconfig.json](./tsconfig.json).
  */
 export default defineConfig({
-    resolve: {
-        tsconfigPaths: true,
-    },
-    test: {
-        environment: "happy-dom",
-        include: ["test/**/*.test.ts"],
-    },
+  resolve: {
+    tsconfigPaths: true,
+  },
+  test: {
+    environment: "happy-dom",
+    include: ["test/**/*.test.ts"],
+  },
 });

@@ -105,8 +105,8 @@ export default function Tracker() {
       </Card>
 
       <div className="text-muted-foreground text-xs">
-        Tracking {state.trackedCount} {state.trackedCount === 1 ? "work" : "works"} ·
-        last sync {formatRelative(state.lastSyncedAt)}
+        Tracking {state.trackedCount} {state.trackedCount === 1 ? "work" : "works"} · last sync{" "}
+        {formatRelative(state.lastSyncedAt)}
         {state.lastSyncError ? (
           <span className="text-destructive block">{state.lastSyncError}</span>
         ) : null}
