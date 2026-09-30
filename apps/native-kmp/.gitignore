@@ -19,3 +19,9 @@ captures
 node_modules/
 .claude/settings.local.json
 /release.keystore
+*.jks
+*.keystore
+keystore.properties
+/keystore.txt
+google-play-service-account*.json
+/qcksys-*.json

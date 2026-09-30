@@ -12,9 +12,19 @@ AO3 Tracker is a Kotlin Multiplatform (KMP) application for tracking reading pro
 
 ```shell
 ./gradlew :composeApp:assembleDebug          # Debug build
-./gradlew :composeApp:assembleRelease        # Release APK (unsigned)
+./gradlew :composeApp:assembleRelease        # Release APK (unsigned unless signing env is set)
 ./gradlew :composeApp:bundleRelease          # Release AAB for Play Store
 ```
+
+### Google Play releases
+
+The [Android release workflow](../../.github/workflows/release-android.yml) runs automatically after successful `main` CI and production API deployment, or manually, using the `google-play` GitHub environment. It tests the shared AO3 core, WebView scripts, and JVM code, then produces a signed AAB and R8 mapping artifact. Uploads target only `internal` testing, with release status `completed` by default or `draft` when selected manually. Choose `build_only` to download the bundle without uploading it. For a new Play listing, upload that signed artifact manually once before using API publishing.
+
+Configure environment secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. API publishing also requires `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`, whose service account must have access to `com.qcksys.ao3tracker` in Play Console. Use the existing upload key registered with Play; do not replace it or commit keystore/credential files. The workflow decodes credentials only into runner temporary storage, removes them on exit, and does not cache the signed Gradle build or its configuration.
+
+Each release job generates fresh `ANDROID_VERSION_CODE` and `ANDROID_VERSION_NAME` values, including failed-job retries. Store uploads share a concurrency lock; automatic runs use the exact successful CI SHA and reject superseded commits. See [release versioning and setup](../../docs/store-releases.md) for the timestamp scheme and external prerequisites. Local overrides still require codes from 1 through 2100000000 and names in `1.2.3` form, optionally with prerelease/build suffixes, up to 128 characters. Without overrides, local builds retain code `20` and name `0.1.0`; Changesets do not update these Android values.
+
+For local signing, supply all four variables: `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. A relative keystore path is resolved from `apps/native-kmp/`. Partial configuration fails, and release builds never use the debug key as a fallback. Use `--no-configuration-cache --no-build-cache --no-daemon` for a signed local release to avoid retaining credentials in Gradle configuration state. With no signing variables, local release builds remain unsigned.
 
 ### Desktop (JVM)
 
@@ -172,6 +182,8 @@ Named AO3 filter/search URLs the user pinned, synced across devices via the per-
 - Sentry (error tracking)
 
 Dependency versions are pinned in `gradle/libs.versions.toml`. Keep AGP on 8.13.2 and Gradle on 8.14.5 while Android and shared KMP code use one module. Compose 1.11.1, Lifecycle 2.10.0, Coil 3.5.0, and Ktor 3.5.2 are compatible upgrades for this build: newer releases require Android API 37 or AGP 9.1, whose KMP migration needs a separate Android app module. Do not bypass their AAR compatibility checks. Firebase Messaging uses its supported main module; the discontinued `firebase-messaging-ktx` artifact must not be restored.
+
+Kotlin 2.4 requires [R8 9.1.29 or newer](https://developer.android.com/build/kotlin-support). `settings.gradle.kts` uses the [supported R8 override](https://r8.googlesource.com/r8/+/refs/heads/main/README.md#replacing-r8-in-android-gradle-plugin) to pin 9.1.56 without migrating AGP. `gradle.properties` separately selects Lint 9.4.1 with Google's [newer Lint override](https://googlesamples.github.io/android-custom-lint-rules/usage/newer-lint.md.html). Validate these pins with a minified release bundle and its release lint tasks; debug builds alone do not exercise Kotlin metadata rewriting.
 
 ## Configuration
 

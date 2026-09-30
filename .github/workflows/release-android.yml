@@ -1,0 +1,168 @@
+name: Release Android to Google Play
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact commit that passed CI
+        required: true
+        type: string
+      status:
+        type: string
+        default: completed
+      build_only:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      status:
+        description: "Internal testing release status"
+        required: true
+        type: choice
+        default: completed
+        options:
+          - completed
+          - draft
+      build_only:
+        description: "Only build the signed bundle; skip the Google Play upload"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: google-play
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  release:
+    name: Build and release Android
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: google-play
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+          persist-credentials: false
+
+      - name: Validate release status
+        env:
+          RELEASE_STATUS: ${{ inputs.status }}
+        run: |
+          case "$RELEASE_STATUS" in
+            completed|draft) ;;
+            *) echo "::error::Release status must be completed or draft."; exit 1 ;;
+          esac
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+
+      - name: Reject stale automatic release retries
+        if: github.event_name == 'workflow_run'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+        run: node scripts/release-main.mjs assert-current-source
+
+      - name: Allocate a fresh release version
+        id: version
+        run: node scripts/release-version.mjs
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          run_install: false
+
+      - name: Set up Java
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test shared extraction and WebView scripts
+        run: |
+          pnpm --filter @qcksys/ao3tracker-core test
+          pnpm --filter ao3tracker-webview-scripts test
+
+      - name: Test native code
+        run: bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:jvmTest -x :composeApp:pnpmInstall --no-configuration-cache --no-daemon
+
+      - name: Build signed release bundle
+        env:
+          ANDROID_VERSION_CODE: ${{ steps.version.outputs.android_version_code }}
+          ANDROID_VERSION_NAME: ${{ steps.version.outputs.android_version_name }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/android-upload-key.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for variable in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!variable}" ]]; then
+              echo "::error::Missing required environment secret: $variable"
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:bundleRelease -x :composeApp:pnpmInstall --no-configuration-cache --no-build-cache --no-daemon
+          test -s apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
+          test -s apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
+          jarsigner -verify apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab > "$RUNNER_TEMP/android-bundle-verification.txt"
+          grep -q 'jar verified\.' "$RUNNER_TEMP/android-bundle-verification.txt"
+
+      - name: Save release bundle and mapping
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-${{ steps.version.outputs.android_version_name }}-${{ steps.version.outputs.android_version_code }}
+          path: |
+            apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
+            apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Prepare Google Play credentials
+        if: ${{ !inputs.build_only }}
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [[ -z "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" ]]; then
+            echo "::error::GOOGLE_PLAY_SERVICE_ACCOUNT_JSON is required for publishing. Choose build_only to download the signed bundle without uploading."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/google-play-service-account.json"
+
+      - name: Upload to Google Play internal testing
+        if: ${{ !inputs.build_only }}
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
+        with:
+          serviceAccountJson: ${{ runner.temp }}/google-play-service-account.json
+          packageName: com.qcksys.ao3tracker
+          releaseFiles: apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
+          tracks: internal
+          status: ${{ inputs.status }}
+          releaseName: ${{ steps.version.outputs.android_version_name }}
+          mappingFile: apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
+
+      - name: Remove temporary signing credentials
+        if: ${{ always() }}
+        run: rm -f -- "$RUNNER_TEMP/android-upload-key.jks" "$RUNNER_TEMP/google-play-service-account.json"

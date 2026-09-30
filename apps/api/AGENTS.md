@@ -42,7 +42,17 @@ pnpm biome:ci               # CI linting check (used in GitHub Actions)
 - Cloudflare Workers with Node.js compatibility mode
 - PlanetScale MySQL database via `@planetscale/database`
 - Environments: `local`, `dev`, `prod` (configured in `wrangler.json`)
-- GitHub Actions auto-deploy: `dev` branch -> dev, `main` branch -> prod
+- Production deployments use the root reusable [API workflow](../../.github/workflows/deploy-api.yml), called with the exact commit SHA that passed CI. Development deployments remain manual.
+
+### Production deployment readiness
+
+The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a read-only `DATABASE_URL` pointing to the same production database used by the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and Worker runtime secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_ID`, `GOOGLE_SECRET`, `FCM_SERVICE_ACCOUNT`) separately. Wrangler preserves existing Worker secrets; the GitHub database credential is only used for readiness checks and is not uploaded.
+
+The workflow rejects a source SHA that is no longer current `main`, including reruns of failed deployment jobs. After deployment it checks the public `/ping` response. This smoke test checks routing and Worker startup; it does not identify the deployed revision or test authenticated database operations.
+
+Before building/deploying, `node scripts/check-api-migrations.mjs` from the repository root reads `ao3track__migrations` and database column metadata. Every checked-in journal migration must have the same timestamp and SQL SHA-256 in the ledger; missing, edited, duplicate, or unknown entries stop deployment. Both LF and CRLF versions of the checked-in SQL are accepted because Drizzle hashes raw bytes and historical migrations may have run on Windows. No other content differences are accepted. The gate also verifies that the latest snapshot's columns exist and that temporal column types retain the required precision. It does not validate all indexes, defaults, or existing data.
+
+Apply reviewed schema changes separately through PlanetScale's schema-change process, including migrations `0011` and `0012` before deploying this code. Historical SQL is not an automatic bootstrap script: DDL is not transactionally rolled back, and an existing database may have been changed outside Drizzle. If the ledger is absent or differs, inspect the live schema and reconcile its history only after confirming which changes are already applied. The deployment gate never runs migration SQL, writes ledger rows, or skips a mismatch. Keep each SQL migration registered in the journal with its matching snapshot.
 
 ### Framework Stack
 
@@ -225,7 +235,7 @@ Better Auth and its passkey plugin use the same catalog version. Better Auth 1.7
 
 Auth rate limiting uses database storage in every environment. Client IP detection trusts only Cloudflare's `CF-Connecting-IP` header; do not add caller-controlled forwarded headers. Origin tests use Better Auth's real memory limiter within each test fixture, while asserting the production configuration remains database-backed and enabled.
 
-`ALLOWED_ORIGINS` supplies both CORS and Better Auth origin validation. The unpublished Chrome extension uses manifest public key ID `blgkokkfdhkkgaghemkodncmjfjbpjdc`, explicitly allowed in local/dev/prod. The WXT Firefox development profile pins runtime UUID `9f7fd2ce-5e43-4d3e-9d4e-92f89126df55`, allowed only in local/dev. Firefox's add-on ID (`ao3tracker@qcksys.com`) does not identify its per-install HTTP origin. Signed Firefox distribution needs a hosted authentication flow or another explicit origin strategy before release; do not add a blanket extension wildcard. Reconcile the Chrome allowlist with the Web Store public key before publishing.
+`ALLOWED_ORIGINS` supplies both CORS and Better Auth origin validation. The Chrome Web Store listing and manifest public key use ID `hjonebiohecalkggemeneaaohafldkkl`, explicitly allowed in local/dev/prod. The previous unpacked development ID `blgkokkfdhkkgaghemkodncmjfjbpjdc` remains allowed for existing development installs. Deploy the matching API origin configuration before releasing the extension. The WXT Firefox development profile pins runtime UUID `9f7fd2ce-5e43-4d3e-9d4e-92f89126df55`, allowed only in local/dev. Firefox's add-on ID (`ao3tracker@qcksys.com`) does not identify its per-install HTTP origin. Signed Firefox distribution needs a hosted authentication flow or another explicit origin strategy before release; do not add a blanket extension wildcard.
 
 ### Code Style
 

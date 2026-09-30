@@ -3,7 +3,8 @@ import { createDbConnection } from "~/db/db.client";
 import { auth } from "~/lib/auth";
 import config from "../wrangler.json";
 
-const chromeOrigin = "chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc";
+const chromeOrigin = "chrome-extension://hjonebiohecalkggemeneaaohafldkkl";
+const previousChromeOrigin = "chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc";
 const firefoxDevOrigin = "moz-extension://9f7fd2ce-5e43-4d3e-9d4e-92f89126df55";
 
 async function authRequest(environment: "dev" | "prod") {
@@ -43,9 +44,10 @@ async function authRequest(environment: "dev" | "prod") {
 
 describe("extension auth origins", () => {
   for (const environment of ["dev", "prod"] as const) {
-    it(`${environment} accepts the stable Chrome identity and rejects unrelated origins`, async () => {
+    it(`${environment} accepts store and previous development Chrome identities and rejects unrelated origins`, async () => {
       const request = await authRequest(environment);
       expect((await request("/sign-out")).status).toBe(200);
+      expect((await request("/sign-out", { Origin: previousChromeOrigin })).status).toBe(200);
       expect(
         (
           await request("/sign-out", {

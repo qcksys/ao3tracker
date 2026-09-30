@@ -63,7 +63,7 @@
     "BETTER_AUTH_URL": "https://qcksys-ao3tracker-api-local.ta2.dev",
     "ENVIRONMENT": "local",
     "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
-    "ALLOWED_ORIGINS": "https://qcksys-ao3tracker-api-local.ta2.dev,https://ao3tracker.localhost,chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc,moz-extension://9f7fd2ce-5e43-4d3e-9d4e-92f89126df55"
+    "ALLOWED_ORIGINS": "https://qcksys-ao3tracker-api-local.ta2.dev,https://ao3tracker.localhost,chrome-extension://hjonebiohecalkggemeneaaohafldkkl,chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc,moz-extension://9f7fd2ce-5e43-4d3e-9d4e-92f89126df55"
   },
   "triggers": {
     "crons": ["*/5 * * * *"]
@@ -131,7 +131,7 @@
         "BETTER_AUTH_URL": "https://dev.ao3tracker.com",
         "ENVIRONMENT": "dev",
         "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
-        "ALLOWED_ORIGINS": "https://dev.ao3tracker.com,chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc,moz-extension://9f7fd2ce-5e43-4d3e-9d4e-92f89126df55"
+        "ALLOWED_ORIGINS": "https://dev.ao3tracker.com,chrome-extension://hjonebiohecalkggemeneaaohafldkkl,chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc,moz-extension://9f7fd2ce-5e43-4d3e-9d4e-92f89126df55"
       }
     },
     "prod": {
@@ -196,7 +196,7 @@
         "BETTER_AUTH_URL": "https://ao3tracker.com",
         "ENVIRONMENT": "prod",
         "SYSTEM_EMAIL_ADDRESS": "hello@ao3tracker.com",
-        "ALLOWED_ORIGINS": "https://ao3tracker.com,chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc"
+        "ALLOWED_ORIGINS": "https://ao3tracker.com,chrome-extension://hjonebiohecalkggemeneaaohafldkkl,chrome-extension://blgkokkfdhkkgaghemkodncmjfjbpjdc"
       }
     }
   }
