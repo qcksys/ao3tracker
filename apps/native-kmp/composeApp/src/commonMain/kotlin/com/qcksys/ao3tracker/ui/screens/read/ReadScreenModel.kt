@@ -15,6 +15,7 @@ import com.qcksys.ao3tracker.data.model.WorkTagsEvent
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
+import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.util.JsonConfig
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.jsonObject
@@ -36,7 +38,8 @@ class ReadScreenModel(
     private val repository: Ao3Repository,
     private val savedSearchRepository: SavedSearchRepository,
     private val syncTriggers: SyncTriggers,
-    private val accountData: AccountDataStore
+    private val accountData: AccountDataStore,
+    private val appSettings: AppSettings
 ) : ScreenModel {
 
     private val _currentUrl = MutableStateFlow("https://archiveofourown.org")
@@ -72,6 +75,7 @@ class ReadScreenModel(
     // Track the previous chapter to mark as read when navigating to next chapter
     private data class ChapterLocation(val workId: Long, val chapterId: Long)
     private var previousChapter: ChapterLocation? = null
+    private var cachedTrackingSession: Long? = null
 
     companion object {
         private const val TAG = "ReadScreenModel"
@@ -81,14 +85,23 @@ class ReadScreenModel(
         screenModelScope.launch {
             var previousOwner: String? = null
             accountData.active.collect { account ->
-                if (account?.owner != previousOwner) {
+                if (previousOwner != null && account?.owner != previousOwner) {
                     pendingWorkInfo = null
                     pendingWorkTags = null
                     previousChapter = null
                     _pendingSaveSearch.value = null
                     navigateToHome()
-                    previousOwner = account?.owner
                 }
+                previousOwner = account?.owner
+            }
+        }
+        screenModelScope.launch {
+            var wasIncognito = appSettings.incognitoModeEnabled.value
+            appSettings.incognitoModeEnabled.collect { enabled ->
+                if (wasIncognito && !enabled) {
+                    _jsInjectionFlow.emit("window.__ao3Tracker?.reportReadingActivity?.();")
+                }
+                wasIncognito = enabled
             }
         }
     }
@@ -108,11 +121,19 @@ class ReadScreenModel(
 
     fun handleWebViewMessage(messageJson: String) {
         val owner = accountData.active.value?.owner
+        val accountGeneration = accountData.generation
+        val trackingSession = appSettings.captureTrackingSession()
+        val canTrack = {
+            trackingSession != null && appSettings.isTrackingSessionCurrent(trackingSession) &&
+                accountData.generation == accountGeneration && accountData.active.value?.owner == owner
+        }
         screenModelScope.launch {
-            if (accountData.active.value?.owner != owner) return@launch
+            if (accountData.generation != accountGeneration || accountData.active.value?.owner != owner) return@launch
             try {
                 val message = parseWebViewMessage(messageJson)
-                processMessage(message)
+                processMessage(message, canTrack)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: SerializationException) {
                 AppLogger.e("Failed to parse WebView message", TAG, e)
             } catch (e: DataException) {
@@ -153,22 +174,31 @@ class ReadScreenModel(
         }
     }
 
-    private suspend fun processMessage(message: WebViewMessage) {
+    private suspend fun processMessage(message: WebViewMessage, canTrack: () -> Boolean) {
+        val currentSession = appSettings.captureTrackingSession()
+        if (cachedTrackingSession != currentSession) {
+            pendingWorkInfo = null
+            pendingWorkTags = null
+            previousChapter = null
+            cachedTrackingSession = currentSession
+        }
         when (message) {
             is WebViewMessage.WorkInfo -> {
+                if (!canTrack()) return
                 pendingWorkInfo = message.event
-                tryToSaveWork()
+                tryToSaveWork(canTrack)
             }
             is WebViewMessage.WorkTags -> {
+                if (!canTrack()) return
                 pendingWorkTags = message.event
-                tryToSaveWork()
+                tryToSaveWork(canTrack)
             }
             is WebViewMessage.ChapterIndex -> {
-                repository.saveChapterIndex(message.event)
+                if (canTrack()) repository.saveChapterIndex(message.event, canTrack)
             }
             is WebViewMessage.ScrollProgress -> {
                 _scrollProgress.value = message.event.scrollPercentage / 100f
-                repository.updateScrollProgress(message.event)
+                if (canTrack()) repository.updateScrollProgress(message.event, canTrack)
             }
             is WebViewMessage.ListWorks -> {
                 handleListWorks(message.event)
@@ -232,15 +262,17 @@ class ReadScreenModel(
         return "'$escaped'"
     }
 
-    private suspend fun tryToSaveWork() {
+    private suspend fun tryToSaveWork(canTrack: () -> Boolean) {
         val workInfo = pendingWorkInfo ?: return
         val workTags = pendingWorkTags
 
         // Save work with whatever tags we have (tags may come in separate message)
-        repository.saveWorkFromWebView(workInfo, workTags)
+        repository.saveWorkFromWebView(workInfo, workTags, canTrack)
+        if (!canTrack()) return
 
         // Mark previous chapter as read if we navigated to a different chapter of the same work
-        markPreviousChapterAsReadIfNeeded(workInfo)
+        markPreviousChapterAsReadIfNeeded(workInfo, canTrack)
+        if (!canTrack()) return
 
         // Clear cache after saving
         if (workTags != null) {
@@ -253,7 +285,7 @@ class ReadScreenModel(
      * Mark the previous chapter as fully read when navigating to the next chapter of the same work.
      * This assumes that if you're moving to the next chapter, you've finished reading the current one.
      */
-    private suspend fun markPreviousChapterAsReadIfNeeded(currentWorkInfo: WorkInfoEvent) {
+    private suspend fun markPreviousChapterAsReadIfNeeded(currentWorkInfo: WorkInfoEvent, canTrack: () -> Boolean) {
         val currentWorkId = extractWorkIdFromUrl(currentWorkInfo.url) ?: return
         val currentChapterId = currentWorkInfo.chapterId?.toLongOrNull()
             ?: extractChapterIdFromUrl(currentWorkInfo.url)
@@ -267,7 +299,7 @@ class ReadScreenModel(
         // If we have a previous chapter on the same work but different chapter, mark it as read
         if (prev != null && prev.workId == currentWorkId && prev.chapterId != currentChapterId) {
             AppLogger.d("Marking previous chapter ${prev.chapterId} as read (navigated to chapter $currentChapterId)", TAG)
-            repository.markChapterAsRead(prev.chapterId, prev.workId)
+            repository.markChapterAsRead(prev.chapterId, prev.workId, canTrack)
         }
     }
 
@@ -287,6 +319,12 @@ class ReadScreenModel(
         _scrollProgress.value = 0f
         // Add #chapters fragment for work URLs to auto-scroll to content
         _currentUrl.value = addChaptersFragment(url)
+    }
+
+    fun navigateToExternalUrl(url: String) {
+        if (!isTrustedAo3Url(url)) return
+        _scrollProgress.value = 0f
+        _currentUrl.value = url
     }
 
     fun navigateToHome() {

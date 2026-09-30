@@ -48,10 +48,17 @@ actual class SettingsStorage {
         userDefaults.setBool(enabled, KEY_AUTO_SYNC_ON_OPEN)
     }
 
+    actual fun isIncognitoModeEnabled(): Boolean = userDefaults.boolForKey(KEY_INCOGNITO_MODE)
+
+    actual fun setIncognitoModeEnabled(enabled: Boolean) {
+        userDefaults.setBool(enabled, KEY_INCOGNITO_MODE)
+    }
+
     companion object {
         private const val KEY_API_ENVIRONMENT = "api_environment"
         private const val KEY_DEV_MODE = "dev_mode_enabled"
         private const val KEY_LAST_SYNC_TIMESTAMP = "last_sync_timestamp"
         private const val KEY_AUTO_SYNC_ON_OPEN = "auto_sync_on_open"
+        private const val KEY_INCOGNITO_MODE = "incognito_mode_enabled"
     }
 }

@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.ui.navigation
 
 import com.qcksys.ao3tracker.data.model.TagType
+import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,8 +29,13 @@ object NavigationState {
     // Track tab navigator reference - should be cleared when tab is disposed
     private var trackTabNavigator: TabNavigatorContract? = null
 
-    fun navigateToRead(url: String, scrollProgress: Float = 0f) {
+    fun navigateToRead(url: String, scrollProgress: Float? = 0f) {
         _pendingNavigation.value = ReadNavigation(url, scrollProgress)
+    }
+
+    fun navigateToExternalAo3Url(url: String?) {
+        if (url == null || !isTrustedAo3Url(url)) return
+        _pendingNavigation.value = ReadNavigation(url, scrollProgress = null)
     }
 
     fun clearPendingNavigation() {
@@ -85,7 +91,7 @@ interface TabNavigatorContract {
 
 data class ReadNavigation(
     val url: String,
-    val scrollProgress: Float
+    val scrollProgress: Float?
 )
 
 data class TagFilter(

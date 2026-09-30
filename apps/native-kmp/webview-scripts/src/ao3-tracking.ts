@@ -11,7 +11,9 @@
 import { applyListBadges as applyBadges, type WorkBadgeData } from "@qcksys/ao3tracker-core/badges";
 import {
   classifyAo3Url,
+  computeChapterScrollPercentage,
   consumeScrollToParam,
+  extractChapterId,
   findListWorkIds,
   getWorkChapterIndex,
   getWorkChapterSelect,
@@ -21,13 +23,18 @@ import {
   normalizeWhitespace,
   publishScrollPercentage,
 } from "@qcksys/ao3tracker-core/dom";
-import type { ListWorksMessage, SaveSearchMessage } from "@qcksys/ao3tracker-core/schemas";
+import type {
+  ListWorksMessage,
+  SaveSearchMessage,
+  ScrollProgressMessage,
+} from "@qcksys/ao3tracker-core/schemas";
 
 declare global {
   interface Window {
     __ao3TrackerInitialized?: boolean;
     __ao3Tracker?: {
       applyListBadges(payloadJson: string): void;
+      reportReadingActivity(): void;
     };
     AndroidBridge?: {
       postMessage(msg: string): void;
@@ -68,11 +75,10 @@ export function applyListBadges(payloadJson: string): void {
   applyBadges(document, window, entries);
 }
 
-function init(): void {
+function reportPageMetadata(): void {
   const { isWork, isChapterIndex } = classifyAo3Url(window.location.href);
 
   if (isWork) {
-    window.addEventListener("scroll", updateScrollAndPost);
     postMessage(JSON.stringify(getWorkInfo(document, window.location)));
     postMessage(JSON.stringify(getWorkTagInfo(document, window.location)));
 
@@ -85,6 +91,33 @@ function init(): void {
   if (isChapterIndex) {
     postMessage(JSON.stringify(getWorkChapterIndex(document, window.location)));
   }
+}
+
+export function reportReadingActivity(): void {
+  reportPageMetadata();
+  if (!classifyAo3Url(window.location.href).isWork) return;
+
+  const percentage = computeChapterScrollPercentage(document, window);
+  if (percentage === null || Number.isNaN(percentage)) return;
+  const scrollPercentage = Math.floor(percentage);
+  const url = new URL(window.location.href);
+  url.searchParams.set("scroll", String(scrollPercentage));
+  window.history.replaceState({}, "", url.toString());
+  // Resuming tracking must report even when the URL already records this position.
+  const message: ScrollProgressMessage = {
+    type: "scrollProgress",
+    url: url.toString(),
+    chapterId: extractChapterId(document, window.location),
+    scrollPercentage,
+  };
+  postMessage(JSON.stringify(message));
+}
+
+function init(): void {
+  if (classifyAo3Url(window.location.href).isWork) {
+    window.addEventListener("scroll", updateScrollAndPost);
+  }
+  reportPageMetadata();
 
   consumeScrollToParam(document, window);
 
@@ -115,8 +148,9 @@ function init(): void {
 }
 
 if (typeof window !== "undefined") {
-  window.__ao3Tracker = window.__ao3Tracker ?? { applyListBadges };
+  window.__ao3Tracker = window.__ao3Tracker ?? { applyListBadges, reportReadingActivity };
   window.__ao3Tracker.applyListBadges = applyListBadges;
+  window.__ao3Tracker.reportReadingActivity = reportReadingActivity;
 }
 
 if (typeof window !== "undefined" && !window.__ao3TrackerInitialized) {

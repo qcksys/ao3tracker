@@ -93,7 +93,7 @@ class FavouriteTagRepository(
     private fun entityKey(tagType: Int, tag: String): String = "$tagType\t$tag"
 
     private suspend fun <T> edit(block: suspend () -> T): T =
-        accountData?.edit(block) ?: block()
+        accountData?.edit(block = block) ?: block()
 }
 
 /** Wire-format row from the server (decoded from the sync DTO). */

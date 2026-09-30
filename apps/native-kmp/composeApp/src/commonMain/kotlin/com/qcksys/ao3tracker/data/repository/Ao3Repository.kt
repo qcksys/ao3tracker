@@ -221,7 +221,11 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         return tagDao.getDistinctTagsByType(type.id)
     }
 
-    suspend fun saveWorkFromWebView(workInfo: WorkInfoEvent, workTags: WorkTagsEvent?) = accountData.edit {
+    suspend fun saveWorkFromWebView(
+        workInfo: WorkInfoEvent,
+        workTags: WorkTagsEvent?,
+        canTrack: () -> Boolean = { true }
+    ) = accountData.edit(canTrack) {
         val workId = extractWorkIdFromUrl(workInfo.url) ?: return@edit
         // Validate workId
         if (workId <= 0) return@edit
@@ -344,7 +348,10 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         return tagEntities
     }
 
-    suspend fun saveChapterIndex(chapterIndex: WorkChapterIndexEvent) = accountData.edit {
+    suspend fun saveChapterIndex(
+        chapterIndex: WorkChapterIndexEvent,
+        canTrack: () -> Boolean = { true }
+    ) = accountData.edit(canTrack) {
         val workId = extractWorkIdFromUrl(chapterIndex.url) ?: return@edit
         // Validate workId
         if (workId <= 0) return@edit
@@ -394,7 +401,10 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         }
     }
 
-    suspend fun updateScrollProgress(progress: ScrollProgressEvent) = accountData.edit {
+    suspend fun updateScrollProgress(
+        progress: ScrollProgressEvent,
+        canTrack: () -> Boolean = { true }
+    ) = accountData.edit(canTrack) {
         val workId = extractWorkIdFromUrl(progress.url) ?: return@edit
         // Validate workId
         if (workId <= 0) return@edit
@@ -453,7 +463,11 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         chapterDao.softDeleteChapter(chapterId, workId, now, now)
     }
 
-    suspend fun markChapterAsRead(chapterId: Long, workId: Long) = accountData.edit {
+    suspend fun markChapterAsRead(
+        chapterId: Long,
+        workId: Long,
+        canTrack: () -> Boolean = { true }
+    ) = accountData.edit(canTrack) {
         val now = getCurrentTimestamp()
         chapterDao.markChapterAsRead(chapterId, workId, now, now, now)
         workDao.updateLastRead(workId, now, now)

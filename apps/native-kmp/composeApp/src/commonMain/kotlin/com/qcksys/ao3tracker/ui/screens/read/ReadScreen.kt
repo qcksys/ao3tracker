@@ -1,6 +1,8 @@
 package com.qcksys.ao3tracker.ui.screens.read
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -20,8 +23,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
+import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.navigation.TrackTab
 import org.koin.compose.koinInject
@@ -31,6 +37,8 @@ private val WORK_URL_REGEX = Regex("/works/\\d+")
 @Composable
 fun ReadScreen() {
     val screenModel = koinInject<ReadScreenModel>()
+    val appSettings = koinInject<AppSettings>()
+    val incognitoModeEnabled by appSettings.incognitoModeEnabled.collectAsState()
     val currentUrl by screenModel.currentUrl.collectAsState()
     val scrollProgress by screenModel.scrollProgress.collectAsState()
     val tabNavigator = LocalTabNavigator.current
@@ -39,7 +47,11 @@ fun ReadScreen() {
     val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
     LaunchedEffect(pendingNavigation) {
         pendingNavigation?.let { nav ->
-            screenModel.navigateToUrlWithScroll(nav.url, nav.scrollProgress)
+            if (nav.scrollProgress == null) {
+                screenModel.navigateToExternalUrl(nav.url)
+            } else {
+                screenModel.navigateToUrlWithScroll(nav.url, nav.scrollProgress)
+            }
             NavigationState.clearPendingNavigation()
         }
     }
@@ -72,6 +84,19 @@ fun ReadScreen() {
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.statusBars)
     ) {
+        if (incognitoModeEnabled) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Incognito · tracking paused", modifier = Modifier.weight(1f))
+                    TextButton(onClick = { appSettings.setIncognitoModeEnabled(false) }) {
+                        Text("Turn off")
+                    }
+                }
+            }
+        }
         // Reading progress bar (only on work pages)
         if (showProgressBar) {
             LinearProgressIndicator(

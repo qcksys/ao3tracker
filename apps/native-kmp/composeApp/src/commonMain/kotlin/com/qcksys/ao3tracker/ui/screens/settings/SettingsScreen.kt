@@ -72,12 +72,15 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.qcksys.ao3tracker.data.auth.AuthRepository
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationType
@@ -112,6 +115,7 @@ fun SettingsScreen() {
     val devModeEnabled by appSettings.devModeEnabled.collectAsState()
     val apiEnvironment by appSettings.apiEnvironment.collectAsState()
     val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
+    val incognitoModeEnabled by appSettings.incognitoModeEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lastSyncResult by syncRepository.lastSyncResult.collectAsState()
@@ -193,6 +197,29 @@ fun SettingsScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Incognito mode", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = incognitoModeEnabled,
+                            onCheckedChange = appSettings::setIncognitoModeEnabled,
+                            modifier = Modifier.semantics { contentDescription = "Incognito mode" }
+                        )
+                    }
+                    Text(
+                        "Stops saving works, chapters and reading progress on this device. " +
+                            "AO3 stays signed in, and your existing library can still sync.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            Ao3LinkSettings()
+
             // Account section
             AccountSection(
                 authState = authState,

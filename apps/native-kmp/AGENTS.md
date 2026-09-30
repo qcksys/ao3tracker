@@ -86,13 +86,13 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 
 - `DatabaseFactory` - Database instantiation
 - `TokenStorage` - Secure token storage
-- `SettingsStorage` - Preferences storage (API env, dev mode, last sync timestamp, auto-sync-on-open)
+- `SettingsStorage` - Preferences storage (API env, dev mode, last sync timestamp, auto-sync-on-open, incognito mode)
 - `CredentialHelper` - Credential management
 - `Ao3WebView` - WebView component (takes an optional `jsInjectionFlow: SharedFlow<String>` for native→JS evaluation, and `onBackAtRoot` for back-gesture handling when the WebView has no history)
 
 **Screen Models**: Voyager `ScreenModel` classes manage screen state. Some are singletons to preserve state across tab switches (`ReadScreenModel`, `TrackScreenModel`). `TrackScreenModel` takes `SettingsStorage` directly (not via `singleOf`, since the constructor has 3 deps) — see [AppModule.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/di/AppModule.kt).
 
-**Cross-tab navigation**: `NavigationState` (singleton in `ui/navigation/`) exposes a `pendingNavigation` `StateFlow` that any screen can set. `MainScreen` observes it and switches to the Read tab; `ReadScreen` consumes the URL+scroll. This is how notification deep links (from `MainActivity.handleNotificationIntent`) and the "open in reader" action from the Track tab both flow.
+**Cross-tab navigation**: `NavigationState` (singleton in `ui/navigation/`) exposes a `pendingNavigation` `StateFlow` that any screen can set. `MainScreen` observes it and switches to the Read tab; `ReadScreen` consumes the URL+scroll. Notification deep links (from `MainActivity.handleNavigationIntent`) and the "open in reader" action from Track include a scroll position. External Android `ACTION_VIEW` links use `navigateToExternalAo3Url`, validate the trusted AO3 HTTPS origin, and use a null scroll position to preserve the full URL and fragment. The activity uses `singleTop` and handles both startup and `onNewIntent`. Settings exposes Android's supported-link screen; users must approve the bare and `www` AO3 domains manually because AO3 does not host this app's Digital Asset Links association. This option is Android-only.
 
 **HTTP Client**: Ktor with Bearer token authentication. `AuthService` owns the `HttpClient` instance, which is shared with `SyncService` for session continuity. API base URLs are configurable via `AppSettings` (defaults in `build.gradle.kts`).
 
@@ -109,11 +109,13 @@ The app embeds AO3 in a WebView and injects JavaScript to:
 - Communicate via `WebViewMessage` JSON protocol
 - Render per-work tracker badges on AO3 list pages (round-trip: see "List-page badges" below)
 
-TypeScript source is in `webview-scripts/src/`. The script imports its DOM extraction helpers from `@qcksys/ao3tracker-core/dom` and badge rendering from `@qcksys/ao3tracker-core/badges` — both subpath imports avoid pulling zod into the IIFE bundle (which would balloon it to ~330 kB). The Gradle build compiles and embeds these scripts as Kotlin string constants. The TS exposes a few functions on `window.__ao3Tracker` so native code can invoke them via `evaluateJavaScript` (currently: `applyListBadges`).
+TypeScript source is in `webview-scripts/src/`. The script imports its DOM extraction helpers from `@qcksys/ao3tracker-core/dom` and badge rendering from `@qcksys/ao3tracker-core/badges` — both subpath imports avoid pulling zod into the IIFE bundle (which would balloon it to ~330 kB). The Gradle build compiles and embeds these scripts as Kotlin string constants. The TS exposes a few functions on `window.__ao3Tracker` so native code can invoke them via `evaluateJavaScript` (currently: `applyListBadges` and `reportReadingActivity`).
 
 **Native→JS injection channel**: `ReadScreenModel.jsInjectionFlow` is a `SharedFlow<String>` of JS source strings. The `Ao3WebView` actuals collect from it and call `evaluateJavascript`/`evaluateJavaScript`. Use `ReadScreenModel.jsStringLiteral(...)` when embedding user-controlled text inside an injected script — it escapes `\`, `'`, newlines, and the U+2028/U+2029 line-terminators that would otherwise break a JS string literal.
 
 **WebView trust**: `TrustedAo3Origin.kt` permits HTTPS on `archiveofourown.org` and `www.archiveofourown.org`, using the default HTTPS port. iOS checks the sending frame's security origin and requires the main frame; navigation and injected responses use the same allowlist. Retain the JavaScript origin check around responses because navigation can occur after a native URL check. Scroll messages carry the optional extracted `chapterId`, matching work-info extraction; older messages fall back to the URL.
+
+**Incognito mode**: `AppSettings` persists this device preference on Android, iOS, and JVM. It pauses automatic work/tag/chapter writes, reading progress, and automatic chapter completion; it does not clear browser cookies/history or disable existing-library sync and explicit saved-search/library actions. `ReadScreenModel` captures a tracking generation when each bridge message arrives and resets metadata/previous-chapter caches between generations. Automatic repository writes pass their session guard through `AccountDataStore.edit`, which checks inside the transaction before and after the write so cancelled sessions roll back. Turning tracking back on requests a fresh current-page snapshot with `window.__ao3Tracker.reportReadingActivity()` rather than replaying buffered incognito events. Keep the reader's paused banner visible while enabled.
 
 ### Data Flow
 

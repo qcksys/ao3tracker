@@ -42,6 +42,22 @@ class AppSettings(
     private val _autoSyncOnOpenEnabled = MutableStateFlow(settingsStorage?.isAutoSyncOnOpenEnabled() ?: true)
     val autoSyncOnOpenEnabled: StateFlow<Boolean> = _autoSyncOnOpenEnabled.asStateFlow()
 
+    private val _incognitoModeEnabled = MutableStateFlow(settingsStorage?.isIncognitoModeEnabled() ?: false)
+    val incognitoModeEnabled: StateFlow<Boolean> = _incognitoModeEnabled.asStateFlow()
+    private val trackingGeneration = MutableStateFlow(0L)
+
+    fun setIncognitoModeEnabled(enabled: Boolean) {
+        if (_incognitoModeEnabled.value == enabled) return
+        trackingGeneration.value++
+        _incognitoModeEnabled.value = enabled
+        settingsStorage?.setIncognitoModeEnabled(enabled)
+    }
+
+    fun captureTrackingSession(): Long? = trackingGeneration.value.takeUnless { _incognitoModeEnabled.value }
+
+    fun isTrackingSessionCurrent(session: Long): Boolean =
+        !_incognitoModeEnabled.value && session == trackingGeneration.value
+
     fun setApiEnvironment(environment: ApiEnvironment) {
         _apiEnvironment.value = environment
         settingsStorage?.setApiEnvironment(environment.name)

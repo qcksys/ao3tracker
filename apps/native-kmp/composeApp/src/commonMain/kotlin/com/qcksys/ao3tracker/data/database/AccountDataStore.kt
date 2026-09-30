@@ -59,11 +59,16 @@ class AccountDataStore(private val database: Ao3Database) {
         generationState.value++
     }
 
-    suspend fun <T> edit(block: suspend () -> T): T {
+    suspend fun <T> edit(isCurrentOperation: () -> Boolean = { true }, block: suspend () -> T): T {
         val expectedGeneration = generation
         return mutex.withLock {
             if (generation != expectedGeneration) throw CancellationException("Account changed")
-            transaction(block).also { localRevision++ }
+            transaction {
+                if (!isCurrentOperation()) throw CancellationException("Operation cancelled")
+                block().also {
+                    if (!isCurrentOperation()) throw CancellationException("Operation cancelled")
+                }
+            }.also { localRevision++ }
         }
     }
 

@@ -58,8 +58,7 @@ class MainActivity : ComponentActivity() {
         // Request notification permission (Android 13+)
         requestNotificationPermissionIfNeeded()
 
-        // Handle deep link from notification (if app was launched from notification)
-        handleNotificationIntent(intent)
+        handleNavigationIntent(intent)
 
         setContent {
             App()
@@ -68,7 +67,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleNotificationIntent(intent)
+        setIntent(intent)
+        handleNavigationIntent(intent)
     }
 
     /**
@@ -83,10 +83,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Handles notification deep links to open a specific work.
-     */
-    private fun handleNotificationIntent(intent: Intent?) {
+    private fun handleNavigationIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_VIEW) {
+            NavigationState.navigateToExternalAo3Url(intent.dataString)
+        }
         if (intent?.action == Ao3FirebaseMessagingService.ACTION_OPEN_WORK) {
             val workId = intent.getLongExtra(Ao3FirebaseMessagingService.EXTRA_WORK_ID, -1)
             if (workId > 0) {
