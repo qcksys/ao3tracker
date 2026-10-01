@@ -5,6 +5,7 @@ import app.cash.turbine.testIn
 import app.cash.turbine.turbineScope
 import com.qcksys.ao3tracker.data.database.*
 import com.qcksys.ao3tracker.data.model.FilterState
+import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
@@ -12,6 +13,7 @@ import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.util.JsonConfig
 import java.nio.file.Files
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
@@ -239,6 +241,51 @@ class AccountDatabaseTest {
                 assertTrue(awaitItem().isEmpty())
                 accounts.activate(A)
                 assertEquals(listOf("Fluff"), awaitItem())
+            }
+        }
+    }
+
+    @Test
+    fun `tracked works include fandoms in stored order with or without filters`() = runTest {
+        fixture { accounts ->
+            val database = accounts.database
+            val firstFandom = TagEntity(1, "Z fandom", "/tags/Z/works", TagType.FANDOM.id, 100)
+            val secondFandom = TagEntity(1, "A fandom", "/tags/A/works", TagType.FANDOM.id, 100)
+            accounts.edit {
+                database.workDao().upsertWork(work(1))
+                database.workDao().upsertWork(work(2))
+                database.tagDao().upsertTags(listOf(tag(1), firstFandom, secondFandom, tag(2)))
+            }
+            val repository = Ao3Repository(accounts)
+            val filters = listOf(
+                FilterState(),
+                FilterState(searchQuery = "Guest"),
+                FilterState(fandomFilters = mapOf("Z fandom" to TagFilterMode.INCLUDE))
+            )
+            for (filter in filters) {
+                val works = repository.getFilteredWorks(filter).first()
+                val fandoms = works.single { it.id == 1L }.tags.filter { it.type == TagType.FANDOM }
+                assertEquals(listOf("Z fandom", "A fandom"), fandoms.map { it.tag })
+                assertTrue(works.filter { it.id == 2L }.all { work -> work.tags.none { it.type == TagType.FANDOM } })
+            }
+        }
+    }
+
+    @Test
+    fun `tracked cards refresh when only tags or chapter progress change`() = runTest {
+        fixture { accounts ->
+            val database = accounts.database
+            accounts.edit { database.workDao().upsertWork(work(1)) }
+            Ao3Repository(accounts).getFilteredWorks(FilterState()).test {
+                assertTrue(awaitItem().single().tags.isEmpty())
+                accounts.edit { database.tagDao().upsertTag(tag(1).copy(typeId = TagType.FANDOM.id)) }
+                assertEquals("Fluff", awaitItem().single().tags.single().tag)
+                accounts.edit { database.chapterDao().upsertChapter(chapter(1)) }
+                assertEquals(0.5f, awaitItem().single().chapterList.single().readProgress)
+                accounts.edit { database.chapterDao().markChapterAsUnread(11, 1, 200) }
+                assertEquals(0f, awaitItem().single().chapterList.single().readProgress)
+                accounts.edit { database.tagDao().deleteTagsByWork(1) }
+                assertTrue(awaitItem().single().tags.isEmpty())
             }
         }
     }
