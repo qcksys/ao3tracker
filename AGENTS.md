@@ -30,6 +30,16 @@ Both clients (browser extension and native KMP app) ingest AO3 pages and sync to
 2. **Use the app's own build commands**, not generic ones. Use `vp run` for package scripts: the API builds with Vite+, the extension with WXT, and WebView scripts with Vite's programmatic API. Native KMP builds use Gradle; `vp install` installs only workspace dependencies.
 3. **When a change spans apps** (e.g. an API contract change that affects both `apps/api` and a client), update the corresponding AGENTS.md sections so the contract stays documented in both places.
 
+## Branching and automated deployments
+
+- **Branch from `dev` by default.** Fetch `origin/dev` before creating a new feature or fix branch, and start from that updated ref. Use the `tom-alle-codex/` branch prefix unless the user specifies another name or starting point.
+- **Target PRs at `dev` by default.** Set the base explicitly (`gh pr create --base dev`) rather than relying on GitHub's default branch. Use `main` for deliberate production promotions, or another target when the user requests it.
+- **Merges can deploy and release apps.** Successful push CI on the current `dev` commit runs `Release dev`: check the dev database, deploy and smoke-test the dev API, then release the separate Android Dev app to internal testing and submit the Chrome Beta extension for review. Successful push CI on current `main` runs `Release main`: check and deploy the production API, then release the production Android package to internal testing and upload a production Chrome draft.
+- **PR checks do not deploy.** Automatic releases require successful push CI from the same repository and reject superseded commits. Failed API readiness or deployment checks block the dependent store releases. Database readiness checks are read-only; schema migrations are handled separately.
+- **Workflow activation depends on GitHub's default branch.** These `workflow_run` workflows must exist on the repository's default branch, currently `main`. Merging a new workflow only into `dev` does not activate it; the tested `dev` commit must also contain its required build and release scripts.
+
+Before changing deployment automation, configuring store credentials, or running a manual release, read [store releases](docs/store-releases.md) for environment setup, beta identities, initial store uploads, versioning, and retry behavior.
+
 ## Root-level commands
 
 These operate across the workspace via Vite+:

@@ -42,7 +42,7 @@ vp run biome:ci               # CI linting check (used in GitHub Actions)
 - Cloudflare Workers with Node.js compatibility mode
 - PlanetScale MySQL database via `@planetscale/database`
 - Environments: `local`, `dev`, `prod` (configured in `wrangler.json`)
-- Production deployments use the root reusable [API workflow](../../.github/workflows/deploy-api.yml), called with the exact commit SHA that passed CI. Development deployments remain manual.
+- Production deployments use the root reusable [API workflow](../../.github/workflows/deploy-api.yml), called with the exact commit SHA that passed CI. Successful push CI on current `dev` runs [Release dev](../../.github/workflows/deploy-dev-api.yml): deploy the development Worker, check `/ping`, then release the Android Dev app and Chrome Beta extension. See [development deployment setup](../../docs/store-releases.md#api-development) for secrets and activation.
 
 ### Production deployment readiness
 
@@ -240,6 +240,8 @@ The first manual RC migration run upgrades a legacy ledger by adding `name` and 
 Better Auth and its passkey plugin use the same catalog version. Better Auth 1.7 requires `verified`, `failedVerificationCount`, and `lockedUntil` on the two-factor table. Apply migration `20260930103837_auth-two-factor-lockout/migration.sql` before deploying this upgrade; its verified default preserves existing enrollments. Auth-origin tests instantiate the real adapter and check that its declared schema remains compatible.
 
 ### Extension authentication origins
+
+Dev builds append the exact `chrome-extension://<CHROME_BETA_EXTENSION_ID>` origin through the Cloudflare Vite plugin when that repository variable is configured. Production builds ignore it. The beta extension defaults to and permits only `https://dev.ao3tracker.com`; its release helper verifies the live dev API CORS response before uploading. Configure the beta item ID before running `Release dev`; do not allow arbitrary extension origins.
 
 Auth rate limiting uses database storage in every environment. Client IP detection trusts only Cloudflare's `CF-Connecting-IP` header; do not add caller-controlled forwarded headers. Origin tests use Better Auth's real memory limiter within each test fixture, while asserting the production configuration remains database-backed and enabled.
 

@@ -247,7 +247,7 @@ android {
         versionCode = releaseVersionCode
         versionName = releaseVersionName
 
-        // Default to production API endpoints
+        buildConfigField("String", "API_ENVIRONMENT", "\"PRODUCTION\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
         buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
         // Sentry DSN
@@ -282,6 +282,14 @@ android {
             ndk {
                 debugSymbolLevel = "FULL"
             }
+        }
+        create("dev") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".dev"
+            matchingFallbacks += "release"
+            buildConfigField("String", "API_ENVIRONMENT", "\"DEV\"")
+            buildConfigField("String", "AUTH_BASE_URL", "\"https://dev.ao3tracker.com/auth\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://dev.ao3tracker.com/api\"")
         }
     }
     compileOptions {
