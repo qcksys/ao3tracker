@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TDatabase } from "~/db/db.client";
 import { getTokensByUserIds, invalidateToken } from "~/db/queries/push-token";
 import { FcmClient, sendNotificationsToUsers } from "~/lib/fcm-client";

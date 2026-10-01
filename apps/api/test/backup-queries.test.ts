@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 import { findActiveBackupByR2Key, findBackupsByWorkId } from "~/db/queries/backup";
 
