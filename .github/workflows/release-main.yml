@@ -9,56 +9,25 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: release-main
-  cancel-in-progress: false
-  queue: max
-
 jobs:
-  ready:
+  prepare:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.id == github.repository_id
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      eligible: ${{ steps.release.outputs.eligible }}
-      source_ref: ${{ steps.release.outputs.source_ref }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          persist-credentials: false
-      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
-        with:
-          version-file: pnpm-workspace.yaml
-          run-install: false
-      - name: Check successful CI still matches main
-        id: release
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: vp node scripts/release-main.mjs
+    uses: ./.github/workflows/prepare-release.yml
+    with:
+      branch: main
 
-  api:
-    needs: ready
-    if: needs.ready.outputs.eligible == 'true'
-    uses: ./.github/workflows/deploy-api.yml
+  deploy:
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true'
+    concurrency:
+      group: release-main
+      cancel-in-progress: false
+    uses: ./.github/workflows/release-main-apps.yml
     secrets: inherit
     with:
-      source_ref: ${{ needs.ready.outputs.source_ref }}
-
-  android:
-    needs: [ready, api]
-    uses: ./.github/workflows/release-android.yml
-    secrets: inherit
-    with:
-      source_ref: ${{ needs.ready.outputs.source_ref }}
-
-  chrome:
-    needs: [ready, api]
-    uses: ./.github/workflows/release-chrome.yml
-    secrets: inherit
-    with:
-      source_ref: ${{ needs.ready.outputs.source_ref }}
+      source_ref: ${{ needs.prepare.outputs.source_ref }}
+      api_artifact_id: ${{ needs.prepare.outputs.api_artifact_id }}
