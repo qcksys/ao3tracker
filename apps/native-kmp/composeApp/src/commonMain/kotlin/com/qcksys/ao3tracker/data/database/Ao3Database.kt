@@ -13,9 +13,10 @@ import androidx.room.RoomDatabaseConstructor
         FavouriteTagEntity::class,
         SavedSearchEntity::class,
         ActiveAccountEntity::class,
-        AccountArchiveEntity::class
+        AccountArchiveEntity::class,
+        AccountDatabaseEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 @ConstructedBy(Ao3DatabaseConstructor::class)

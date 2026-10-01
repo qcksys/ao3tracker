@@ -1,6 +1,5 @@
 package com.qcksys.ao3tracker.data.repository
 
-import com.qcksys.ao3tracker.data.database.SavedSearchDao
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import kotlin.time.Clock
@@ -18,9 +17,9 @@ import kotlinx.coroutines.flow.Flow
  */
 @OptIn(ExperimentalTime::class)
 class SavedSearchRepository(
-    private val dao: SavedSearchDao,
-    private val accountData: AccountDataStore? = null
+    private val accountData: AccountDataStore
 ) {
+    private val dao get() = accountData.database.savedSearchDao()
     companion object {
         // Match the server/wire caps (savedSearchItemSchema in
         // packages/ao3-core/src/schemas/sync.ts and the DB varchar widths) so a
@@ -31,7 +30,7 @@ class SavedSearchRepository(
     }
 
     /** Observe the live (non-deleted) saved searches, newest edit first. */
-    fun observeLive(): Flow<List<SavedSearchEntity>> = dao.observeLive()
+    fun observeLive(): Flow<List<SavedSearchEntity>> = accountData.observe { it.savedSearchDao().observeLive() }
 
     /**
      * Save a new named search. Generates a stable uuid id so the row can be
@@ -111,7 +110,7 @@ class SavedSearchRepository(
     }
 
     private suspend fun <T> edit(block: suspend () -> T): T =
-        accountData?.edit(block = block) ?: block()
+        accountData.edit(block = block)
 }
 
 /** Wire-format row from the server (decoded from the sync DTO). */

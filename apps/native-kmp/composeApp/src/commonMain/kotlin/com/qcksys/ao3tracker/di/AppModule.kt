@@ -6,8 +6,9 @@ import com.qcksys.ao3tracker.data.auth.SyncAuthentication
 import com.qcksys.ao3tracker.data.auth.SessionTokenStorage
 import com.qcksys.ao3tracker.data.auth.AuthService
 import com.qcksys.ao3tracker.data.auth.getTokenStorage
-import com.qcksys.ao3tracker.data.database.Ao3Database
+import com.qcksys.ao3tracker.data.database.DB_FILE_NAME
 import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
 import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_1_2
 import com.qcksys.ao3tracker.data.database.MIGRATION_2_3
@@ -35,33 +36,36 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 
 val appModule = module {
-    single<Ao3Database> {
-        getDatabaseBuilder()
-            .setDriver(BundledSQLiteDriver())
-            .setQueryCoroutineContext(Dispatchers.IO)
-            .addMigrations(
-                MIGRATION_1_2,
-                MIGRATION_2_3,
-                MIGRATION_3_4,
-                MIGRATION_4_5,
-                MIGRATION_5_6,
-                MIGRATION_6_7
-            )
-            .build()
+    single {
+        val openDatabase = { fileName: String ->
+            getDatabaseBuilder(fileName)
+                .setDriver(BundledSQLiteDriver())
+                .setQueryCoroutineContext(Dispatchers.IO)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8
+                )
+                .build()
+        }
+        AccountDataStore(openDatabase(DB_FILE_NAME), openDatabase)
     }
 
-    single { AccountDataStore(get()) }
-    single { Ao3Repository(get(), get()) }
+    single { Ao3Repository(get()) }
 
     // Settings
     single { getSettingsStorage() }
     single { AppSettings(get()) }
 
     // Favourite tag filters (Room-backed; synced via /api/track/sync's favouriteTags block)
-    single { FavouriteTagRepository(get<Ao3Database>().favouriteTagDao(), get()) }
+    single { FavouriteTagRepository(get<AccountDataStore>()) }
 
     // Saved searches (Room-backed; synced via /api/track/sync's savedSearches block)
-    single { SavedSearchRepository(get<Ao3Database>().savedSearchDao(), get()) }
+    single { SavedSearchRepository(get<AccountDataStore>()) }
 
     // Auth
     single { AuthService(get()) }
@@ -71,7 +75,7 @@ val appModule = module {
 
     // Sync
     single<SyncRemote> { SyncService(get(), get()) }
-    single { SyncRepository(get(), get(), get(), get(), get(), get()) }
+    single { SyncRepository(get(), get(), get(), get(), get()) }
     // Eager so the favourites subscriber is wired before the first user action.
     single(createdAtStart = true) { SyncTriggers(get()) }
 

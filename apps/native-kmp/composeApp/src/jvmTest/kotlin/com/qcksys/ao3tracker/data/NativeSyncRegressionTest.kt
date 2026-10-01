@@ -1,6 +1,5 @@
 package com.qcksys.ao3tracker.data
 
-import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.qcksys.ao3tracker.data.auth.SyncAuthentication
 import com.qcksys.ao3tracker.data.auth.AuthRepository
@@ -18,14 +17,13 @@ import java.nio.file.Path
 import kotlin.test.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 
 class NativeSyncRegressionTest {
     @Test
-    fun `account switches archive pending data and restore account cursors`() = runTest {
+    fun `account switches preserve pending data and restore account cursors`() = runTest {
         fixture { f ->
             f.accounts.edit {
                 f.db.workDao().upsertWork(work(1).copy(rowDeletedAt = 50))
@@ -60,6 +58,59 @@ class NativeSyncRegressionTest {
             assertTrue(f.remote.sent.isEmpty())
             f.accounts.activate(AccountDataStore.GUEST)
             assertNotNull(f.db.workDao().getWorkById(9))
+        }
+    }
+
+    @Test
+    fun `guest import uploads old reading data on the next incremental sync`() = runTest {
+        fixture { f ->
+            f.accounts.activate(AccountDataStore.GUEST)
+            f.accounts.edit {
+                f.db.workDao().upsertWork(work(1))
+                f.db.chapterDao().upsertChapter(chapter())
+                f.db.savedSearchDao().upsert(search("guest").copy(pendingSync = false))
+                f.db.favouriteTagDao().upsert(FavouriteTagEntity(4, "Fluff", true, 100, false))
+            }
+            f.accounts.activate("production:a")
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, 1_000) }
+            f.accounts.importGuest("production:a") { true }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val sent = f.remote.sent.single()
+            assertEquals(listOf(1L), sent.works.map { it.workId })
+            assertEquals(listOf(2L), sent.chapters.map { it.chapterId })
+            assertEquals(1, sent.favouriteTags?.size)
+            assertEquals(1, sent.savedSearches?.size)
+            assertFalse(f.db.savedSearchDao().getOne("guest")!!.pendingSync)
+            f.remote.sent.clear()
+            assertTrue(f.accounts.importGuest("production:a") { true }.isEmpty)
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertTrue(f.remote.sent.isEmpty())
+        }
+    }
+
+    @Test
+    fun `signing out and changing accounts preserves each library and guest import is explicit`() = runTest {
+        fixture { f ->
+            val settings = AppSettings(null)
+            val tokens = MemoryTokens()
+            val service = FakeAuthService(settings)
+            val auth = AuthRepository(service, tokens, f.accounts, settings)
+            try {
+                auth.initialize()
+                f.accounts.edit { f.db.workDao().upsertWork(work(9)) }
+                auth.signIn("a", "password")
+                assertTrue(f.db.workDao().getAllWorkIds().isEmpty())
+                assertEquals(1, auth.importGuestData("PRODUCTION:a").works)
+                f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+                auth.signOut()
+                assertEquals(listOf(9L), f.db.workDao().getAllWorkIds())
+                auth.signIn("b", "password")
+                assertTrue(f.db.workDao().getAllWorkIds().isEmpty())
+                assertFailsWith<IllegalStateException> { auth.importGuestData("PRODUCTION:a") }
+                auth.signOut()
+                auth.signIn("a", "password")
+                assertEquals(setOf(1L, 9L), f.db.workDao().getAllWorkIds().toSet())
+            } finally { service.getClient().close() }
         }
     }
 
@@ -458,46 +509,40 @@ class NativeSyncRegressionTest {
             connection.execSQL("PRAGMA user_version = 6")
             connection.execSQL("INSERT INTO works(id,isPrivate,subscribed,favourite,lastRead,rowCreatedAt,rowUpdatedAt) VALUES (1,0,0,0,100,100,100)")
         }
-        val db = Room.databaseBuilder<Ao3Database>(file.toString())
-            .setDriver(BundledSQLiteDriver()).setQueryCoroutineContext(Dispatchers.IO)
-            .addMigrations(MIGRATION_6_7).build()
+        val accounts = createTestAccounts(directory)
         try {
-            val accounts = AccountDataStore(db)
             assertNull(accounts.initialize().remoteCursor)
             accounts.activate("PRODUCTION:a", claimLegacy = true)
-            assertNotNull(db.workDao().getWorkById(1))
+            assertNotNull(accounts.database.workDao().getWorkById(1))
             assertNull(accounts.active.value?.remoteCursor)
         } finally {
-            db.close()
+            accounts.close()
             Files.walk(directory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
         }
     }
 
     private suspend fun fixture(block: suspend (Fixture) -> Unit) {
         val directory = Files.createTempDirectory("ao3tracker-test-")
-        val db = Room.databaseBuilder<Ao3Database>(directory.resolve("test.db").toString())
-            .setDriver(BundledSQLiteDriver())
-            .setQueryCoroutineContext(Dispatchers.IO)
-            .build()
+        val accounts = createTestAccounts(directory)
         try {
-            val f = Fixture(db)
+            val f = Fixture(accounts)
             f.accounts.initialize()
             f.accounts.activate("production:a")
             block(f)
         } finally {
-            db.close()
+            accounts.close()
             Files.walk(directory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
         }
     }
 
-    private class Fixture(val db: Ao3Database) {
-        val accounts = AccountDataStore(db)
+    private class Fixture(val accounts: AccountDataStore) {
+        val db get() = accounts.database
         val auth = FakeAuth()
         val remote = FakeRemote()
-        val works = Ao3Repository(db, accounts)
-        val favourites = FavouriteTagRepository(db.favouriteTagDao(), accounts)
-        val searches = SavedSearchRepository(db.savedSearchDao(), accounts)
-        val sync = SyncRepository(remote, db, auth, favourites, searches, accounts)
+        val works = Ao3Repository(accounts)
+        val favourites = FavouriteTagRepository(accounts)
+        val searches = SavedSearchRepository(accounts)
+        val sync = SyncRepository(remote, auth, favourites, searches, accounts)
     }
 
     private class FakeAuth : SyncAuthentication {

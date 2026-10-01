@@ -17,12 +17,16 @@ import kotlinx.coroutines.flow.map
  * the format `"${tagType.id}\t$tag"` (tab-separated).
  */
 class FavouriteTagRepository(
-    private val dao: FavouriteTagDao,
+    private val fallbackDao: FavouriteTagDao? = null,
     private val accountData: AccountDataStore? = null
 ) {
+    constructor(accountData: AccountDataStore) : this(accountData = accountData, fallbackDao = null)
+
+    private val dao get() = accountData?.database?.favouriteTagDao() ?: requireNotNull(fallbackDao)
     /** Observe the currently-favourited set as `"${tagType.id}\t$tag"` strings. */
     fun observeFavourites(): Flow<Set<String>> {
-        return dao.observeLive().map { rows ->
+        val rows = accountData?.observe { it.favouriteTagDao().observeLive() } ?: dao.observeLive()
+        return rows.map { rows ->
             rows.mapTo(mutableSetOf()) { entityKey(it.tagType, it.tag) }
         }
     }

@@ -1,6 +1,5 @@
 package com.qcksys.ao3tracker.data.repository
 
-import com.qcksys.ao3tracker.data.database.Ao3Database
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.ChapterEntity
 import com.qcksys.ao3tracker.data.database.TagEntity
@@ -24,16 +23,18 @@ import kotlinx.coroutines.flow.map
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-class Ao3Repository(private val database: Ao3Database, private val accountData: AccountDataStore) {
-    private val workDao = database.workDao()
-    private val chapterDao = database.chapterDao()
-    private val tagDao = database.tagDao()
+class Ao3Repository(private val accountData: AccountDataStore) {
+    private val workDao get() = accountData.database.workDao()
+    private val chapterDao get() = accountData.database.chapterDao()
+    private val tagDao get() = accountData.database.tagDao()
 
     /**
      * Gets all works with their chapters using batch loading to avoid N+1 queries.
      */
-    fun getAllWorks(): Flow<List<Work>> {
-        return workDao.getAllWorks().map { works ->
+    fun getAllWorks(): Flow<List<Work>> = accountData.observe { database ->
+        val workDao = database.workDao()
+        val chapterDao = database.chapterDao()
+        workDao.getAllWorks().map { works ->
             if (works.isEmpty()) return@map emptyList()
 
             // Batch load all chapters for all works in a single query
@@ -48,8 +49,11 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         }
     }
 
-    fun getWorkById(id: Long): Flow<Work?> {
-        return combine(
+    fun getWorkById(id: Long): Flow<Work?> = accountData.observe { database ->
+        val workDao = database.workDao()
+        val chapterDao = database.chapterDao()
+        val tagDao = database.tagDao()
+        combine(
             workDao.getWorkByIdFlow(id),
             chapterDao.getChaptersByWork(id),
             tagDao.getTagsByWork(id)
@@ -58,24 +62,27 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         }
     }
 
-    suspend fun getWorkByIdOnce(id: Long): Work? {
-        val work = workDao.getWorkById(id) ?: return null
+    suspend fun getWorkByIdOnce(id: Long): Work? = accountData.read {
+        val work = workDao.getWorkById(id) ?: return@read null
         val chapters = chapterDao.getChaptersByWorkOnce(id)
         val tags = tagDao.getTagsByWorkOnce(id)
-        return work.toDomain(chapters.map { it.toDomain() }, tags.map { it.toDomain() })
+        work.toDomain(chapters.map { it.toDomain() }, tags.map { it.toDomain() })
     }
 
     /**
      * Gets filtered works with optimized batch loading.
      */
-    fun getFilteredWorks(filterState: FilterState): Flow<List<Work>> {
+    fun getFilteredWorks(filterState: FilterState): Flow<List<Work>> = accountData.observe { database ->
+        val workDao = database.workDao()
+        val chapterDao = database.chapterDao()
+        val tagDao = database.tagDao()
         val baseFlow = if (filterState.searchQuery.isNotBlank()) {
             workDao.searchWorks(filterState.searchQuery)
         } else {
             workDao.getAllWorks()
         }
 
-        return baseFlow.map { works ->
+        baseFlow.map { works ->
             if (works.isEmpty()) return@map emptyList()
 
             val workIds = works.map { it.id }
@@ -217,8 +224,8 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         return true
     }
 
-    fun getDistinctTags(type: TagType): Flow<List<String>> {
-        return tagDao.getDistinctTagsByType(type.id)
+    fun getDistinctTags(type: TagType): Flow<List<String>> = accountData.observe {
+        it.tagDao().getDistinctTagsByType(type.id)
     }
 
     suspend fun saveWorkFromWebView(
@@ -495,10 +502,10 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
         workDao.upsertWork(work.copy(lastRead = now, markedCompleteAt = null, rowUpdatedAt = now))
     }
 
-    suspend fun getExportData(): ExportData {
+    suspend fun getExportData(): ExportData = accountData.read {
         val works = workDao.getAllWorksOnce()
         if (works.isEmpty()) {
-            return ExportData(
+            return@read ExportData(
                 version = 1,
                 exportedAt = getCurrentTimestamp().toString(),
                 works = emptyList()
@@ -518,23 +525,25 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
             work.toDomain(chapters.map { it.toDomain() }, tags.map { it.toDomain() })
         }
 
-        return ExportData(
+        ExportData(
             version = 1,
             exportedAt = getCurrentTimestamp().toString(),
             works = domainWorks
         )
     }
 
-    suspend fun getWorkCount(): Int {
-        return workDao.getWorkCount()
+    fun observeWorkCount(): Flow<Int> = accountData.observe { db ->
+        db.workDao().observeWorkCount()
     }
+
+    suspend fun getWorkCount(): Int = accountData.read { it.workDao().getWorkCount() }
 
     /**
      * Build badge payloads for tracked works visible on a list page.
      * Returns one entry per known work; unknown IDs are silently skipped (no badge).
      */
-    suspend fun getWorkBadges(workIds: List<Long>): List<WorkBadgePayload> {
-        if (workIds.isEmpty()) return emptyList()
+    suspend fun getWorkBadges(workIds: List<Long>): List<WorkBadgePayload> = accountData.read {
+        if (workIds.isEmpty()) return@read emptyList()
 
         val payloads = mutableListOf<WorkBadgePayload>()
         // Batch-fetch chapters once for all requested work IDs.
@@ -546,7 +555,7 @@ class Ao3Repository(private val database: Ao3Database, private val accountData: 
             val domain = work.toDomain(chapters.map { it.toDomain() })
             payloads.add(buildBadgePayload(domain))
         }
-        return payloads
+        payloads
     }
 
     private fun buildBadgePayload(work: Work): WorkBadgePayload {

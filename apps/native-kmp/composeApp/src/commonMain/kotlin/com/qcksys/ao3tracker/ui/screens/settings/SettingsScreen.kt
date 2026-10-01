@@ -74,6 +74,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.auth.AuthRepository
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
@@ -88,6 +89,7 @@ import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.util.shareText
 import io.sentry.kotlin.multiplatform.Sentry
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -102,6 +104,8 @@ import ao3tracker.composeapp.generated.resources.app_logo
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    val accountData = koinInject<AccountDataStore>()
+    val activeAccount by accountData.active.collectAsState()
     val repository = koinInject<Ao3Repository>()
     val authRepository = koinInject<AuthRepository>()
     val pushRepository = koinInject<com.qcksys.ao3tracker.data.push.PushRepository>()
@@ -119,8 +123,43 @@ fun SettingsScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lastSyncResult by syncRepository.lastSyncResult.collectAsState()
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember(activeAccount?.owner) { mutableStateOf(false) }
     var isSyncingOut by remember { mutableStateOf(false) }
+    var importOwner by remember(activeAccount?.owner) { mutableStateOf<String?>(null) }
+    var isImportingGuest by remember { mutableStateOf(false) }
+
+    importOwner?.let { owner ->
+        AlertDialog(
+            onDismissRequest = { importOwner = null },
+            title = { Text("Import from guest?") },
+            text = {
+                Text("Copy guest works, reading progress, favourite tags and saved searches into this account. " +
+                    "Works and saved items already in this account are kept as they are. Guest data stays available when you sign out.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    importOwner = null
+                    isImportingGuest = true
+                    scope.launch {
+                        try {
+                            val result = authRepository.importGuestData(owner)
+                            snackbarHostState.showSnackbar(
+                                if (result.isEmpty) "No new guest data to import"
+                                else "Imported ${result.works} works, ${result.favourites} favourite tags and ${result.searches} saved searches. Sync to upload them."
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Import failed: ${e.message}")
+                        } finally {
+                            isImportingGuest = false
+                        }
+                    }
+                }) { Text("Import") }
+            },
+            dismissButton = { TextButton(onClick = { importOwner = null }) { Text("Cancel") } }
+        )
+    }
 
     // Show sync result
     LaunchedEffect(lastSyncResult) {
@@ -147,9 +186,9 @@ fun SettingsScreen() {
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete All Local Data?") },
+            title = { Text("Delete This Library?") },
             text = {
-                Text("This will permanently delete all tracked works, chapters, and tags from this device. This action cannot be undone.")
+                Text("This will permanently delete works, chapters, favourite tags and saved searches from the current local library. Other local libraries are kept. This action cannot be undone.")
             },
             confirmButton = {
                 Button(
@@ -158,7 +197,7 @@ fun SettingsScreen() {
                         screenModel.deleteAllLocalData { result ->
                             scope.launch {
                                 if (result.isSuccess) {
-                                    snackbarHostState.showSnackbar("All local data deleted")
+                                    snackbarHostState.showSnackbar("Current local library deleted")
                                 } else {
                                     snackbarHostState.showSnackbar("Failed to delete data: ${result.exceptionOrNull()?.message}")
                                 }
@@ -260,7 +299,7 @@ fun SettingsScreen() {
                         }
                     }
                 },
-                isSyncingOut = isSyncingOut,
+                isSyncingOut = isSyncingOut || isImportingGuest,
                 onSignInWithSavedCredentials = {
                     scope.launch {
                         when (val result = authRepository.signInWithSavedCredentials()) {
@@ -432,6 +471,31 @@ fun SettingsScreen() {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    Text(
+                        text = when (activeAccount?.owner) {
+                            null -> "Loading library..."
+                            AccountDataStore.GUEST -> "Guest library"
+                            else -> (authState as? AuthState.Authenticated)?.user?.email ?: "Saved account library"
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Each account and guest has its own library on this device. Signing out keeps your data for the next sign-in.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    val signedInOwner = authRepository.currentOwner()
+                    if (signedInOwner != null && signedInOwner == activeAccount?.owner) {
+                        OutlinedButton(
+                            onClick = { importOwner = signedInOwner },
+                            enabled = !isImportingGuest && !isSyncingOut && !syncState.isSyncing,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isImportingGuest) "Importing..." else "Import from guest")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -496,7 +560,7 @@ fun SettingsScreen() {
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "Delete All Local Data",
+                            text = "Delete Current Library",
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
@@ -907,7 +971,7 @@ private fun AuthenticatedView(
             modifier = Modifier.fillMaxWidth(),
             enabled = !isSyncingOut
         ) {
-            Text("Sign Out")
+            Text("Sign Out & Keep Data")
         }
 
         OutlinedButton(

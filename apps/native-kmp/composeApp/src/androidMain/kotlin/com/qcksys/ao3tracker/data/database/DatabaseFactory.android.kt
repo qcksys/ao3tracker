@@ -10,9 +10,9 @@ fun initializeDatabase(context: Context) {
     appContext = context.applicationContext
 }
 
-actual fun getDatabaseBuilder(): RoomDatabase.Builder<Ao3Database> {
+actual fun getDatabaseBuilder(fileName: String): RoomDatabase.Builder<Ao3Database> {
     return Room.databaseBuilder<Ao3Database>(
         context = appContext,
-        name = appContext.getDatabasePath(DB_FILE_NAME).absolutePath
+        name = appContext.getDatabasePath(fileName).absolutePath
     )
 }
