@@ -6,13 +6,15 @@ import kotlinx.serialization.Serializable
 data class PushTokenRequest(
     val token: String,
     val platform: String, // "android" or "ios"
-    val deviceId: String
+    val deviceId: String,
+    val notificationPreferences: NotificationPreferences
 )
 
 @Serializable
 data class PushTokenResponse(
     val success: Boolean,
-    val message: String? = null
+    val message: String? = null,
+    val notificationPreferences: NotificationPreferences? = null
 )
 
 /**

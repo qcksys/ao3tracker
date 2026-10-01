@@ -42,6 +42,7 @@ describe("notification queue retries", () => {
         deviceId,
         token: deviceId,
         platform: "android",
+        notificationPreferences: null,
         lastValidatedAt: new Date(),
         rowCreatedAt: new Date(),
         rowUpdatedAt: new Date(),

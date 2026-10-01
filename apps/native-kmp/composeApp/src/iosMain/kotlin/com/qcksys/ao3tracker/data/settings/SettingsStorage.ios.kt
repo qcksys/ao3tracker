@@ -54,6 +54,12 @@ actual class SettingsStorage {
         userDefaults.setBool(enabled, KEY_INCOGNITO_MODE)
     }
 
+    actual fun getNotificationPreferences(): String? = userDefaults.stringForKey("notification_preferences")
+
+    actual fun setNotificationPreferences(preferences: String) {
+        userDefaults.setObject(preferences, "notification_preferences")
+    }
+
     companion object {
         private const val KEY_API_ENVIRONMENT = "api_environment"
         private const val KEY_DEV_MODE = "dev_mode_enabled"

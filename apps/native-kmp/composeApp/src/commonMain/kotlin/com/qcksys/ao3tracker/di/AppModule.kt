@@ -82,7 +82,7 @@ val appModule = module {
     // Push notifications
     single { getPushTokenStorage() }
     single { PushTokenService(get(), get()) }
-    single { PushRepository(get(), get(), get()) }
+    single { PushRepository(get(), get(), get(), get()) }
 
     // ReadScreenModel as singleton to preserve state across tab switches
     singleOf(::ReadScreenModel)

@@ -86,6 +86,7 @@ describe("FCM delivery failures", () => {
         deviceId,
         token: deviceId,
         platform: "android",
+        notificationPreferences: null,
         lastValidatedAt: new Date(),
         rowCreatedAt: new Date(),
         rowUpdatedAt: new Date(),

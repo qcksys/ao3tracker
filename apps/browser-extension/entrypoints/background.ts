@@ -16,7 +16,8 @@ import {
   favouriteTagsItem,
   lastSyncErrorItem,
   lastSyncedAtItem,
-  notificationsEnabledItem,
+  getNotificationPreferences,
+  notificationPreferencesItem,
   resolveApiBaseUrl,
   savedSearchesItem,
 } from "@/lib/storage";
@@ -93,7 +94,7 @@ async function getPopupState(): Promise<PopupState> {
     savedSearches,
     currentWork,
     trackedCount,
-    notificationsEnabled,
+    notificationPreferences,
   ] = await Promise.all([
     apiBaseUrlItem.getValue(),
     lastSyncedAtItem.getValue(),
@@ -102,7 +103,7 @@ async function getPopupState(): Promise<PopupState> {
     savedSearchesItem.getValue(),
     currentWorkSummary(),
     trackedWorkCount(),
-    notificationsEnabledItem.getValue(),
+    getNotificationPreferences(),
   ]);
   return {
     // Coerce so the popup's "Active" endpoint matches what requests actually
@@ -112,7 +113,7 @@ async function getPopupState(): Promise<PopupState> {
     lastSyncError,
     syncing,
     trackedCount,
-    notificationsEnabled,
+    notificationPreferences,
     currentWork,
     favouriteTags,
     savedSearches,
@@ -182,10 +183,12 @@ async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToP
       });
     }
 
-    case "setNotificationsEnabled": {
-      await notificationsEnabledItem.setValue(msg.enabled);
-      if (msg.enabled) void pollNotifications();
-      return { kind: "state", state: await getPopupState() };
+    case "setNotificationPreference": {
+      return withLocalState(async () => {
+        const preferences = await getNotificationPreferences();
+        await notificationPreferencesItem.setValue({ ...preferences, [msg.key]: msg.enabled });
+        return { kind: "state", state: await getPopupState() };
+      });
     }
   }
 }

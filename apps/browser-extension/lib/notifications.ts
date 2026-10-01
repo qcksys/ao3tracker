@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { allowsNotification, notificationTypeSchema } from "@qcksys/ao3tracker-core/schemas";
 import { extensionBranding } from "./branding";
 
 import {
   authTokenItem,
   lastSeenNotificationIdItem,
   notificationWorkIdsItem,
-  notificationsEnabledItem,
+  getNotificationPreferences,
 } from "./storage";
 import { accountContextItem, isCurrentSession, type SyncSession } from "./account-state";
 import { withLocalState } from "./local-state";
@@ -13,7 +14,7 @@ import { withLocalState } from "./local-state";
 const notificationItemSchema = z.object({
   id: z.number(),
   workId: z.number(),
-  type: z.enum(["new_chapters", "work_completed", "work_restricted", "work_deleted"]),
+  type: notificationTypeSchema,
   title: z.string(),
   body: z.string(),
   sentAt: z.string().nullable(),
@@ -105,7 +106,7 @@ export async function pollAndDisplayNotifications(): Promise<void> {
   const snapshot = await withLocalState(async () => {
     const context = await accountContextItem.getValue();
     const token = await authTokenItem.getValue();
-    if (!context?.userId || !token || !(await notificationsEnabledItem.getValue())) return null;
+    if (!context?.userId || !token) return null;
     return {
       session: { ...context, token },
       lastSeenId: await lastSeenNotificationIdItem.getValue(),
@@ -140,12 +141,15 @@ async function finalize(newItems: NotificationItem[], session: SyncSession): Pro
   // Show oldest-first so the user perceives chronological order.
   const sorted = [...newItems].sort((a, b) => a.id - b.id);
   await withLocalState(async () => {
-    if (!(await isCurrentSession(session)) || !(await notificationsEnabledItem.getValue())) return;
+    if (!(await isCurrentSession(session))) return;
+    const preferences = await getNotificationPreferences();
     const seen = await lastSeenNotificationIdItem.getValue();
     const unseen = sorted.filter((item) => seen === null || item.id > seen);
     const latest = unseen.at(-1);
     if (!latest) return;
-    await showSystemNotifications(unseen);
+    await showSystemNotifications(
+      unseen.filter((item) => allowsNotification(preferences, item.type)),
+    );
     await lastSeenNotificationIdItem.setValue(latest.id);
   });
 }

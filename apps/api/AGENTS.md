@@ -108,7 +108,8 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 - Queues notifications for delivery via Cloudflare Queue (`NOTIFICATION_QUEUE`)
 - User batches fan out into one queued delivery per `(userId, deviceId)`. Failed device deliveries retry with the queue's retry budget and dead-letter queue; successful devices are acknowledged independently. An FCM `UNREGISTERED` response invalidates the token and is acknowledged. Queue delivery remains at least once.
 - Only notifies users who have `subscribed = true` for the work (default is `true`)
-- Notification types: `new_chapters`, `work_completed`, `work_restricted`, `work_deleted`
+- Notification types: `new_chapters`, `work_completed`, `work_restricted`, `work_deleted`. Device preferences use the shared `@qcksys/ao3tracker-core/notifications` schema: `enabled` plus one boolean per type, all defaulting to true.
+- `POST /api/push/token` accepts optional `notificationPreferences` and echoes accepted preferences in its response. Omission preserves existing device settings; a null database value means all alerts enabled. Delivery checks current preferences for the selected device on every attempt, including retries. History remains available regardless of delivery preferences. Apply `20261001231352_device-notification-preferences` before deploying the API and release the API before the native client.
 
 **Work Backup System**:
 

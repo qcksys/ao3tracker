@@ -101,9 +101,12 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 
 - `DatabaseFactory` - Database instantiation
 - `TokenStorage` - Secure token storage
-- `SettingsStorage` - Preferences storage (API env, dev mode, last sync timestamp, auto-sync-on-open, incognito mode)
+- `SettingsStorage` - Device preferences storage (API env, dev mode, last sync timestamp, auto-sync-on-open, incognito mode, notification preferences)
+
 - `CredentialHelper` - Credential management
 - `Ao3WebView` - WebView component (takes an optional `jsInjectionFlow: SharedFlow<String>` for native→JS evaluation, and `onBackAtRoot` for back-gesture handling when the WebView has no history)
+
+**Notification preferences**: Settings offers a master switch and per-type choices for new chapters, completed, restricted, and deleted works. `AppSettings` persists these device-wide choices through `SettingsStorage`. `PushRepository` serializes registration and preference changes, sends preferences with every `/api/push/token` registration, and persists a change only after the API confirms it when a signed-in device has a token. Signed-out or tokenless devices save locally for their next registration. Keep the Kotlin JSON names aligned with `@qcksys/ao3tracker-core/notifications`; the API filters delivery per token, including background alerts and retries. Android also checks local preferences for foreground alerts. Deploy the API's `20261001231352_device-notification-preferences` migration and registration response before releasing the native client. Desktop push remains unsupported.
 
 **Screen Models**: Voyager `ScreenModel` classes manage screen state. Some are singletons to preserve state across tab switches (`ReadScreenModel`, `TrackScreenModel`). `TrackScreenModel` takes `SettingsStorage` directly (not via `singleOf`, since the constructor has 3 deps) — see [AppModule.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/di/AppModule.kt).
 
