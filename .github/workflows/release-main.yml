@@ -44,17 +44,20 @@ jobs:
     needs: ready
     if: needs.ready.outputs.eligible == 'true'
     uses: ./.github/workflows/deploy-api.yml
+    secrets: inherit
     with:
       source_ref: ${{ needs.ready.outputs.source_ref }}
 
   android:
     needs: [ready, api]
     uses: ./.github/workflows/release-android.yml
+    secrets: inherit
     with:
       source_ref: ${{ needs.ready.outputs.source_ref }}
 
   chrome:
     needs: [ready, api]
     uses: ./.github/workflows/release-chrome.yml
+    secrets: inherit
     with:
       source_ref: ${{ needs.ready.outputs.source_ref }}
