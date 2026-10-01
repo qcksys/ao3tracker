@@ -323,6 +323,9 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.qcksys.ao3tracker"
             packageVersion = "1.0.0"
+            macOS { iconFile.set(project.file("icons/app.icns")) }
+            windows { iconFile.set(project.file("icons/app.ico")) }
+            linux { iconFile.set(project.file("icons/app.png")) }
         }
     }
 }

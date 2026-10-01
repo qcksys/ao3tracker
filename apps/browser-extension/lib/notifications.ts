@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { extensionBranding } from "./branding";
 
 import {
   authTokenItem,
@@ -56,7 +57,7 @@ async function fetchNotifications(
   return notificationHistoryResponseSchema.parse(json);
 }
 
-const ICON_URL = "/icon/128.png";
+const ICON_URL = `/${extensionBranding(import.meta.env.MODE).icons[128]}` as const;
 
 /**
  * Build a chrome.notifications id from a server notification id so duplicate

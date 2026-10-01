@@ -32,6 +32,11 @@ export const LandingPage: FC = () => (
           </span>
         </div>
         <footer class="mt-12 text-sm text-zinc-500">
+          <p class="mb-3">
+            <a href="/privacy" class="text-[#9d4edd] hover:underline">
+              Privacy policy
+            </a>
+          </p>
           <p>
             Made by{" "}
             <a href="https://qcksys.com" class="text-[#9d4edd] hover:underline">
