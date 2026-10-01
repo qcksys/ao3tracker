@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it, vi } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 
 afterEach(() => vi.unstubAllGlobals());

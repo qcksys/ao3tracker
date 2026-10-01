@@ -41,7 +41,7 @@ vp run -r test    # Run tests in every workspace package
 vp run -r build   # Build every workspace package
 ```
 
-For app-specific commands (running dev servers, deploying, building a single platform), use the app's own AGENTS.md.
+For app-specific commands (running dev servers, deploying, building a single platform), use the app's own AGENTS.md. Run workspace tests through `vp run -r test` so each package selects its runner. See [API testing guidance](apps/api/AGENTS.md#testing) for the Cloudflare Vitest 4 exception before upgrading test dependencies.
 
 ## Conventions that apply everywhere
 

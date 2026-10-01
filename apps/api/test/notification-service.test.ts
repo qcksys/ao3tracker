@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it } from "vitest";
 import { generateNotificationContent, type WorkUpdateEvent } from "~/lib/notification-service";
 
 describe("notification-service", () => {

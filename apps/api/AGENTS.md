@@ -61,7 +61,7 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 - **Better Auth** - Authentication with email/password, Google OAuth, passkeys, and 2FA
 - **Zod** - Schema validation
 - **Scalar** - OpenAPI documentation UI (`@scalar/hono-api-reference`)
-- **Vitest** - Testing framework with `@cloudflare/vitest-plugin`, using the aligned Vite+ runtime
+- **Vitest** - Testing framework with `@cloudflare/vitest-plugin`, using a separate Vitest 4 runner
 
 ### Code Structure
 
@@ -225,7 +225,7 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 
 - Test files in `test/` directory
 - Uses `@cloudflare/vitest-plugin` for Workers-compatible testing with local Miniflare options; tests do not load deployment bindings or secrets
-- Keep Vite+ and its Vite core aligned at `0.3.3` with Vitest `4.1.11`; the Workers test plugin supports Vitest 4. The workspace catalog owns these compatibility pins.
+- Vite+ 1.0 builds the API, but `@cloudflare/vitest-plugin` requires Vitest 4. Keep API tests and `vitest.config.ts` importing `vitest`/`vitest/config`, and run them through the package's `test` script. Keep the API's runner pin separate from Vite+'s Vitest 5 until the Cloudflare plugin supports Vitest 5.
 - Fixtures in `test/*.fixtures.ts`
 - Coverage includes AO3 parsing, sync conflict/cursor regressions, notification retries, partial backups, and auth origins
 

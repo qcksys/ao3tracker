@@ -1,7 +1,7 @@
 import type { ExecutedQuery } from "@planetscale/database";
 import { getTableColumns } from "drizzle-orm";
 import type { MySqlTable } from "drizzle-orm/mysql-core";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 import {
   batchProcessChapters,

@@ -37,3 +37,4 @@ lerna-debug.log*
 temp
 *.tsbuildinfo
 /dev/http/http-client.private.env.json
+.vitest/

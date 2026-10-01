@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "vp test run --config vitest.config.ts",
+    "test": "vitest run --config vitest.config.ts",
     "build": "vp build",
     "preview": "vp preview",
     "dev": "portless ao3tracker --app-port 5173 vp dev",
@@ -48,7 +48,7 @@
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:",
+    "vitest": "4.1.11",
     "wrangler": "catalog:"
   }
 }
