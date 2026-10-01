@@ -10,10 +10,18 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/dev' }}
 
 jobs:
+  release-dev:
+    needs: [workspace, android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    uses: ./.github/workflows/deploy-dev-api.yml
+    secrets: inherit
+    with:
+      source_ref: ${{ github.sha }}
+
   workspace:
     name: Workspace checks
     runs-on: ubuntu-24.04

@@ -87,7 +87,7 @@ jobs:
           cache: true
 
       - name: Reject stale automatic release retries
-        if: github.event_name == 'workflow_run'
+        if: github.event_name == 'workflow_run' || github.event_name == 'push'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_SOURCE_REF: ${{ inputs.source_ref }}

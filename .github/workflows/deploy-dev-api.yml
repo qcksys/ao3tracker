@@ -1,10 +1,12 @@
 name: Release dev
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [dev]
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact dev commit that passed both CI jobs
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,36 +19,30 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'dev' &&
-      github.event.workflow_run.head_repository.id == github.repository_id
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/dev' &&
+      inputs.source_ref == github.sha
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: api-development
-    outputs:
-      eligible: ${{ steps.release.outputs.eligible }}
-      source_ref: ${{ steps.release.outputs.source_ref }}
     env:
       RELEASE_BRANCH: dev
+      RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ inputs.source_ref }}
           persist-credentials: false
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
           version-file: pnpm-workspace.yaml
           run-install: false
       - name: Check successful CI still matches dev
-        id: release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: vp node scripts/release-main.mjs
-      - if: steps.release.outputs.eligible == 'true'
-        run: vp install --frozen-lockfile
+        run: vp node scripts/release-main.mjs assert-current-source
+      - run: vp install --frozen-lockfile
       - name: Check development database readiness
-        if: steps.release.outputs.eligible == 'true'
         env:
           DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
         run: |
@@ -56,13 +52,10 @@ jobs:
           fi
           vp node scripts/check-api-migrations.mjs
       - name: Confirm source is still current dev
-        if: steps.release.outputs.eligible == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          RELEASE_SOURCE_REF: ${{ steps.release.outputs.source_ref }}
         run: vp node scripts/release-main.mjs assert-current-source
       - name: Deploy development Worker
-        if: steps.release.outputs.eligible == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.DEV_CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
           CHROME_BETA_EXTENSION_ID: ${{ vars.CHROME_BETA_EXTENSION_ID }}
@@ -73,7 +66,6 @@ jobs:
           fi
           vp run --filter @qcksys/ao3tracker-api deploy:dev
       - name: Smoke test development API
-        if: steps.release.outputs.eligible == 'true'
         run: |
           curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 2 --max-time 20 \
             https://dev.ao3tracker.com/ping --output "$RUNNER_TEMP/api-health.json"
@@ -85,18 +77,16 @@ jobs:
 
   android:
     needs: deploy
-    if: needs.deploy.outputs.eligible == 'true'
     uses: ./.github/workflows/release-android.yml
     secrets: inherit
     with:
-      source_ref: ${{ needs.deploy.outputs.source_ref }}
+      source_ref: ${{ inputs.source_ref }}
       channel: beta
 
   chrome:
     needs: deploy
-    if: needs.deploy.outputs.eligible == 'true'
     uses: ./.github/workflows/release-chrome.yml
     secrets: inherit
     with:
-      source_ref: ${{ needs.deploy.outputs.source_ref }}
+      source_ref: ${{ inputs.source_ref }}
       channel: beta
