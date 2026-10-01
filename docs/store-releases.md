@@ -4,14 +4,14 @@ The root GitHub Actions workflows provide:
 
 Every workflow uses the pinned `voidzero-dev/setup-vp` action to install Vite+ from the workspace catalog. Node version inputs are omitted so Vite+ resolves Node.js 24 from the root `package.json` → `engines.node` fallback. Dependency installation runs with `vp install --frozen-lockfile`; package scripts run through `vp run`. Vite+ retains the existing pnpm backend and lockfile. The Gradle WebView build also requires `vp` on PATH and uses the `vpInstall` task.
 
-| Workflow                         | Trigger                                          | Result                                                                                       |
-| -------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `CI`                             | Pull requests, pushes to `main`/`dev`, or manual | Formatting, lint, workflow validation, JavaScript tests/builds, JVM tests, Android debug APK |
-| `Release main`                   | Successful push CI on current `main`             | Production API deployment, then Android and Chrome releases in parallel                      |
-| `Deploy production API`          | Called by `Release main`                         | Read-only migration readiness check, then production Worker deployment                       |
-| `Release dev`                    | Successful push CI on current `dev`              | Dev API deployment and health check, then separate Android Dev and Chrome Beta releases      |
-| `Release Android to Google Play` | Called by `Release main`, or manual              | Signed AAB and R8 mapping; optionally a Google Play **internal testing** release             |
-| `Release Chrome extension`       | Called by `Release main`, or manual              | Chrome ZIP; optionally a Chrome Web Store **draft upload**                                   |
+| Workflow                         | Trigger                                           | Result                                                                                                |
+| -------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `CI`                             | Pull requests, pushes to `main`/`dev`, or manual  | Formatting, lint, workflow validation, JavaScript tests/builds, JVM tests, Android debug and Dev APKs |
+| `Release main`                   | Successful push CI on current `main`              | Production API deployment, then Android and Chrome releases in parallel                               |
+| `Deploy production API`          | Called by `Release main`                          | Read-only migration readiness check, then production Worker deployment                                |
+| `Release dev`                    | Successful push CI on current `dev`               | Dev API deployment and health check, then separate Android Dev and Chrome Beta releases               |
+| `Release Android to Google Play` | Called by `Release main`/`Release dev`, or manual | Signed AAB and R8 mapping; optionally a Google Play **internal testing** release                      |
+| `Release Chrome extension`       | Called by `Release main`/`Release dev`, or manual | Chrome ZIP; production draft upload or beta submission for review                                     |
 
 Once these workflows are on `main` and the setup below is complete, merging to `main` runs CI, deploys the production API, then releases Android to internal testers and uploads a Chrome draft. Successful push CI on `dev` deploys `https://dev.ao3tracker.com`, then releases the separate Android Dev app to internal testers and submits the separate Chrome Beta item for review. Production Chrome drafts still require manual review submission. iOS and Firefox releases remain manual.
 
