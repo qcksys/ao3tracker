@@ -1,5 +1,7 @@
 package com.qcksys.ao3tracker.data.settings
 
+import com.qcksys.ao3tracker.data.push.NotificationPreferences
+import com.qcksys.ao3tracker.util.JsonConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +49,17 @@ class AppSettings(
 
     private val _incognitoModeEnabled = MutableStateFlow(settingsStorage?.isIncognitoModeEnabled() ?: false)
     val incognitoModeEnabled: StateFlow<Boolean> = _incognitoModeEnabled.asStateFlow()
+    private val _notificationPreferences = MutableStateFlow(
+        settingsStorage?.getNotificationPreferences()?.let {
+            JsonConfig.json.decodeFromString<NotificationPreferences>(it)
+        } ?: NotificationPreferences()
+    )
+    val notificationPreferences: StateFlow<NotificationPreferences> = _notificationPreferences.asStateFlow()
+
+    fun setNotificationPreferences(preferences: NotificationPreferences) {
+        settingsStorage?.setNotificationPreferences(JsonConfig.json.encodeToString(preferences))
+        _notificationPreferences.value = preferences
+    }
     private val trackingGeneration = MutableStateFlow(0L)
 
     fun setIncognitoModeEnabled(enabled: Boolean) {

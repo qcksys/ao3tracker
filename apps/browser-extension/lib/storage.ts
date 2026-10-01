@@ -5,6 +5,10 @@ import type {
   SyncWorkMetadata,
 } from "@qcksys/ao3tracker-core";
 import { storage } from "@wxt-dev/storage";
+import {
+  defaultNotificationPreferences,
+  type NotificationPreferences,
+} from "@qcksys/ao3tracker-core/notifications";
 
 /**
  * Persistent state for the extension. Everything here is mirrored in the
@@ -153,14 +157,24 @@ export const lastSeenNotificationIdItem = storage.defineItem<number | null>(
   { fallback: null },
 );
 
-/**
- * Whether the background worker should poll for new notifications and surface
- * chrome notifications. Defaults to true so users get push by default after
- * sign-in (matching native KMP behaviour).
- */
+// Read the original toggle when upgrading an existing installation.
 export const notificationsEnabledItem = storage.defineItem<boolean>("local:notificationsEnabled", {
   fallback: true,
 });
+
+export const notificationPreferencesItem = storage.defineItem<NotificationPreferences | null>(
+  "local:notificationPreferences",
+  { fallback: null },
+);
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return (
+    (await notificationPreferencesItem.getValue()) ?? {
+      ...defaultNotificationPreferences,
+      enabled: await notificationsEnabledItem.getValue(),
+    }
+  );
+}
 
 /**
  * Map of chrome notification id → AO3 work id. Lets the click handler look up

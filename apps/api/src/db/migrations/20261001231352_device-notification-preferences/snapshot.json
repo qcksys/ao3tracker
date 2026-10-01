@@ -1,0 +1,3503 @@
+{
+  "version": "6",
+  "dialect": "mysql",
+  "id": "3761ff86-b34f-49f8-b865-e20e79ec4a2a",
+  "prevIds": [
+    "af8babca-6813-4fcc-a44d-f5f16babc460"
+  ],
+  "ddl": [
+    {
+      "name": "ao3track__auth_account",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__email_send_log",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__auth_passkey",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__auth_rate_limit",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__auth_session",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__auth_two_factor",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__auth_user",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__auth_verification",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__notification",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__push_token",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__track_chapter",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__track_work",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__user_favourite_tag",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__user_saved_search",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__work_backup",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__work_chapter",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__work_tag_link",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__work_tag",
+      "entityType": "tables"
+    },
+    {
+      "name": "ao3track__work",
+      "entityType": "tables"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "accountId",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "providerId",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "accessToken",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "refreshToken",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "idToken",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "timestamp",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "accessTokenExpiresAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "timestamp",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "refreshTokenExpiresAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "scope",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "password",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "email",
+      "entityType": "columns",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "type": "enum('password_reset','email_verification')",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "type",
+      "entityType": "columns",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastSentAt",
+      "entityType": "columns",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON\n        UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "publicKey",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "credentialID",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "int",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "counter",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "deviceType",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "backedUp",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "transports",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "aaguid",
+      "entityType": "columns",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_rate_limit"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "key",
+      "entityType": "columns",
+      "table": "ao3track__auth_rate_limit"
+    },
+    {
+      "type": "int",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "count",
+      "entityType": "columns",
+      "table": "ao3track__auth_rate_limit"
+    },
+    {
+      "type": "bigint",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastRequest",
+      "entityType": "columns",
+      "table": "ao3track__auth_rate_limit"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "timestamp",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "expiresAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "token",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "ipAddress",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userAgent",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "secret",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "backupCodes",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "boolean",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": "true",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "verified",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "int",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "failedVerificationCount",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lockedUntil",
+      "entityType": "columns",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "email",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "false",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "emailVerified",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "image",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "boolean",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": "false",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "two_factor_enabled",
+      "entityType": "columns",
+      "table": "ao3track__auth_user"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "identifier",
+      "entityType": "columns",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "value",
+      "entityType": "columns",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "type": "timestamp(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "expiresAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "createdAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "type": "bigint unsigned",
+      "notNull": true,
+      "autoIncrement": true,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "workId",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "enum('new_chapters','work_completed','work_restricted','work_deleted')",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "type",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "enum('pending','sent','failed')",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'pending'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "status",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "body",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "payload",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "sentAt",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "fcmMessageId",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "errorMessage",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "retryCount",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON\n        UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__notification"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "varchar(64)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "deviceId",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "varchar(512)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "token",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "varchar(16)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "'android'",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "platform",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastValidatedAt",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "json",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "notificationPreferences",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON\n        UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__push_token"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "workId",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "chapterId",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "markedCompleteAt",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "float unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "readProgress",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastReadAt",
+      "entityType": "columns",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "workId",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "markedCompleteAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "false",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "private",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "true",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "subscribed",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "false",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "favourite",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "subscribedUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "favouriteUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastReadAt",
+      "entityType": "columns",
+      "table": "ao3track__track_work"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tagType",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "varchar(191)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tag",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "true",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "favourited",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "userId",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "varchar(36)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "varchar(191)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "name",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "varchar(8192)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "url",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "boolean",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "false",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "deleted",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "updatedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "type": "varchar(512)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "r2Key",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "workId",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "enum('html','pdf','mobi','epub','azw3')",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "format",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "bigint unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "fileSize",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "ao3UpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP ON\n        UPDATE CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "workId",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "number",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "dateUpdated",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tag",
+      "entityType": "columns",
+      "table": "ao3track__work_tag_link"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "work",
+      "entityType": "columns",
+      "table": "ao3track__work_tag_link"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work_tag_link"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": true,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__work_tag"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "tag",
+      "entityType": "columns",
+      "table": "ao3track__work_tag"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "href",
+      "entityType": "columns",
+      "table": "ao3track__work_tag"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "typeId",
+      "entityType": "columns",
+      "table": "ao3track__work_tag"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "id",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "title",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "author",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "authorUrl",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "summary",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "varchar(50)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "language",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "wordCount",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "currentChapters",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "totalChapters",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "hits",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "kudos",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "bookmarks",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "int unsigned",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "0",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "comments",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "published",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastUpdated",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP)",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "lastRefreshed",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "varchar(255)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "downloadPath",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "downloadUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowCreatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": true,
+      "autoIncrement": false,
+      "default": "(CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3))",
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowUpdatedAt",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "type": "datetime(3)",
+      "notNull": false,
+      "autoIncrement": false,
+      "default": null,
+      "onUpdateNow": false,
+      "onUpdateNowFsp": null,
+      "charSet": null,
+      "collation": null,
+      "generated": null,
+      "name": "rowDeletedAt",
+      "entityType": "columns",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        "email",
+        "type"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__email_send_log",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "userId",
+        "deviceId"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__push_token",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "userId",
+        "workId",
+        "chapterId"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__track_chapter",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "userId",
+        "workId"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__track_work",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "userId",
+        "tagType",
+        "tag"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__user_favourite_tag",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "userId",
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__user_saved_search",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id",
+        "workId"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__work_chapter",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "tag",
+        "work"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__work_tag_link",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_account",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_passkey",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_rate_limit",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_session",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_two_factor",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_user",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__auth_verification",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__notification",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "r2Key"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__work_backup",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__work_tag",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        "id"
+      ],
+      "name": "PRIMARY",
+      "table": "ao3track__work",
+      "entityType": "pks"
+    },
+    {
+      "columns": [
+        {
+          "value": "key",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": false,
+      "name": "ao3track__auth_rate_limit_key_unique",
+      "table": "ao3track__auth_rate_limit",
+      "entityType": "indexes"
+    },
+    {
+      "columns": [
+        {
+          "value": "token",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": false,
+      "name": "ao3track__auth_session_token_unique",
+      "table": "ao3track__auth_session",
+      "entityType": "indexes"
+    },
+    {
+      "columns": [
+        {
+          "value": "email",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": false,
+      "name": "ao3track__auth_user_email_unique",
+      "table": "ao3track__auth_user",
+      "entityType": "indexes"
+    },
+    {
+      "columns": [
+        {
+          "value": "tag",
+          "isExpression": false
+        }
+      ],
+      "isUnique": true,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": false,
+      "name": "ao3track__work_tag_tag_unique",
+      "table": "ao3track__work_tag",
+      "entityType": "indexes"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "account_userId_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_account"
+    },
+    {
+      "columns": [
+        {
+          "value": "lastSentAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_email_send_log_lastSentAt",
+      "entityType": "indexes",
+      "table": "ao3track__email_send_log"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "passkey_userId_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "columns": [
+        {
+          "value": "credentialID",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "passkey_credentialID_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_passkey"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "session_userId_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_session"
+    },
+    {
+      "columns": [
+        {
+          "value": "secret",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "twoFactor_secret_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "twoFactor_userId_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_two_factor"
+    },
+    {
+      "columns": [
+        {
+          "value": "identifier",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "verification_identifier_idx",
+      "entityType": "indexes",
+      "table": "ao3track__auth_verification"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_notification_userId",
+      "entityType": "indexes",
+      "table": "ao3track__notification"
+    },
+    {
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_notification_workId",
+      "entityType": "indexes",
+      "table": "ao3track__notification"
+    },
+    {
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_notification_status",
+      "entityType": "indexes",
+      "table": "ao3track__notification"
+    },
+    {
+      "columns": [
+        {
+          "value": "type",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_notification_type",
+      "entityType": "indexes",
+      "table": "ao3track__notification"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        },
+        {
+          "value": "status",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_notification_user_status",
+      "entityType": "indexes",
+      "table": "ao3track__notification"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_notification_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__notification"
+    },
+    {
+      "columns": [
+        {
+          "value": "token",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_push_token_token",
+      "entityType": "indexes",
+      "table": "ao3track__push_token"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_push_token_userId",
+      "entityType": "indexes",
+      "table": "ao3track__push_token"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_push_token_rowDeletedAt",
+      "entityType": "indexes",
+      "table": "ao3track__push_token"
+    },
+    {
+      "columns": [
+        {
+          "value": "lastReadAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_chapter_lastReadAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_chapter_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_chapter_rowUpdatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_chapter_rowDeletedAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        },
+        {
+          "value": "lastReadAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_chapter_user_lastReadAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "lastReadAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_lastReadAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "private",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_private",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_rowUpdatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_rowDeletedAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        },
+        {
+          "value": "lastReadAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_user_lastReadAt",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "subscribed",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_subscribed",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "favourite",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_track_work_favourite",
+      "entityType": "indexes",
+      "table": "ao3track__track_work"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        },
+        {
+          "value": "updatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_user_favourite_tag_user_updatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__user_favourite_tag"
+    },
+    {
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false
+        },
+        {
+          "value": "updatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_user_saved_search_user_updatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__user_saved_search"
+    },
+    {
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_work_backup_workId",
+      "entityType": "indexes",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false
+        },
+        {
+          "value": "format",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_work_backup_format",
+      "entityType": "indexes",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_work_backup_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_work_backup_rowDeletedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work_backup"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_chapters_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_chapters_rowUpdatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_chapters_rowDeletedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work_chapter"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_tags_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work_tag_link"
+    },
+    {
+      "columns": [
+        {
+          "value": "typeId",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_tags_typeId",
+      "entityType": "indexes",
+      "table": "ao3track__work_tag"
+    },
+    {
+      "columns": [
+        {
+          "value": "title",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_title",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "author",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_author",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "language",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_language",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "wordCount",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_wordCount",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "published",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_published",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "lastUpdated",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_lastUpdated",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_rowCreatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_rowUpdatedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    },
+    {
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false
+        }
+      ],
+      "isUnique": false,
+      "using": null,
+      "algorithm": null,
+      "lock": null,
+      "nameExplicit": true,
+      "name": "idx_works_rowDeletedAt",
+      "entityType": "indexes",
+      "table": "ao3track__work"
+    }
+  ],
+  "renames": []
+}

@@ -85,6 +85,7 @@ import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.push.NotificationItem
+import com.qcksys.ao3tracker.data.push.NotificationPreferences
 import com.qcksys.ao3tracker.data.push.NotificationType
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.util.shareText
@@ -456,6 +457,7 @@ fun SettingsScreen() {
             PushNotificationsSection(
                 isAuthenticated = authState is AuthState.Authenticated,
                 pushRepository = pushRepository,
+                appSettings = appSettings,
                 snackbarHostState = snackbarHostState
             )
 
@@ -1140,6 +1142,7 @@ private fun DeveloperSection(
 private fun PushNotificationsSection(
     isAuthenticated: Boolean,
     pushRepository: com.qcksys.ao3tracker.data.push.PushRepository,
+    appSettings: AppSettings,
     snackbarHostState: SnackbarHostState
 ) {
     val pushTokenStorage = remember { getPushTokenStorage() }
@@ -1148,6 +1151,20 @@ private fun PushNotificationsSection(
     var isRegistering by remember { mutableStateOf(false) }
     var hasToken by remember { mutableStateOf(pushTokenStorage.getFcmToken() != null) }
     var showHistoryModal by remember { mutableStateOf(false) }
+    val preferences by appSettings.notificationPreferences.collectAsState()
+    var isSaving by remember { mutableStateOf(false) }
+    val savePreferences: (NotificationPreferences) -> Unit = { updated ->
+        scope.launch {
+            isSaving = true
+            try {
+                pushRepository.updateNotificationPreferences(updated).onFailure {
+                    snackbarHostState.showSnackbar("Could not save notification settings: ${it.message}")
+                }
+            } finally {
+                isSaving = false
+            }
+        }
+    }
 
     // Only show on supported platforms
     if (!isPushSupported) {
@@ -1173,7 +1190,7 @@ private fun PushNotificationsSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = if (hasToken) Icons.Default.Notifications else Icons.Default.NotificationsOff,
+                    imageVector = if (preferences.enabled) Icons.Default.Notifications else Icons.Default.NotificationsOff,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
@@ -1187,11 +1204,31 @@ private fun PushNotificationsSection(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Receive notifications when works you're tracking are updated on AO3.",
+                text = "Choose alerts for subscribed works on this device. Other devices keep their own settings.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            NotificationSettingRow("Enable notifications", preferences.enabled, !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(enabled = it))
+            }
+            NotificationSettingRow("New chapters", preferences.newChapters, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(newChapters = it))
+            }
+            NotificationSettingRow("Completed works", preferences.workCompleted, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(workCompleted = it))
+            }
+            NotificationSettingRow("Restricted works", preferences.workRestricted, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(workRestricted = it))
+            }
+            NotificationSettingRow("Deleted works", preferences.workDeleted, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(workDeleted = it))
+            }
+            if (isSaving) {
+                Text("Saving notification settings…", style = MaterialTheme.typography.bodySmall)
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             // Status indicator
@@ -1205,7 +1242,11 @@ private fun PushNotificationsSection(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = if (hasToken) "Registered" else "Not registered",
+                    text = when {
+                        !preferences.enabled -> "Disabled on this device"
+                        hasToken -> "Push token available"
+                        else -> "No push token available"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (hasToken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1235,7 +1276,7 @@ private fun PushNotificationsSection(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = isAuthenticated && !isRegistering
+                enabled = isAuthenticated && preferences.enabled && !isRegistering && !isSaving
             ) {
                 if (isRegistering) {
                     CircularProgressIndicator(
@@ -1288,6 +1329,28 @@ private fun PushNotificationsSection(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationSettingRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            modifier = Modifier.semantics { contentDescription = label }
+        )
     }
 }
 

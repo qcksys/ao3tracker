@@ -12,6 +12,8 @@ import com.qcksys.ao3tracker.MainActivity
 import com.qcksys.ao3tracker.R
 import com.qcksys.ao3tracker.data.push.PushTokenStorage
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
+import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.data.settings.getSettingsStorage
 import io.github.aakira.napier.Napier
 
 /**
@@ -55,6 +57,7 @@ class Ao3FirebaseMessagingService : FirebaseMessagingService() {
 
         val workId = remoteMessage.data["workId"]?.toLongOrNull()
         val type = remoteMessage.data["type"]
+        if (!AppSettings(getSettingsStorage()).notificationPreferences.value.allows(type)) return
 
         Napier.d("Message data - workId: $workId, type: $type", tag = TAG)
 

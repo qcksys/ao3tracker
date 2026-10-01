@@ -7,6 +7,7 @@ import {
   webViewMessageSchema,
 } from "@qcksys/ao3tracker-core";
 import { z } from "zod";
+import { notificationPreferencesSchema } from "@qcksys/ao3tracker-core/schemas";
 
 /**
  * Messages flowing **content script → background**. These wrap the canonical
@@ -58,7 +59,11 @@ export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("deleteSavedSearch"), id: z.string().min(1) }),
   z.object({ kind: z.literal("setApiBaseUrl"), baseUrl: z.string().url() }),
-  z.object({ kind: z.literal("setNotificationsEnabled"), enabled: z.boolean() }),
+  z.object({
+    kind: z.literal("setNotificationPreference"),
+    key: notificationPreferencesSchema.keyof(),
+    enabled: z.boolean(),
+  }),
 ]);
 export type PopupToBackground = z.infer<typeof popupToBackgroundSchema>;
 
@@ -69,7 +74,7 @@ export const popupStateSchema = z.object({
   lastSyncError: z.string().nullable(),
   syncing: z.boolean(),
   trackedCount: z.number().int().nonnegative(),
-  notificationsEnabled: z.boolean(),
+  notificationPreferences: notificationPreferencesSchema,
   currentWork: z
     .object({
       workId: z.number().int().positive(),

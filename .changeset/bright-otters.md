@@ -1,6 +1,8 @@
 ---
 "@qcksys/ao3tracker-api": minor
 "@qcksys/ao3tracker-browser-extension": minor
+"@qcksys/ao3tracker-native-kmp": minor
+"@qcksys/ao3tracker-core": minor
 ---
 
 Bring the browser extension closer to feature-parity with the native app, and tighten the API's email flows.
@@ -17,6 +19,9 @@ API:
 Browser extension:
 
 - New "Works" tab — full tracked-works list with search, status filters (not-started, in-progress, caught-up, finished, new chapters, private), favourite/subscribed toggles, pinned-tag chips, and sort by last-read / title / author / word count / kudos / hits / bookmarks / comments / published / updated / chapters.
-- Push notifications via polling — the background worker polls `/api/push/notifications` on the existing 5-minute sync alarm and surfaces new entries as `chrome.notifications`. Clicking a notification opens the work on AO3. Toggleable from Settings, on by default.
+- Push notifications via polling — the background worker polls `/api/push/notifications` on the existing 5-minute sync alarm and surfaces new entries as `chrome.notifications`. Clicking a notification opens the work on AO3. Settings provides a master switch and separate choices for new chapters, completed works, restricted works, and deleted works. Choices stay in this browser and preserve the existing on/off setting. Muted notifications consumed by polling are not replayed later.
+
 - New "Forgot password" page wired to Better Auth's `requestPasswordReset`, sending the user to the hosted reset page after they click the email link.
 - Manifest now requests the `notifications` permission.
+
+Native notification settings provide the same choices per device, persisted across app restarts and sent with push registration. The API filters each device's alerts at delivery time, including retries, while keeping notification history available. Apply migration `20261001231352_device-notification-preferences` and deploy the API before releasing the native client.

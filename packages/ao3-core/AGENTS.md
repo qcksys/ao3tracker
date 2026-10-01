@@ -37,6 +37,7 @@ Subpath exports are declared in [package.json](./package.json). **Prefer them ov
 ## Conventions
 
 - **Pure functions, no I/O.** Every DOM helper takes `(doc: Document, location: Location)` explicitly so the same code runs in real browsers, content-script-injected pages, and happy-dom unit tests. No `window`/`document` globals at module scope.
+- **Notification preferences**: `/notifications` exports the canonical Zod device-preference schema and delivery predicate without DOM types. The API and extension share this schema; match its JSON fields in native `NotificationPreferences`. All categories default on. Master disable preserves category choices.
 - **No `~/` aliases inside `src/`.** This package ships as TypeScript source; consumers' tsconfig path mappings are different, so `~/badges` from inside `src/` would not resolve when a consumer compiles its dependency tree. Use relative imports (`./foo`, `../foo`) for internal cross-directory references within `src/`. Tests in `test/` are private to this package and may freely use `~/`.
 - **Sibling barrel re-exports stay `./foo`** — `src/index.ts`, `src/dom/index.ts`, `src/schemas/index.ts`.
 - **API contract changes propagate.** When [apps/api/src/routes/api.track.ts](../../apps/api/src/routes/api.track.ts) changes shape, update [src/schemas/sync.ts](./src/schemas/sync.ts) in the same PR so the wire schemas stay in lockstep.

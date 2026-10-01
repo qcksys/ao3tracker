@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { NotificationPreferences } from "@qcksys/ao3tracker-core/schemas";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,38 @@ import { apiBaseUrlPresets, availableApiBaseUrlPresets } from "@/lib/storage";
 import { authClient } from "~popup/lib/auth-client";
 import { usePopupState } from "~popup/lib/state";
 
+const notificationOptions: {
+  key: keyof NotificationPreferences;
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "enabled",
+    label: "Enable notifications",
+    description: "Show alerts in this browser only.",
+  },
+  {
+    key: "new_chapters",
+    label: "New chapters",
+    description: "A subscribed work has new chapters.",
+  },
+  {
+    key: "work_completed",
+    label: "Completed works",
+    description: "A subscribed work is marked complete.",
+  },
+  {
+    key: "work_restricted",
+    label: "Restricted works",
+    description: "A subscribed work now requires an AO3 sign-in.",
+  },
+  {
+    key: "work_deleted",
+    label: "Deleted works",
+    description: "A subscribed work is no longer available on AO3.",
+  },
+];
+
 export default function Settings() {
   const { state, dispatch } = usePopupState();
   const { data: session } = authClient.useSession();
@@ -22,6 +55,8 @@ export default function Settings() {
     ? apiBaseUrlPresets.find((p) => p.url === state.apiBaseUrl)
     : undefined;
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
 
   if (!state) return <div className="text-muted-foreground text-sm">Loading…</div>;
 
@@ -32,6 +67,19 @@ export default function Settings() {
   const onSignOut = async (): Promise<void> => {
     await authClient.signOut();
     await setAuthToken(null);
+  };
+
+  const onNotificationChange = async (key: keyof NotificationPreferences, enabled: boolean) => {
+    setSavingNotifications(true);
+    setNotificationError(null);
+    try {
+      const result = await dispatch({ kind: "setNotificationPreference", key, enabled });
+      if (!result.ok) setNotificationError(result.error);
+    } catch {
+      setNotificationError("Could not save notification settings. Please try again.");
+    } finally {
+      setSavingNotifications(false);
+    }
   };
 
   const onAddPasskey = async (): Promise<void> => {
@@ -86,26 +134,45 @@ export default function Settings() {
           <CardTitle className="text-base">Notifications</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex-1">
-              <div>Push notifications</div>
-              <p className="text-muted-foreground text-xs">
-                Show alerts for new chapters and completed works on your tracked subscriptions.
-              </p>
+          <p className="text-muted-foreground text-xs">
+            These settings apply only to this browser. Other devices keep their own settings.
+          </p>
+          {notificationOptions.map(({ key, label, description }) => (
+            <div key={key} className="flex items-center justify-between gap-2">
+              <div className="flex-1">
+                <Label htmlFor={`notification-${key}`}>{label}</Label>
+                <p id={`notification-${key}-description`} className="text-muted-foreground text-xs">
+                  {description}
+                </p>
+              </div>
+              <Button
+                id={`notification-${key}`}
+                role="switch"
+                aria-checked={state.notificationPreferences[key]}
+                aria-label={label}
+                aria-describedby={`notification-${key}-description`}
+                size="sm"
+                disabled={
+                  savingNotifications ||
+                  (key !== "enabled" && !state.notificationPreferences.enabled)
+                }
+                variant={state.notificationPreferences[key] ? "default" : "outline"}
+                onClick={() => void onNotificationChange(key, !state.notificationPreferences[key])}
+              >
+                {state.notificationPreferences[key] ? "On" : "Off"}
+              </Button>
             </div>
-            <Button
-              size="sm"
-              variant={state.notificationsEnabled ? "default" : "outline"}
-              onClick={() =>
-                void dispatch({
-                  kind: "setNotificationsEnabled",
-                  enabled: !state.notificationsEnabled,
-                })
-              }
-            >
-              {state.notificationsEnabled ? "On" : "Off"}
-            </Button>
-          </div>
+          ))}
+          {!session?.user && (
+            <p className="text-muted-foreground text-xs">
+              Sign in to receive notifications for subscribed works.
+            </p>
+          )}
+          {notificationError && (
+            <p role="alert" className="text-destructive text-xs">
+              {notificationError}
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -42,16 +42,21 @@ class PushTokenService(
         fcmToken: String,
         platform: String,
         deviceId: String,
-        authToken: String
+        authToken: String,
+        preferences: NotificationPreferences
     ): Result<Unit> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/push/token") {
                 header("Authorization", "Bearer $authToken")
                 contentType(ContentType.Application.Json)
-                setBody(PushTokenRequest(token = fcmToken, platform = platform, deviceId = deviceId))
+                setBody(PushTokenRequest(token = fcmToken, platform = platform, deviceId = deviceId, notificationPreferences = preferences))
             }
 
             if (response.status.isSuccess()) {
+                val registered = response.body<PushTokenResponse>()
+                if (!registered.success || registered.notificationPreferences != preferences) {
+                    return Result.failure(Exception("Notification settings could not be confirmed. Please try again later."))
+                }
                 AppLogger.d("Push token registered successfully", TAG)
                 Result.success(Unit)
             } else {

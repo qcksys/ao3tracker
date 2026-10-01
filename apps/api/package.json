@@ -25,6 +25,7 @@
     "@better-auth/passkey": "catalog:",
     "@hono/zod-openapi": "catalog:",
     "@planetscale/database": "catalog:",
+    "@qcksys/ao3tracker-core": "workspace:*",
     "@qcksys/drizzle-extensions": "catalog:",
     "@scalar/hono-api-reference": "catalog:",
     "@scalar/openapi-to-markdown": "catalog:",

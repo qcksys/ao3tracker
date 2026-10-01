@@ -85,6 +85,12 @@ actual class SettingsStorage {
         prefs.edit().putBoolean(KEY_INCOGNITO_MODE, enabled).apply()
     }
 
+    actual fun getNotificationPreferences(): String? = prefs.getString("notification_preferences", null)
+
+    actual fun setNotificationPreferences(preferences: String) {
+        prefs.edit().putString("notification_preferences", preferences).apply()
+    }
+
     companion object {
         private const val PREFS_FILE_NAME = "ao3_app_settings_encrypted"
         private const val KEY_API_ENVIRONMENT = "api_environment"

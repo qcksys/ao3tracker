@@ -349,6 +349,9 @@ importers:
       '@planetscale/database':
         specifier: 'catalog:'
         version: 1.20.2
+      '@qcksys/ao3tracker-core':
+        specifier: workspace:*
+        version: link:../../packages/ao3-core
       '@qcksys/drizzle-extensions':
         specifier: 'catalog:'
         version: 0.3.0(drizzle-orm@1.0.0-rc.4(@planetscale/database@1.20.2)(zod@4.6.5))(react@19.3.0)

@@ -70,7 +70,8 @@ WXT discovers entrypoints from [entrypoints/](entrypoints/):
 - [tracker-repo.ts](lib/tracker-repo.ts) — local mirror of the native app's `Ao3Repository`. Ingests page events, computes badge data, exposes the "current work" summary for the popup.
 - [favourite-tags-repo.ts](lib/favourite-tags-repo.ts) — toggle/apply remote with LWW merge.
 - [saved-searches-repo.ts](lib/saved-searches-repo.ts) — save/rename/delete (tombstone) named search URLs + apply remote with LWW merge (`mergeSavedSearches`, id-keyed).
-- [sync.ts](lib/sync.ts) — `runSync()`: pull `getFullSync`, merge into local, push pending rows, persist `serverLastUpdated`.
+- [sync.ts](lib/sync.ts) — `runSync()`: pull `getFullSync`, merge into local, push pending rows, persist `serverLastUpdated`. Notification polling runs on the same alarm.
+- [notifications.ts](lib/notifications.ts) applies this browser's saved master/category preferences before showing alerts. Use the shared `@qcksys/ao3tracker-core/notifications` schema for preference fields. Preserve the legacy disabled toggle when upgrading storage. Poll and advance the account's notification cursor even when alerts are muted so consumed notifications are not replayed when re-enabled. Preferences stay local when switching accounts; they are not part of account sync.
 
 ### Manifest
 
