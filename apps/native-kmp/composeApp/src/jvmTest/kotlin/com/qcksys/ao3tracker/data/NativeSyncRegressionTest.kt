@@ -81,8 +81,21 @@ class NativeSyncRegressionTest {
             assertEquals(1, sent.favouriteTags?.size)
             assertEquals(1, sent.savedSearches?.size)
             assertFalse(f.db.savedSearchDao().getOne("guest")!!.pendingSync)
+            val importedAt = f.db.workDao().getWorkById(1)!!.rowUpdatedAt
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, importedAt) }
+            f.remote.sent.clear()
+            // Incremental sync includes the cursor boundary to preserve same-millisecond edits.
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val replay = f.remote.sent.single()
+            assertEquals(sent.works, replay.works)
+            assertEquals(sent.chapters, replay.chapters)
+            assertTrue(replay.favouriteTags.isNullOrEmpty())
+            assertTrue(replay.savedSearches.isNullOrEmpty())
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, importedAt + 1) }
             f.remote.sent.clear()
             assertTrue(f.accounts.importGuest("production:a") { true }.isEmpty)
+            assertEquals(importedAt, f.db.workDao().getWorkById(1)!!.rowUpdatedAt)
+            assertEquals(importedAt, f.db.chapterDao().getChapterById(2, 1)!!.rowUpdatedAt)
             assertIs<SyncResult.Success>(f.sync.sync())
             assertTrue(f.remote.sent.isEmpty())
         }

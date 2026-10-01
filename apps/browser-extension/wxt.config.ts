@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, type WxtViteConfig } from "wxt";
 import { chromeReleaseVersion } from "./lib/chrome-release-version";
+import { extensionBranding } from "./lib/branding";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -16,8 +17,13 @@ export default defineConfig({
     browser_specific_settings: {
       gecko: { id: "ao3tracker@qcksys.com" },
     },
-    permissions: ["storage", "activeTab", "alarms", "notifications"],
-    name: mode === "beta" ? "AO3 Tracker Beta" : "ao3 Tracker",
+    permissions: ["storage", "alarms", "notifications"],
+    name: extensionBranding(mode).name,
+    icons: extensionBranding(mode).icons,
+    action: {
+      default_icon: extensionBranding(mode).icons,
+      default_title: extensionBranding(mode).name,
+    },
     description:
       mode === "beta"
         ? "Beta testing build of AO3 Tracker. Syncs reading progress with the development API."

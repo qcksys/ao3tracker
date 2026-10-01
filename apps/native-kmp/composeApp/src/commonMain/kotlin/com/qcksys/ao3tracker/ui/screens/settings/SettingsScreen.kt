@@ -80,6 +80,7 @@ import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.settings.ApiEnvironment
+import com.qcksys.ao3tracker.data.settings.defaultApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.data.sync.SyncRepository
@@ -100,6 +101,7 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import ao3tracker.composeapp.generated.resources.Res
 import ao3tracker.composeapp.generated.resources.app_logo
+import ao3tracker.composeapp.generated.resources.app_logo_beta
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -578,7 +580,10 @@ fun SettingsScreen() {
                 ) {
                     // App logo and name
                     Image(
-                        painter = painterResource(Res.drawable.app_logo),
+                        painter = painterResource(
+                            if (defaultApiEnvironment() == ApiEnvironment.DEV) Res.drawable.app_logo_beta
+                            else Res.drawable.app_logo
+                        ),
                         contentDescription = "AO3 Tracker Logo",
                         modifier = Modifier
                             .size(80.dp)
