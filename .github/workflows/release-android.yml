@@ -7,6 +7,9 @@ on:
         description: Exact commit that passed CI
         required: true
         type: string
+      channel:
+        type: string
+        default: production
       status:
         type: string
         default: completed
@@ -15,6 +18,11 @@ on:
         default: false
   workflow_dispatch:
     inputs:
+      channel:
+        description: App to release
+        type: choice
+        default: production
+        options: [production, beta]
       status:
         description: "Internal testing release status"
         required: true
@@ -32,7 +40,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: google-play
+  group: google-play-${{ inputs.channel }}
   cancel-in-progress: false
   queue: max
 
@@ -42,6 +50,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: google-play
+    env:
+      RELEASE_CHANNEL: ${{ inputs.channel }}
+      RELEASE_BRANCH: ${{ inputs.channel == 'beta' && 'dev' || 'main' }}
+      ANDROID_BUILD_TYPE: ${{ inputs.channel == 'beta' && 'dev' || 'release' }}
+      ANDROID_BUNDLE_TASK: ${{ inputs.channel == 'beta' && 'bundleDev' || 'bundleRelease' }}
+      ANDROID_PACKAGE_NAME: ${{ inputs.channel == 'beta' && 'com.qcksys.ao3tracker.dev' || 'com.qcksys.ao3tracker' }}
     defaults:
       run:
         shell: bash
@@ -56,6 +70,10 @@ jobs:
         env:
           RELEASE_STATUS: ${{ inputs.status }}
         run: |
+          case "$RELEASE_CHANNEL" in
+            production|beta) ;;
+            *) echo "::error::Release channel must be production or beta."; exit 1 ;;
+          esac
           case "$RELEASE_STATUS" in
             completed|draft) ;;
             *) echo "::error::Release status must be completed or draft."; exit 1 ;;
@@ -105,7 +123,7 @@ jobs:
       - name: Build signed release bundle
         env:
           ANDROID_VERSION_CODE: ${{ steps.version.outputs.android_version_code }}
-          ANDROID_VERSION_NAME: ${{ steps.version.outputs.android_version_name }}
+          ANDROID_VERSION_NAME: ${{ inputs.channel == 'beta' && format('{0}-dev', steps.version.outputs.android_version_name) || steps.version.outputs.android_version_name }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/android-upload-key.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -120,19 +138,19 @@ jobs:
           done
           umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-          bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:bundleRelease -x :composeApp:vpInstall --no-configuration-cache --no-build-cache --no-daemon
-          test -s apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
-          test -s apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
-          jarsigner -verify apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab > "$RUNNER_TEMP/android-bundle-verification.txt"
+          bash apps/native-kmp/gradlew -p apps/native-kmp ":composeApp:$ANDROID_BUNDLE_TASK" -x :composeApp:vpInstall --no-configuration-cache --no-build-cache --no-daemon
+          test -s "apps/native-kmp/composeApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/composeApp-$ANDROID_BUILD_TYPE.aab"
+          test -s "apps/native-kmp/composeApp/build/outputs/mapping/$ANDROID_BUILD_TYPE/mapping.txt"
+          jarsigner -verify "apps/native-kmp/composeApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/composeApp-$ANDROID_BUILD_TYPE.aab" > "$RUNNER_TEMP/android-bundle-verification.txt"
           grep -q 'jar verified\.' "$RUNNER_TEMP/android-bundle-verification.txt"
 
       - name: Save release bundle and mapping
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: android-${{ steps.version.outputs.android_version_name }}-${{ steps.version.outputs.android_version_code }}
+          name: android-${{ inputs.channel }}-${{ steps.version.outputs.android_version_name }}-${{ steps.version.outputs.android_version_code }}
           path: |
-            apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
-            apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
+            apps/native-kmp/composeApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/composeApp-${{ env.ANDROID_BUILD_TYPE }}.aab
+            apps/native-kmp/composeApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -153,12 +171,12 @@ jobs:
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJson: ${{ runner.temp }}/google-play-service-account.json
-          packageName: com.qcksys.ao3tracker
-          releaseFiles: apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
+          packageName: ${{ env.ANDROID_PACKAGE_NAME }}
+          releaseFiles: apps/native-kmp/composeApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/composeApp-${{ env.ANDROID_BUILD_TYPE }}.aab
           tracks: internal
           status: ${{ inputs.status }}
-          releaseName: ${{ steps.version.outputs.android_version_name }}
-          mappingFile: apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
+          releaseName: ${{ inputs.channel }}-${{ steps.version.outputs.android_version_name }}
+          mappingFile: apps/native-kmp/composeApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
 
       - name: Remove temporary signing credentials
         if: ${{ always() }}

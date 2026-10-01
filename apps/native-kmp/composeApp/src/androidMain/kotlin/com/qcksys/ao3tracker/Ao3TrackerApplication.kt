@@ -12,7 +12,7 @@ class Ao3TrackerApplication : Application() {
         initializeSentry(
             dsn = SentryConfig.dsn,
             isDebug = SentryConfig.isDebug,
-            environment = if (BuildConfig.DEBUG) "development" else "production"
+            environment = if (BuildConfig.DEBUG || BuildConfig.API_ENVIRONMENT == "DEV") "development" else "production"
         )
 
         // Initialize Napier logging
@@ -21,4 +21,3 @@ class Ao3TrackerApplication : Application() {
         }
     }
 }
- 

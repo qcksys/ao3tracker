@@ -7,11 +7,19 @@ on:
         description: Exact commit that passed CI
         required: true
         type: string
+      channel:
+        type: string
+        default: production
       build_only:
         type: boolean
         default: false
   workflow_dispatch:
     inputs:
+      channel:
+        description: Store item to release (beta submits for review)
+        type: choice
+        default: production
+        options: [production, beta]
       build_only:
         description: Build a ZIP without uploading (use for the first store listing)
         type: boolean
@@ -21,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: chrome-web-store-release
+  group: chrome-web-store-release-${{ inputs.channel }}
   cancel-in-progress: false
   queue: max
 
@@ -31,10 +39,19 @@ jobs:
     timeout-minutes: 30
     environment: chrome-web-store
     env:
+      RELEASE_CHANNEL: ${{ inputs.channel }}
+      RELEASE_BRANCH: ${{ inputs.channel == 'beta' && 'dev' || 'main' }}
       CHROME_BUILD_ONLY: ${{ inputs.build_only }}
-      CHROME_EXTENSION_ID: ${{ vars.CHROME_EXTENSION_ID }}
+      CHROME_EXTENSION_ID: ${{ vars[inputs.channel == 'beta' && 'CHROME_BETA_EXTENSION_ID' || 'CHROME_EXTENSION_ID'] }}
+      CHROME_BETA_PUBLIC_KEY: ${{ vars.CHROME_BETA_PUBLIC_KEY }}
       CHROME_PUBLISHER_ID: ${{ vars.CHROME_PUBLISHER_ID }}
     steps:
+      - name: Validate release channel
+        run: |
+          case "$RELEASE_CHANNEL" in
+            production|beta) ;;
+            *) echo "::error::Release channel must be production or beta."; exit 1 ;;
+          esac
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           ref: ${{ inputs.source_ref || github.sha }}
@@ -65,12 +82,12 @@ jobs:
         env:
           CHROME_VERSION: ${{ steps.version.outputs.chrome_version }}
           CHROME_VERSION_NAME: ${{ steps.version.outputs.android_version_name }}
-        run: vp run --filter @qcksys/ao3tracker-browser-extension zip -b chrome
+        run: vp run --filter @qcksys/ao3tracker-browser-extension zip -b chrome --mode "$RELEASE_CHANNEL"
       - name: Save Chrome release artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: chrome-extension-${{ steps.version.outputs.chrome_version }}-${{ inputs.source_ref || github.sha }}
-          path: apps/browser-extension/.output/*-chrome.zip
+          name: chrome-extension-${{ inputs.channel }}-${{ steps.version.outputs.chrome_version }}-${{ inputs.source_ref || github.sha }}
+          path: apps/browser-extension/.output/*-chrome*.zip
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
@@ -84,6 +101,6 @@ jobs:
           credentials_json: ${{ secrets.CHROME_SERVICE_ACCOUNT_JSON }}
           create_credentials_file: true
           export_environment_variables: true
-      - name: Upload draft to Chrome Web Store v2
+      - name: Upload to Chrome Web Store (beta submits for review)
         if: ${{ !inputs.build_only }}
         run: vp node scripts/release-chrome.mjs upload

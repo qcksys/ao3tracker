@@ -14,9 +14,14 @@ AO3 Tracker is a Kotlin Multiplatform (KMP) application for tracking reading pro
 ./gradlew :composeApp:assembleDebug          # Debug build
 ./gradlew :composeApp:assembleRelease        # Release APK (unsigned unless signing env is set)
 ./gradlew :composeApp:bundleRelease          # Release AAB for Play Store
+./gradlew :composeApp:bundleDev              # Separate AO3 Tracker Dev AAB
 ```
 
 ### Google Play releases
+
+The workflow's `channel` selects `production` (default) or `beta`. `Release dev` calls it with `beta` after successful dev API deployment. Beta builds use the release-derived `dev` build type, package `com.qcksys.ao3tracker.dev`, name **AO3 Tracker Dev**, and a `-dev` version suffix. They install alongside production and have separate local storage. Fresh installs use the dev auth and sync endpoints through the platform-specific `defaultApiEnvironment()`; an explicit saved Settings selection still takes precedence. Production, iOS, and JVM defaults remain production.
+
+The dev Firebase Android registration is in project `qs-ao3tracker`; its public client config is `composeApp/src/dev/google-services.json`. The Google Services plugin selects it by build type. The separate Play app needs its own initial signed AAB upload, tester list, and service-account access. Signing and publishing reuse the existing GitHub secrets; the workflow always uses the internal track for either package.
 
 The [Android release workflow](../../.github/workflows/release-android.yml) runs automatically after successful `main` CI and production API deployment, or manually, using the `google-play` GitHub environment. It tests the shared AO3 core, WebView scripts, and JVM code, then produces a signed AAB and R8 mapping artifact. Uploads target only `internal` testing, with release status `completed` by default or `draft` when selected manually. Choose `build_only` to download the bundle without uploading it. For a new Play listing, upload that signed artifact manually once before using API publishing.
 

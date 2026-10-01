@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "310063036108",
+    "project_id": "qs-ao3tracker",
+    "storage_bucket": "qs-ao3tracker.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310063036108:android:7e4ceb29153e49bac4f469",
+        "android_client_info": {
+          "package_name": "com.qcksys.ao3tracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCS7B8tmKlO1SyvZmnU5r3mHxmEFOcTcsE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:310063036108:android:7b317c16ef4a2d0dc4f469",
+        "android_client_info": {
+          "package_name": "com.qcksys.ao3tracker.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCS7B8tmKlO1SyvZmnU5r3mHxmEFOcTcsE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

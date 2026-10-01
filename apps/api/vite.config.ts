@@ -45,7 +45,29 @@ export default defineConfig(({ mode }) => {
         ),
       },
     },
-    plugins: [cloudflare({ viteEnvironment: { name: "ssr" } }), tailwindcss()],
+    plugins: [
+      cloudflare({
+        viteEnvironment: { name: "ssr" },
+        config: (config) => {
+          const betaId = process.env.CHROME_BETA_EXTENSION_ID;
+          if (mode !== "dev" || !betaId) return {};
+          if (!/^[a-p]{32}$/.test(betaId)) {
+            throw new Error("CHROME_BETA_EXTENSION_ID must be a Chrome extension ID.");
+          }
+          const allowedOrigins = config.vars?.ALLOWED_ORIGINS;
+          if (typeof allowedOrigins !== "string") {
+            throw new Error("The dev Worker must define ALLOWED_ORIGINS.");
+          }
+          return {
+            vars: {
+              ...config.vars,
+              ALLOWED_ORIGINS: `${allowedOrigins},chrome-extension://${betaId}`,
+            },
+          };
+        },
+      }),
+      tailwindcss(),
+    ],
     ssr: {
       resolve: {
         conditions: ["workerd", "worker", "browser"],

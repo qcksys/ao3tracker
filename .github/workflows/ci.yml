@@ -78,7 +78,7 @@ jobs:
       - name: Test native code and build Android
         run: >-
           bash apps/native-kmp/gradlew -p apps/native-kmp
-          :composeApp:jvmTest :composeApp:assembleDebug
+          :composeApp:jvmTest :composeApp:assembleDebug :composeApp:assembleDev
           -x :composeApp:vpInstall --no-configuration-cache
       - name: Test reports
         if: always()

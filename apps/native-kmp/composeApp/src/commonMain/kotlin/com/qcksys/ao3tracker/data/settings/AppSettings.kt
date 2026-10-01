@@ -26,13 +26,16 @@ enum class ApiEnvironment(
     )
 }
 
+expect fun defaultApiEnvironment(): ApiEnvironment
+
 class AppSettings(
-    private val settingsStorage: SettingsStorage?
+    private val settingsStorage: SettingsStorage?,
+    defaultEnvironment: ApiEnvironment = defaultApiEnvironment()
 ) {
     private val _apiEnvironment = MutableStateFlow(
         settingsStorage?.getApiEnvironment()?.let { name ->
             ApiEnvironment.entries.find { it.name == name }
-        } ?: ApiEnvironment.PRODUCTION
+        } ?: defaultEnvironment
     )
     val apiEnvironment: StateFlow<ApiEnvironment> = _apiEnvironment.asStateFlow()
 
