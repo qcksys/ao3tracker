@@ -1,0 +1,88 @@
+name: Prepare automatic release
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: Source branch (main or dev)
+        required: true
+        type: string
+    outputs:
+      eligible:
+        value: ${{ jobs.ready.outputs.eligible }}
+      source_ref:
+        value: ${{ jobs.ready.outputs.source_ref }}
+      api_artifact_id:
+        value: ${{ jobs.build.outputs.api_artifact_id }}
+
+permissions:
+  contents: read
+
+jobs:
+  ready:
+    name: Check release eligibility
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      eligible: ${{ steps.release.outputs.eligible }}
+      source_ref: ${{ steps.release.outputs.source_ref }}
+    env:
+      RELEASE_BRANCH: ${{ inputs.branch }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
+        with:
+          version-file: pnpm-workspace.yaml
+          run-install: false
+      - name: Check successful CI still matches the source branch
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: vp node scripts/release-main.mjs
+
+  build:
+    name: Build API
+    needs: ready
+    if: needs.ready.outputs.eligible == 'true'
+    concurrency:
+      group: release-build-${{ inputs.branch }}
+      cancel-in-progress: ${{ github.run_attempt == 1 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      api_artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ needs.ready.outputs.source_ref }}
+          persist-credentials: false
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
+        with:
+          version-file: pnpm-workspace.yaml
+          run-install: false
+          cache: true
+      - name: Reject stale build retries
+        if: github.run_attempt > 1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_BRANCH: ${{ inputs.branch }}
+          RELEASE_SOURCE_REF: ${{ needs.ready.outputs.source_ref }}
+        run: vp node scripts/release-main.mjs assert-current-source
+      - run: vp install --frozen-lockfile
+      - name: Build API for deployment
+        env:
+          API_BUILD_MODE: ${{ inputs.branch == 'dev' && 'dev' || 'prod' }}
+          CHROME_BETA_EXTENSION_ID: ${{ vars.CHROME_BETA_EXTENSION_ID }}
+        run: vp run --filter @qcksys/ao3tracker-api build --mode "$API_BUILD_MODE"
+      - name: Save built API
+        id: artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: api-${{ inputs.branch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/api/dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

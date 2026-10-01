@@ -1,8 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertCurrentSource, isCurrentSuccessfulRun } from "./release-main.mjs";
+import { assertCurrentSource, isCurrentDevPush, isCurrentSuccessfulRun } from "./release-main.mjs";
 
 const sha = "a".repeat(40);
+test("dev CI push eligibility requires the current same-repository dev commit", () => {
+  const push = { ref: "refs/heads/dev", after: sha, repository: { id: 123 }, deleted: false };
+  assert.equal(isCurrentDevPush(push, sha, 123), true);
+  assert.equal(isCurrentDevPush(push, "b".repeat(40), 123), false);
+  assert.equal(isCurrentDevPush(push, sha, 456), false);
+  assert.equal(isCurrentDevPush(push, sha, NaN), false);
+  for (const override of [
+    { ref: "refs/heads/main" },
+    { ref: "refs/pull/11/merge" },
+    { deleted: true },
+    { repository: undefined },
+    { after: "dev" },
+    { after: undefined },
+  ]) {
+    assert.equal(isCurrentDevPush({ ...push, ...override }, sha, 123), false);
+  }
+  assert.equal(isCurrentDevPush(event(), sha, 123), false);
+});
+
 function event(overrides = {}) {
   return {
     repository: { id: 123 },
