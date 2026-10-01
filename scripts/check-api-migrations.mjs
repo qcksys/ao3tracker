@@ -12,85 +12,89 @@ const apiRequire = createRequire(new URL("../apps/api/package.json", import.meta
 class ReadinessError extends Error {}
 
 export async function readMigrationManifest(directory = migrationsDirectory) {
-  const journal = JSON.parse(await readFile(resolve(directory, "meta/_journal.json"), "utf8"));
-  if (journal.dialect !== "mysql" || !Array.isArray(journal.entries) || !journal.entries.length) {
-    throw new ReadinessError("The API migration journal must contain MySQL migrations.");
-  }
+  const folders = (await readdir(directory, { withFileTypes: true })).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
   const migrations = [];
-  for (const [index, entry] of journal.entries.entries()) {
-    if (
-      entry.idx !== index ||
-      !/^[0-9]{4}_[a-zA-Z0-9_-]+$/.test(entry.tag) ||
-      !Number.isSafeInteger(entry.when) ||
-      entry.when <= (migrations.at(-1)?.when ?? 0)
-    ) {
-      throw new ReadinessError("The API migration journal has an invalid entry or order.");
+  let snapshot;
+  for (const folder of folders) {
+    const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_[a-zA-Z0-9_-]+$/.exec(folder.name);
+    if (!folder.isDirectory() || !match) {
+      throw new ReadinessError(
+        "Every API migration must use a timestamped Drizzle migration folder.",
+      );
     }
-    const sql = await readFile(resolve(directory, `${entry.tag}.sql`), "utf8");
-    if (!sql.trim()) throw new ReadinessError(`Migration ${entry.tag} is empty.`);
+    const [, year, month, day, hour, minute, second] = match;
+    const date = `${year}-${month}-${day}T${hour}:${minute}:${second}.000Z`;
+    const when = Date.parse(date);
+    if (!Number.isSafeInteger(when) || new Date(when).toISOString() !== date) {
+      throw new ReadinessError(`Migration ${folder.name} has an invalid UTC timestamp.`);
+    }
+    const sql = await readFile(resolve(directory, folder.name, "migration.sql"), "utf8");
+    if (!sql.trim()) throw new ReadinessError(`Migration ${folder.name} is empty.`);
     const lfSql = sql.replaceAll("\r\n", "\n");
     migrations.push({
-      tag: entry.tag,
-      when: entry.when,
+      tag: folder.name,
+      when,
       hashes: [lfSql, lfSql.replaceAll("\n", "\r\n")].map((text) =>
         createHash("sha256").update(text).digest("hex"),
       ),
     });
+    snapshot = JSON.parse(await readFile(resolve(directory, folder.name, "snapshot.json"), "utf8"));
   }
-  const sqlFiles = (await readdir(directory)).filter((name) => name.endsWith(".sql"));
   if (
-    sqlFiles.length !== migrations.length ||
-    sqlFiles.some((name) => !migrations.some((entry) => name === `${entry.tag}.sql`))
+    snapshot?.dialect !== "mysql" ||
+    snapshot.version !== "6" ||
+    !snapshot.ddl?.some((entity) => entity.entityType === "columns")
   ) {
-    throw new ReadinessError("Every API SQL migration must be registered in the journal.");
-  }
-  const snapshot = JSON.parse(
-    await readFile(
-      resolve(directory, `meta/${String(migrations.length - 1).padStart(4, "0")}_snapshot.json`),
-      "utf8",
-    ),
-  );
-  if (snapshot.dialect !== "mysql" || !snapshot.tables || !Object.keys(snapshot.tables).length) {
     throw new ReadinessError("The latest API migration must have a nonempty MySQL snapshot.");
   }
   return { migrations, snapshot };
 }
 
 export function verifyMigrationHistory(migrations, rows) {
-  const expected = new Map(migrations.map((migration) => [migration.when, migration]));
-  const applied = new Map();
+  const namedHistory = rows.some((row) => Object.hasOwn(row, "name"));
+  const applied = new Set();
   for (const row of rows) {
-    const when = Number(row.created_at);
-    if (!expected.has(when) || applied.has(when)) {
+    // The RC folder format drops milliseconds; upgraded legacy ledgers retain them.
+    const when = Math.floor(Number(row.created_at) / 1000) * 1000;
+    const candidates = migrations.filter((migration) =>
+      namedHistory
+        ? migration.tag === row.name && migration.when === when
+        : migration.when === when,
+    );
+    const migration =
+      candidates.length === 1
+        ? candidates[0]
+        : candidates.find((candidate) => candidate.hashes.includes(row.hash));
+    if (!migration || applied.has(migration.tag)) {
       throw new ReadinessError("Production migration history has unknown or duplicate entries.");
     }
-    applied.set(when, row.hash);
+    if (!migration.hashes.includes(row.hash)) {
+      throw new ReadinessError(`Production migration checksum differs: ${migration.tag}.`);
+    }
+    applied.add(migration.tag);
   }
   for (const migration of migrations) {
-    if (!applied.has(migration.when)) {
+    if (!applied.has(migration.tag)) {
       throw new ReadinessError(`Production migration is not recorded: ${migration.tag}.`);
-    }
-    if (!migration.hashes.includes(applied.get(migration.when))) {
-      throw new ReadinessError(`Production migration checksum differs: ${migration.tag}.`);
     }
   }
 }
 
 export function verifySchemaColumns(snapshot, rows) {
   const actual = new Map(rows.map((row) => [`${row.table_name}.${row.column_name}`, row]));
-  for (const table of Object.values(snapshot.tables)) {
-    for (const column of Object.values(table.columns)) {
-      const name = `${table.name}.${column.name}`;
-      const live = actual.get(name);
-      if (!live) throw new ReadinessError(`Production schema is missing ${name}.`);
-      const temporalType = /^(datetime|timestamp)(?:\((\d+)\))?$/.exec(column.type);
-      if (
-        temporalType &&
-        (live.data_type !== temporalType[1] ||
-          Number(live.datetime_precision) < Number(temporalType[2] ?? 0))
-      ) {
-        throw new ReadinessError(`Production schema needs ${column.type} for ${name}.`);
-      }
+  for (const column of snapshot.ddl.filter((entity) => entity.entityType === "columns")) {
+    const name = `${column.table}.${column.name}`;
+    const live = actual.get(name);
+    if (!live) throw new ReadinessError(`Production schema is missing ${name}.`);
+    const temporalType = /^(datetime|timestamp)(?:\((\d+)\))?$/.exec(column.type);
+    if (
+      temporalType &&
+      (live.data_type !== temporalType[1] ||
+        Number(live.datetime_precision) < Number(temporalType[2] ?? 0))
+    ) {
+      throw new ReadinessError(`Production schema needs ${column.type} for ${name}.`);
     }
   }
 }
@@ -99,12 +103,17 @@ export async function checkDatabaseReadiness(connection, manifest) {
   let history;
   let columns;
   try {
-    history = await connection.execute(
-      "SELECT hash, created_at FROM `ao3track__migrations` ORDER BY created_at",
-    );
     columns = await connection.execute(
       "SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name, DATA_TYPE AS data_type, " +
         "DATETIME_PRECISION AS datetime_precision FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE()",
+    );
+    const hasNames = columns.rows.some(
+      (column) => column.table_name === "ao3track__migrations" && column.column_name === "name",
+    );
+    history = await connection.execute(
+      hasNames
+        ? "SELECT hash, created_at, name FROM `ao3track__migrations` ORDER BY created_at"
+        : "SELECT hash, created_at FROM `ao3track__migrations` ORDER BY created_at",
     );
   } catch {
     throw new ReadinessError(

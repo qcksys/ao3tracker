@@ -2,6 +2,8 @@
 
 The root GitHub Actions workflows provide:
 
+Every workflow uses the pinned `voidzero-dev/setup-vp` action to install Vite+ from the workspace catalog. Node version inputs are omitted so Vite+ resolves Node.js 24 from the root `package.json` → `engines.node` fallback. Dependency installation runs with `vp install --frozen-lockfile`; package scripts run through `vp run`. Vite+ retains the existing pnpm backend and lockfile. The Gradle WebView build also requires `vp` on PATH and uses the `vpInstall` task.
+
 | Workflow                         | Trigger                                          | Result                                                                                       |
 | -------------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | `CI`                             | Pull requests, pushes to `main`/`dev`, or manual | Formatting, lint, workflow validation, JavaScript tests/builds, JVM tests, Android debug APK |
@@ -42,9 +44,11 @@ The account ID is already recorded in `apps/api/wrangler.json`. Provision the pr
 
 ### Database migrations
 
-Deployments require every repository migration to be recorded in `ao3track__migrations` with its journal timestamp and SQL checksum. The checker accepts LF/CRLF line-ending variants, checks required columns and temporal precision against the latest snapshot, and blocks on missing or mismatched history. It does not prove all indexes, defaults, or data are correct.
+Deployments require every repository migration to be recorded in `ao3track__migrations` with its UTC timestamp (to the second) and SQL checksum. RC ledgers must also match each migration folder name; legacy ledgers are accepted without changes. The checker accepts LF/CRLF line-ending variants, checks required columns and temporal precision against the latest snapshot, and blocks on missing or mismatched history. It does not prove all indexes, defaults, or data are correct.
 
-Apply reviewed schema changes through PlanetScale before deploying code that requires them. In particular, the pending sync-cursor and Better Auth changes require migrations `0011` and `0012`. For databases created through schema pushes or manual SQL, inspect the live schema and reconcile the ledger only after verifying each change. The pipeline never replays historical migrations or writes the ledger. If this check or API deployment fails, both store releases are blocked.
+Apply reviewed schema changes through PlanetScale before deploying code that requires them. In particular, the pending sync-cursor and Better Auth changes require migrations `20260930095035_sync-mutation-cursors` and `20260930103837_auth-two-factor-lockout` (formerly `0011` and `0012`). For databases created through schema pushes or manual SQL, inspect the live schema and reconcile the ledger only after verifying each change. The pipeline never replays historical migrations or writes the ledger. If this check or API deployment fails, both store releases are blocked.
+
+Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The repository conversion preserves all historical SQL. The first manual `vp run db:migrate` with the RC upgrades the existing ledger with `name` and `applied_at` columns, then applies pending SQL. Review this separately with a credential permitted to change the schema; CI's read-only database credential cannot perform that upgrade.
 
 ### `google-play`
 
@@ -130,13 +134,13 @@ For a new listing, use `build_only=true` and manually upload the ZIP through **A
 From the repository root:
 
 ```shell
-pnpm install --frozen-lockfile
-pnpm exec vp check
-pnpm --filter @qcksys/ao3tracker-api run biome:ci --error-on-warnings
-pnpm --filter ao3tracker-webview-scripts run biome:ci --error-on-warnings
-node --test scripts/*.test.mjs
-pnpm exec vp run -r test
-pnpm exec vp run -r build
+vp install --frozen-lockfile
+vp check
+vp run --filter @qcksys/ao3tracker-api biome:ci --error-on-warnings
+vp run --filter ao3tracker-webview-scripts biome:ci --error-on-warnings
+vp node --test scripts/*.test.mjs
+vp run -r test
+vp run -r build
 ```
 
-With Java 21 and Android SDK 36 installed, run `apps/native-kmp/gradlew.bat -p apps/native-kmp :composeApp:jvmTest :composeApp:assembleDebug -x :composeApp:pnpmInstall --no-configuration-cache` on Windows. On Linux/macOS, use `bash apps/native-kmp/gradlew` in place of the `.bat` command. CI also checks the workflow YAML with checksum-verified actionlint.
+With Java 21 and Android SDK 36 installed, run `apps/native-kmp/gradlew.bat -p apps/native-kmp :composeApp:jvmTest :composeApp:assembleDebug -x :composeApp:vpInstall --no-configuration-cache` on Windows. On Linux/macOS, use `bash apps/native-kmp/gradlew` in place of the `.bat` command. CI also checks the workflow YAML with checksum-verified actionlint.

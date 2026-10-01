@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { resolveSavedSearchMerge, type SavedSearchUpsert } from "~/db/queries/user-saved-search";
 
 const baseTs = new Date("2024-01-01T12:00:00Z");

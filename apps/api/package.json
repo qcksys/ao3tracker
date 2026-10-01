@@ -12,14 +12,14 @@
     "deploy:dev": "vp build --mode dev && wrangler deploy --config dist/ssr/wrangler.json",
     "deploy:prod": "vp build --mode prod && wrangler deploy --config dist/ssr/wrangler.json",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node scripts/migrate.mjs",
     "db:push": "drizzle-kit push",
     "types:cf": "wrangler types --env-interface CloudflareBindings",
     "types:tsc": "tsc",
     "biome:check:unsafe": "biome check --write --unsafe",
     "biome:ci": "biome ci",
-    "better-auth-gen-schema": "pnpm dlx @better-auth/cli@latest generate --config ./better-auth.config.ts --output ./src/db/schema/.temp.auth.ts",
-    "precommit": "pnpm run biome:ci && pnpm types:cf && pnpm run types:tsc"
+    "better-auth-gen-schema": "vp dlx @better-auth/cli@latest generate --config ./better-auth.config.ts --output ./src/db/schema/.temp.auth.ts",
+    "precommit": "vp run biome:ci && vp run types:cf && vp run types:tsc"
   },
   "dependencies": {
     "@better-auth/passkey": "catalog:",
@@ -31,7 +31,6 @@
     "better-auth": "catalog:",
     "date-fns": "catalog:",
     "drizzle-orm": "catalog:",
-    "drizzle-zod": "catalog:",
     "hono": "catalog:",
     "jose": "catalog:",
     "ky": "catalog:",
@@ -51,8 +50,5 @@
     "vite": "catalog:",
     "vitest": "catalog:",
     "wrangler": "catalog:"
-  },
-  "volta": {
-    "node": "24.11.1"
   }
 }

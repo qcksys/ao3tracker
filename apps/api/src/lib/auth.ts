@@ -5,13 +5,13 @@ import { bearer, openAPI, twoFactor } from "better-auth/plugins";
 import { LOCAL_ENV_NAME, PROD_ENV_NAME } from "~/const";
 import type { TDatabase } from "~/db/db.client";
 import { getLastSentAt, recordEmailSent } from "~/db/queries/email-send-log";
-import { rAuthAccount, tAuthAccount } from "~/db/schema/auth.account";
+import { tAuthAccount } from "~/db/schema/auth.account";
 import type { EmailSendType } from "~/db/schema/auth.emailSendLog";
-import { rAuthPasskey, tAuthPasskey } from "~/db/schema/auth.passkey";
+import { tAuthPasskey } from "~/db/schema/auth.passkey";
 import { tAuthRateLimit } from "~/db/schema/auth.rateLimit";
-import { rAuthSession, tAuthSession } from "~/db/schema/auth.session";
-import { rAuthTwoFactor, tAuthTwoFactor } from "~/db/schema/auth.twoFactor";
-import { rAuthUser, tAuthUser } from "~/db/schema/auth.user";
+import { tAuthSession } from "~/db/schema/auth.session";
+import { tAuthTwoFactor } from "~/db/schema/auth.twoFactor";
+import { tAuthUser } from "~/db/schema/auth.user";
 import { tAuthVerification } from "~/db/schema/auth.verification";
 import { sendEmail } from "~/lib/email";
 import { parseAllowedOrigins } from "~/lib/origins";
@@ -161,15 +161,10 @@ export const auth = ({ env, db }: { env: CloudflareBindings; db: TDatabase }) =>
       provider: "mysql",
       schema: {
         account: tAuthAccount,
-        accountRelations: rAuthAccount,
         passkey: tAuthPasskey,
-        passkeyRelations: rAuthPasskey,
         session: tAuthSession,
-        sessionRelations: rAuthSession,
         twoFactor: tAuthTwoFactor,
-        twoFactorRelations: rAuthTwoFactor,
         user: tAuthUser,
-        userRelations: rAuthUser,
         verification: tAuthVerification,
         rateLimit: tAuthRateLimit,
       },

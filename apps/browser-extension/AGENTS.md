@@ -11,17 +11,17 @@ AO3 Tracker browser extension. Cross-device tracking for Archive of Our Own: a c
 All commands run from `apps/browser-extension/`:
 
 ```bash
-pnpm dev                # WXT dev server (Chrome)
-pnpm dev:firefox        # WXT dev server (Firefox)
-pnpm build              # Production build (Chrome)
-pnpm build:firefox      # Production build (Firefox)
-pnpm zip                # Bundle a release zip (Chrome)
-pnpm zip:firefox        # Bundle a release zip (Firefox)
-pnpm compile            # tsc --noEmit (type check only)
-pnpm test               # sync/account regressions under Vitest (Node)
+vp run dev                # WXT dev server (Chrome)
+vp run dev:firefox        # WXT dev server (Firefox)
+vp run build              # Production build (Chrome)
+vp run build:firefox      # Production build (Firefox)
+vp run zip                # Bundle a release zip (Chrome)
+vp run zip:firefox        # Bundle a release zip (Firefox)
+vp run compile            # tsc --noEmit (type check only)
+vp run test               # sync/account regressions under Vitest (Node)
 ```
 
-`pnpm install` runs `wxt prepare` as a postinstall hook to regenerate `.wxt/` types.
+`vp install` runs `wxt prepare` as a postinstall hook to regenerate `.wxt/` types.
 
 ### Chrome Web Store releases
 
@@ -105,7 +105,7 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 - **Messaging**: every message in/out of the background worker must round-trip through a zod schema declared in [lib/messaging.ts](lib/messaging.ts). The background validates incoming, the popup helper validates outgoing responses. No bare `chrome.runtime.sendMessage` without a schema.
 - **shadcn/Base UI**: components in [components/ui/](components/ui/) use `@base-ui/react` primitives (not `@radix-ui`). The Base UI button does NOT support `asChild` — use `buttonVariants(...)` on a router `Link` for navigation buttons, or pass `render={<Link to="..." />}` to the underlying primitive directly.
 - **Content-script matches**: keep `matches` patterns as narrow as possible. Currently `https://archiveofourown.org/*`.
-- **Tests**: `pnpm test` runs Node Vitest regressions against the actual repositories and sync transport with in-memory extension storage and controlled fetch responses. Shared DOM/wire behavior is also tested in `packages/ao3-core` and `packages/ao3-sync-client`.
+- **Tests**: `vp run test` runs Node Vitest regressions against the actual repositories and sync transport with in-memory extension storage and controlled fetch responses. Shared DOM/wire behavior is also tested in `packages/ao3-core` and `packages/ao3-sync-client`.
 
 ## Cross-app contract
 

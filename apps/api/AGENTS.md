@@ -11,28 +11,28 @@ Hono framework, Drizzle ORM, and Better Auth for authentication.
 
 ```bash
 # Development
-pnpm dev                    # Start local dev server with wrangler
-pnpm types:cf               # Generate Cloudflare bindings types (CloudflareBindings interface)
-pnpm types:tsc              # Run TypeScript type check (tsc --noEmit)
-pnpm proxy                  # Start cloudflared tunnel for local dev
+vp run dev                    # Start local dev server with wrangler
+vp run types:cf               # Generate Cloudflare bindings types (CloudflareBindings interface)
+vp run types:tsc              # Run TypeScript type check (tsc --noEmit)
+vp run proxy                  # Start cloudflared tunnel for local dev
 
 # Testing
-pnpm test                   # Run all Vitest tests
-pnpm test -- test/ao3-parser.test.ts           # Run specific test file
-pnpm test -- -t "should parse work title"      # Run tests matching pattern
+vp run test                   # Run all Vitest tests
+vp run test test/ao3-parser.test.ts           # Run specific test file
+vp run test -t "should parse work title"      # Run tests matching pattern
 
 # Deployment
-pnpm deploy:dev             # Deploy to dev environment
-pnpm deploy:prod            # Deploy to production
+vp run deploy:dev             # Deploy to dev environment
+vp run deploy:prod            # Deploy to production
 
 # Database
-pnpm db:generate            # Generate Drizzle migrations
-pnpm db:migrate             # Run Drizzle migrations
-pnpm db:push                # Push schema changes directly
+vp run db:generate            # Generate Drizzle migrations
+vp run db:migrate             # Run Drizzle migrations with visible, credential-redacted errors
+vp run db:push                # Push schema changes directly
 
 # Linting
-pnpm biome:check:unsafe     # Fix linting issues with unsafe fixes
-pnpm biome:ci               # CI linting check (used in GitHub Actions)
+vp run biome:check:unsafe     # Fix linting issues with unsafe fixes
+vp run biome:ci               # CI linting check (used in GitHub Actions)
 ```
 
 ## Architecture
@@ -50,14 +50,14 @@ The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a read-
 
 The workflow rejects a source SHA that is no longer current `main`, including reruns of failed deployment jobs. After deployment it checks the public `/ping` response. This smoke test checks routing and Worker startup; it does not identify the deployed revision or test authenticated database operations.
 
-Before building/deploying, `node scripts/check-api-migrations.mjs` from the repository root reads `ao3track__migrations` and database column metadata. Every checked-in journal migration must have the same timestamp and SQL SHA-256 in the ledger; missing, edited, duplicate, or unknown entries stop deployment. Both LF and CRLF versions of the checked-in SQL are accepted because Drizzle hashes raw bytes and historical migrations may have run on Windows. No other content differences are accepted. The gate also verifies that the latest snapshot's columns exist and that temporal column types retain the required precision. It does not validate all indexes, defaults, or existing data.
+Before building/deploying, `node scripts/check-api-migrations.mjs` from the repository root reads `ao3track__migrations` and database column metadata. Every checked-in migration must have the same UTC timestamp (to the second) and SQL SHA-256 in the ledger; RC ledgers must also match the migration folder name. Legacy ledgers retain millisecond timestamps and are accepted without alteration. Missing, edited, duplicate, or unknown entries stop deployment. Both LF and CRLF versions of the checked-in SQL are accepted because Drizzle hashes raw bytes and historical migrations may have run on Windows. No other content differences are accepted. The gate also verifies that the latest snapshot's columns exist and that temporal column types retain the required precision. It does not validate all indexes, defaults, or existing data.
 
-Apply reviewed schema changes separately through PlanetScale's schema-change process, including migrations `0011` and `0012` before deploying this code. Historical SQL is not an automatic bootstrap script: DDL is not transactionally rolled back, and an existing database may have been changed outside Drizzle. If the ledger is absent or differs, inspect the live schema and reconcile its history only after confirming which changes are already applied. The deployment gate never runs migration SQL, writes ledger rows, or skips a mismatch. Keep each SQL migration registered in the journal with its matching snapshot.
+Apply reviewed schema changes separately through PlanetScale's schema-change process, including migrations `20260930095035_sync-mutation-cursors` and `20260930103837_auth-two-factor-lockout` before deploying this code. Historical SQL is not an automatic bootstrap script: DDL is not transactionally rolled back, and an existing database may have been changed outside Drizzle. If the ledger is absent or differs, inspect the live schema and reconcile its history only after confirming which changes are already applied. The deployment gate never runs migration SQL, writes ledger rows, or skips a mismatch. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
 
 ### Framework Stack
 
 - **Hono** - Web framework with OpenAPI support via `@hono/zod-openapi`
-- **Drizzle ORM** - Database ORM with Zod schema generation (`drizzle-zod` for schema generation)
+- **Drizzle ORM** - Database ORM with Zod schema generation (`drizzle-orm/zod`)
 - **Better Auth** - Authentication with email/password, Google OAuth, passkeys, and 2FA
 - **Zod** - Schema validation
 - **Scalar** - OpenAPI documentation UI (`@scalar/hono-api-reference`)
@@ -124,8 +124,10 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
   `auth.verification.ts`
 - Work tables: `work.ts`, `work.chapter.ts`, `work.tag.ts`, `work.tag.link.ts`, `work.backup.ts`
 - Tracking tables: `track.work.ts`, `track.chapter.ts`
-- Schema naming convention: `tTableName` for tables, `rTableName` for relations, `sTableNameS/I/U` for
+- Schema naming convention: `tTableName` for tables, `sTableNameS/I/U` for
   select/insert/update Zod schemas
+- `src/db/schema/index.ts` collects tables; `src/db/relations.ts` defines all relations with `defineRelations`. Relation names must not collide with column names (`workRecord`/`tagRecord` on tag links). The client uses `drizzle({ client, relations })`.
+- Relational queries use object filters and ordering, e.g. `where: { workId, rowDeletedAt: { isNull: true } }` and `orderBy: { rowCreatedAt: "desc" }`.
 - Export primary key columns for composite keys: `export const tTableNamePK = [table.col1, table.col2] as const;`
 - Use `timestampCols` from `src/db/helpers/schema.ts` for row audit columns
 - **NEVER manually create DB types** - always extend from Drizzle types exported from schema files:
@@ -227,9 +229,15 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 - Fixtures in `test/*.fixtures.ts`
 - Coverage includes AO3 parsing, sync conflict/cursor regressions, notification retries, partial backups, and auth origins
 
+### Database dependency compatibility
+
+Drizzle ORM and Kit are pinned together at `1.0.0-rc.4`. Keep `@planetscale/database` on 1.x: driver 2.x removes the parameterized `execute` API the RC adapter still requires. `test/db-client.test.ts` and `test/backup-queries.test.ts` exercise the real adapter with mocked HTTP responses; root migration tests exercise the real migrator. The `db:migrate` script uses the checked-in migration folders and `ao3track__migrations` ledger, with credential-redacted error causes.
+
+The first manual RC migration run upgrades a legacy ledger by adding `name` and `applied_at`, backfilling names, and then applying pending SQL. This requires DDL and write access; production readiness credentials remain read-only. Review pending SQL and PlanetScale schema-change requirements first. The repository format conversion does not alter application tables or run database SQL. `drizzle.config.ts` forces UTC to avoid RC.4's mixed local-year/UTC migration-name bug at New Year.
+
 ### Authentication dependency upgrades
 
-Better Auth and its passkey plugin use the same catalog version. Better Auth 1.7 requires `verified`, `failedVerificationCount`, and `lockedUntil` on the two-factor table. Apply migration `0012_auth-two-factor-lockout.sql` before deploying this upgrade; its verified default preserves existing enrollments. Auth-origin tests instantiate the real adapter and check that its declared schema remains compatible.
+Better Auth and its passkey plugin use the same catalog version. Better Auth 1.7 requires `verified`, `failedVerificationCount`, and `lockedUntil` on the two-factor table. Apply migration `20260930103837_auth-two-factor-lockout/migration.sql` before deploying this upgrade; its verified default preserves existing enrollments. Auth-origin tests instantiate the real adapter and check that its declared schema remains compatible.
 
 ### Extension authentication origins
 
@@ -239,9 +247,9 @@ Auth rate limiting uses database storage in every environment. Client IP detecti
 
 ### Code Style
 
-- Formatting uses workspace-root Oxfmt (`pnpm exec vp fmt`) with two-space indentation and double quotes. Biome formatting is disabled to avoid conflicting output.
+- Formatting uses workspace-root Oxfmt (`vp fmt`) with two-space indentation and double quotes. Biome formatting is disabled to avoid conflicting output.
 - Imports organized automatically via Biome
-- Husky pre-commit hook runs `pnpm biome:ci`
+- Husky pre-commit hook runs `vp run biome:ci`
 - Prefer `eq()`, `and()`, `lt()` etc. from `drizzle-orm` over raw `sql` templates
 - **Always use upserts** - Every `insert()` must have `.onDuplicateKeyUpdate()` for idempotency and retry safety
 - **No backwards-compatibility re-exports** - When renaming or moving exports, update all references directly instead of
@@ -267,7 +275,7 @@ The `/api/track/sync` endpoint uses cursor-based pagination for bidirectional sy
 - Returns `nextWorkCursor` for pagination. `serverLastUpdated` is a database watermark captured **before** page reads and intentionally lags the database clock by 16 minutes; clients keep the **first page's** value and advance their pull cursor only after every page succeeds. Neither this cursor nor `latestWorkLastReadAt` filters pending uploads.
 - The replay window covers [PlanetScale's 900-second autocommit query timeout](https://planetscale.com/docs/vitess/scaling/planetscale-system-limits) plus 60 seconds. MySQL mutation timestamps record statement start, so writes waiting to commit must be replayed. This assumes UTC database clocks and primary reads. Increase the window if custom query/transaction limits allow longer writes. The tradeoff is repeated recent rows, with no delay in delivering new data.
 - Incremental reads use server-managed `rowUpdatedAt >= lastSyncedAt`, including the boundary to replay concurrent writes in the same millisecond. Work eligibility includes chapter-tracking and shared work/chapter metadata changes; tag replacement advances its parent work's marker. Client event timestamps remain solely conflict-resolution clocks.
-- Sync timestamps use `datetime(3)`. Migration `0011_sync-mutation-cursors.sql` upgrades precision. Client storage migrations reset the old event-time cursor once. Full sync includes all tombstones so an existing client can safely reconcile after resetting its cursor.
+- Sync timestamps use `datetime(3)`. Migration `20260930095035_sync-mutation-cursors/migration.sql` upgrades precision. Client storage migrations reset the old event-time cursor once. Full sync includes all tombstones so an existing client can safely reconcile after resetting its cursor.
 
 **Per-Field Last-Write-Wins (LWW) Conflict Resolution**:
 
@@ -306,4 +314,4 @@ The `tUserSavedSearch` table stores searches a user pinned from an AO3 list page
 - **LWW per row**: each row LWW-merges independently on `updatedAt`, keyed by `id`. Server wins on tie. Logic lives in `resolveSavedSearchMerge` (pure helper, unit-tested in `test/user-saved-search.test.ts`).
 - **Wire shape**: GET response gains `savedSearches: Array<{id, name, url, deleted, updatedAt}>`, returned only on the first page (same `workCursor`-not-set gating as favourite tags). POST body accepts the same array (max 500) and the response echoes per-row `accepted`/`ignored` status.
 - **Snapshot vs delta**: GET with no `lastSyncedAt` returns all rows, including tombstones. GET with `lastSyncedAt` returns rows with a server mutation timestamp at or after the cursor, including tombstones.
-- **Additive contract**: all `savedSearches` fields are optional, so existing clients (incl. the native app, which ignores unknown keys) keep working unchanged. Implementation: `src/db/schema/user.savedSearch.ts`, `src/db/queries/user-saved-search.ts`, migration `0010_shiny_black_cat.sql`.
+- **Additive contract**: all `savedSearches` fields are optional, so existing clients (incl. the native app, which ignores unknown keys) keep working unchanged. Implementation: `src/db/schema/user.savedSearch.ts`, `src/db/queries/user-saved-search.ts`, migration `20260623113431_shiny_black_cat/migration.sql`.

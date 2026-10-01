@@ -1,13 +1,8 @@
-import { type InferInsertModel, type InferSelectModel, relations, sql } from "drizzle-orm";
+import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
 import { datetime, index, int, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
-import { tTrackChapter } from "~/db/schema/track.chapter";
-import { tTrackWork } from "~/db/schema/track.work";
-import { tWorkBackup } from "~/db/schema/work.backup";
-import { tWorkChapter } from "~/db/schema/work.chapter";
-import { tWorkTagLink } from "~/db/schema/work.tag.link";
 
 export const tWork = mysqlTable(
   `${DB_TABLE_PREFIX}work`,
@@ -48,13 +43,6 @@ export const tWork = mysqlTable(
     ];
   },
 );
-export const rWork = relations(tWork, ({ many }) => ({
-  backups: many(tWorkBackup),
-  chapters: many(tWorkChapter),
-  tags: many(tWorkTagLink),
-  trackWorks: many(tTrackWork),
-  trackChapters: many(tTrackChapter),
-}));
 
 export type TWorkS = InferSelectModel<typeof tWork>;
 export type TWorkI = OmitTimestampCols<InferInsertModel<typeof tWork>>;

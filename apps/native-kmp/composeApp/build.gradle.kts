@@ -19,26 +19,23 @@ val webviewScriptsDir = rootProject.file("webview-scripts")
 val webviewScriptsOutputDir = layout.buildDirectory.dir("generated/webview-scripts")
 val generatedKotlinDir = layout.buildDirectory.dir("generated/kotlin/webview")
 
-// pnpm workspace root for installing webview-script dependencies
 val workspaceRoot = rootProject.file("../..")
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
-val pnpmCommand = if (isWindows) listOf("cmd", "/c", "pnpm") else listOf("pnpm")
+val vpCommand = if (isWindows) listOf("cmd", "/c", "vp") else listOf("vp")
 
-// Task to install workspace dependencies with pnpm (root install resolves
-// workspace links for @qcksys/ao3tracker-core).
-val pnpmInstall by tasks.registering(Exec::class) {
+// Install at the workspace root to resolve the shared package links.
+val vpInstall by tasks.registering(Exec::class) {
     workingDir = workspaceRoot
-    commandLine = pnpmCommand + listOf("install", "--frozen-lockfile=false")
+    commandLine = vpCommand + listOf("install", "--frozen-lockfile")
     inputs.file(workspaceRoot.resolve("pnpm-lock.yaml"))
     inputs.file(webviewScriptsDir.resolve("package.json"))
     outputs.dir(webviewScriptsDir.resolve("node_modules"))
 }
 
-// Task to compile TypeScript via pnpm script
 val compileWebviewScripts by tasks.registering(Exec::class) {
-    dependsOn(pnpmInstall)
+    dependsOn(vpInstall)
     workingDir = webviewScriptsDir
-    commandLine = pnpmCommand + listOf("run", "build")
+    commandLine = vpCommand + listOf("run", "build")
     inputs.dir(webviewScriptsDir.resolve("src"))
     inputs.dir(workspaceRoot.resolve("packages/ao3-core/src"))
     inputs.file(workspaceRoot.resolve("packages/ao3-core/package.json"))

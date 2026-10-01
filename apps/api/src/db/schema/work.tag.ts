@@ -1,8 +1,7 @@
-import { type InferInsertModel, type InferSelectModel, relations } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { index, int, mysqlTable, varchar } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
-import { tWorkTagLink } from "~/db/schema/work.tag.link";
 
 export const tagTypes = {
   unknown: 0,
@@ -32,9 +31,6 @@ export const tWorkTag = mysqlTable(
 );
 /** Columns to exclude from upserts (auto-increment PK and unique key) */
 export const tWorkTagUpsertExclude = [tWorkTag.id, tWorkTag.tag] as const;
-export const rWorkTag = relations(tWorkTag, ({ many }) => ({
-  tagLink: many(tWorkTagLink),
-}));
 
 export type TWorkTagS = InferSelectModel<typeof tWorkTag>;
 export type TWorkTagI = InferInsertModel<typeof tWorkTag>;

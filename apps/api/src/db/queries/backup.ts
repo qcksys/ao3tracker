@@ -33,8 +33,8 @@ export async function upsertBackup(db: TDatabase, data: TWorkBackupI): Promise<v
  */
 export async function findBackupsByWorkId(db: TDatabase, workId: number): Promise<BackupRecord[]> {
   return db.query.tWorkBackup.findMany({
-    where: (t, { and, eq, isNull }) => and(eq(t.workId, workId), isNull(t.rowDeletedAt)),
-    orderBy: (t, { desc }) => desc(t.rowCreatedAt),
+    where: { workId, rowDeletedAt: { isNull: true } },
+    orderBy: { rowCreatedAt: "desc" },
   });
 }
 
@@ -47,7 +47,7 @@ export async function findActiveBackupByR2Key(
   r2Key: string,
 ): Promise<BackupRecord | null> {
   const result = await db.query.tWorkBackup.findFirst({
-    where: (t, { and, eq, isNull }) => and(eq(t.r2Key, r2Key), isNull(t.rowDeletedAt)),
+    where: { r2Key, rowDeletedAt: { isNull: true } },
   });
   return result ?? null;
 }

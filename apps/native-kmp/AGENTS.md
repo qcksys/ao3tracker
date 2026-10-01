@@ -55,18 +55,18 @@ Check the Read, Track, and Settings tabs, AO3 WebView loading, and `adb logcat` 
 
 ### WebView Scripts
 
-TypeScript code in `webview-scripts/` compiles to minified IIFE JavaScript injected into WebViews. The package is a pnpm workspace member (formerly bun-based; migrated). It pulls AO3 DOM-extraction logic from `@qcksys/ao3tracker-core` so the same code runs in the browser extension and the native WebView.
+TypeScript code in `webview-scripts/` compiles to minified IIFE JavaScript injected into WebViews. The package is a workspace member managed through Vite+. It pulls AO3 DOM-extraction logic from `@qcksys/ao3tracker-core` so the same code runs in the browser extension and the native WebView.
 
 Auto-compiled during Gradle builds, but can be built manually:
 
 ```shell
-cd webview-scripts && pnpm run build       # Build minified IIFE JS via vp build (vite library mode)
-cd webview-scripts && pnpm run typecheck   # TypeScript type checking only
-cd webview-scripts && pnpm run test        # vp test run (vitest, happy-dom)
-cd webview-scripts && pnpm run biome:ci    # Lint
+cd webview-scripts && vp run build       # Build minified IIFE JS via vp build (vite library mode)
+cd webview-scripts && vp run typecheck   # TypeScript type checking only
+cd webview-scripts && vp run test        # vp test run (vitest, happy-dom)
+cd webview-scripts && vp run biome:ci    # Lint
 ```
 
-The Gradle build invokes `pnpm install` at the **workspace root** (`../..`) before running `pnpm run build` in `webview-scripts/` — this is required so the `workspace:*` link to `@qcksys/ao3tracker-core` resolves. See [composeApp/build.gradle.kts](composeApp/build.gradle.kts) (`pnpmInstall` and `compileWebviewScripts` tasks).
+The Gradle build invokes `vp install --frozen-lockfile` at the **workspace root** (`../..`) before running `vp run build` in `webview-scripts/` — this is required so the `workspace:*` link to `@qcksys/ao3tracker-core` resolves. Install Vite+ and expose `vp` on the Gradle process's PATH. See [composeApp/build.gradle.kts](composeApp/build.gradle.kts) (`vpInstall` and `compileWebviewScripts` tasks).
 
 Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/webview/`.
 

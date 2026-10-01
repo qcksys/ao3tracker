@@ -10,20 +10,17 @@ import {
 } from "./check-api-migrations.mjs";
 
 const migrations = [
-  { tag: "0000_first", when: 100, hashes: ["first-lf-hash", "first-crlf-hash"] },
-  { tag: "0001_second", when: 200, hashes: ["second-lf-hash", "second-crlf-hash"] },
+  { tag: "20260101000001_first", when: 1000, hashes: ["first-lf-hash", "first-crlf-hash"] },
+  { tag: "20260101000002_second", when: 2000, hashes: ["second-lf-hash", "second-crlf-hash"] },
 ];
 const history = migrations.map(({ when, hashes }) => ({
   created_at: String(when),
   hash: hashes[0],
 }));
 const snapshot = {
-  tables: {
-    work: {
-      name: "ao3track__work",
-      columns: { rowUpdatedAt: { name: "rowUpdatedAt", type: "datetime(3)" } },
-    },
-  },
+  ddl: [
+    { entityType: "columns", table: "ao3track__work", name: "rowUpdatedAt", type: "datetime(3)" },
+  ],
 };
 const columns = [
   {
@@ -34,17 +31,35 @@ const columns = [
   },
 ];
 
-test("the checked-in SQL history has a complete journal and latest snapshot", async () => {
+test("the checked-in migration folders retain their snapshot chain and latest schema", async () => {
   const manifest = await readMigrationManifest();
   assert.ok(manifest.migrations.length > 0);
-  assert.ok(manifest.snapshot.tables.ao3track__auth_two_factor.columns.lockedUntil);
+  assert.ok(
+    manifest.snapshot.ddl.some(
+      (entity) =>
+        entity.entityType === "columns" &&
+        entity.table === "ao3track__auth_two_factor" &&
+        entity.name === "lockedUntil",
+    ),
+  );
+  let previousId = "00000000-0000-0000-0000-000000000000";
+  for (const migration of manifest.migrations) {
+    const snapshot = JSON.parse(
+      await readFile(
+        new URL(`../apps/api/src/db/migrations/${migration.tag}/snapshot.json`, import.meta.url),
+        "utf8",
+      ),
+    );
+    assert.deepEqual(snapshot.prevIds, [previousId], `Migration order changed: ${migration.tag}`);
+    previousId = snapshot.id;
+  }
 });
 
 test("manifest checksums cover Linux and Windows checkouts of the actual migration SQL", async () => {
   const manifest = await readMigrationManifest();
   const migration = manifest.migrations[0];
   const text = await readFile(
-    new URL(`../apps/api/src/db/migrations/${migration.tag}.sql`, import.meta.url),
+    new URL(`../apps/api/src/db/migrations/${migration.tag}/migration.sql`, import.meta.url),
     "utf8",
   );
   for (const ending of ["\n", "\r\n"]) {
@@ -55,8 +70,31 @@ test("manifest checksums cover Linux and Windows checkouts of the actual migrati
   assert.equal(migration.hashes.includes(changed), false);
 });
 
-test("matching migration timestamps and checksums pass regardless of row order", () => {
+test("legacy ledger timestamps retain their milliseconds and may arrive in any order", () => {
   verifyMigrationHistory(migrations, history.toReversed());
+  verifyMigrationHistory(
+    migrations,
+    history.map((row) => ({ ...row, created_at: Number(row.created_at) + 543 })),
+  );
+});
+
+void test("RC ledgers must match names, timestamps and checksums", () => {
+  const named = history.map((row, index) => ({ ...row, name: migrations[index].tag }));
+  verifyMigrationHistory(migrations, named);
+  for (const name of [null, "unknown", migrations[1].tag]) {
+    assert.throws(
+      () => verifyMigrationHistory(migrations, [{ ...named[0], name }, named[1]]),
+      /unknown or duplicate/,
+    );
+  }
+  assert.throws(
+    () => verifyMigrationHistory(migrations, [{ ...named[0], created_at: 9000 }, named[1]]),
+    /unknown or duplicate/,
+  );
+  assert.throws(
+    () => verifyMigrationHistory(migrations, [{ ...named[0], hash: "changed" }, named[1]]),
+    /checksum differs/,
+  );
 });
 
 test("historical Windows CRLF migration hashes are accepted without accepting edited SQL", () => {
@@ -72,7 +110,7 @@ test("historical Windows CRLF migration hashes are accepted without accepting ed
 });
 
 test("a latest timestamp cannot conceal an unapplied earlier migration", () => {
-  assert.throws(() => verifyMigrationHistory(migrations, [history[1]]), /0000_first/);
+  assert.throws(() => verifyMigrationHistory(migrations, [history[1]]), /20260101000001_first/);
 });
 
 test("edited, unknown and duplicate migration history fail closed", () => {
@@ -100,19 +138,34 @@ test("recorded migrations still require live columns and millisecond precision",
   );
 });
 
-test("readiness executes SELECT statements only", async () => {
-  const queries = [];
-  await checkDatabaseReadiness(
-    {
-      async execute(sql) {
-        queries.push(sql);
-        return { rows: queries.length === 1 ? history : columns };
+test("readiness detects legacy and RC ledgers using SELECT statements only", async () => {
+  for (const hasNames of [false, true]) {
+    const queries = [];
+    await checkDatabaseReadiness(
+      {
+        async execute(sql) {
+          queries.push(sql);
+          return {
+            rows:
+              queries.length === 1
+                ? [
+                    ...columns,
+                    ...(hasNames
+                      ? [{ table_name: "ao3track__migrations", column_name: "name" }]
+                      : []),
+                  ]
+                : history.map((row, index) =>
+                    hasNames ? { ...row, name: migrations[index].tag } : row,
+                  ),
+          };
+        },
       },
-    },
-    { migrations, snapshot },
-  );
-  assert.equal(queries.length, 2);
-  assert.ok(queries.every((sql) => /^SELECT\s/.test(sql) && !sql.includes(";")));
+      { migrations, snapshot },
+    );
+    assert.equal(queries.length, 2);
+    assert.ok(queries.every((sql) => /^SELECT\s/.test(sql) && !sql.includes(";")));
+    assert.equal(queries[1].includes("created_at, name"), hasNames);
+  }
 });
 
 test("a missing ledger or connection error blocks deployment without leaking driver details", async () => {
