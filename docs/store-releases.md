@@ -24,6 +24,10 @@ Automatic releases check out the exact successful CI commit. Failed CI, pull req
 
 The deployment phase downloads the API artifact by ID from the same workflow run and deploys it without rebuilding. Failed-job retries reuse that artifact; a full rerun produces a new artifact with a distinct attempt number. Each automatic store retry checks its source branch (`main` or `dev`) again so it cannot reuse an old release approval. Manual and automatic uploads still share a non-canceling lock per store and channel, and allocate versions only after acquiring it. Manual store runs retain their existing serialization. This is not a guarantee to release every intermediate merge.
 
+CI runs JVM tests and the Android Debug build in one job, alongside a separate minified Android Dev build. The `Android and JVM checks` status requires both jobs to succeed. PRs skip native builds only when their entire diff contains API, browser-extension, Markdown, `docs/`, or `.changeset/` changes. Native sources, shared packages, lockfiles, root configuration, CI scripts, and unknown paths require native checks. Failed comparisons run the checks. Pushes to `main`/`dev` and manual runs always run the full native checks so release candidates are validated even if an earlier CI run failed or was cancelled.
+
+Each native job restores its most recent Gradle cache and successful non-PR runs save a snapshot keyed by commit. Gradle validates cached task inputs; build-file changes can reuse dependencies and unaffected task outputs. PRs read caches without writing them. These caches contain only Gradle User Home `caches/` and `wrapper/`, and the signed release workflow remains separate. Download the `native-build-profile-checks` and `native-build-profile-dev` artifacts for Gradle task timings when comparing cold and warm builds.
+
 Manual store workflows are available in [GitHub Actions](https://github.com/qcksys/ao3tracker/actions) once merged. Select a branch or tag whose CI passed and whose required API changes are already deployed. Manual store runs do not deploy the API or require successful CI automatically.
 
 ## Automatic versions and retries
