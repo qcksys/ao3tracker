@@ -15,6 +15,15 @@
   },
   "preview_urls": false,
   "workers_dev": false,
+  "secrets": {
+    "required": [
+      "DATABASE_URL",
+      "BETTER_AUTH_SECRET",
+      "GOOGLE_ID",
+      "GOOGLE_SECRET",
+      "FCM_SERVICE_ACCOUNT"
+    ]
+  },
   "r2_buckets": [
     {
       "binding": "WORK_BACKUPS_BUCKET",
@@ -71,6 +80,15 @@
   "env": {
     "dev": {
       "name": "ao3tracker-api-dev",
+      "secrets": {
+        "required": [
+          "DATABASE_URL",
+          "BETTER_AUTH_SECRET",
+          "GOOGLE_ID",
+          "GOOGLE_SECRET",
+          "FCM_SERVICE_ACCOUNT"
+        ]
+      },
       "r2_buckets": [
         {
           "binding": "WORK_BACKUPS_BUCKET",
@@ -136,6 +154,15 @@
     },
     "prod": {
       "name": "ao3tracker-api-prod",
+      "secrets": {
+        "required": [
+          "DATABASE_URL",
+          "BETTER_AUTH_SECRET",
+          "GOOGLE_ID",
+          "GOOGLE_SECRET",
+          "FCM_SERVICE_ACCOUNT"
+        ]
+      },
       "r2_buckets": [
         {
           "binding": "WORK_BACKUPS_BUCKET",

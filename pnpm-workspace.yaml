@@ -35,13 +35,13 @@ catalog:
   "@types/node": ^24.19.0
   "@types/react": ^19.3.0
   "@types/react-dom": ^19.3.0
+  "@varlock/1password-plugin": ^2.0.4
   "@wxt-dev/module-react": ^1.2.2
   "@wxt-dev/storage": ^1.2.9
   better-auth: ^1.7.6
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   date-fns: ^4.4.0
-  dotenv: ^18.0.4
   drizzle-kit: 1.0.0-rc.4
   drizzle-orm: 1.0.0-rc.4
   happy-dom: ^20.14.5
@@ -59,6 +59,7 @@ catalog:
   tailwind-merge: ^3.7.0
   tailwindcss: ^4.3.3
   typescript: ^7.0.2
+  varlock: ^1.21.1
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0
   vite-plus: 1.0.0
   vitest: 5.0.1

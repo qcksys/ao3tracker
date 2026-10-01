@@ -1,7 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@planetscale/database";
-import dotenv from "dotenv";
 import { drizzle } from "drizzle-orm/planetscale-serverless";
 import { migrate } from "drizzle-orm/planetscale-serverless/migrator";
 import { DB_TABLE_PREFIX } from "../src/const.ts";
@@ -42,7 +41,6 @@ export function formatMigrationError(error, url) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  dotenv.config({ path: fileURLToPath(new URL("../.dev.vars", import.meta.url)), quiet: true });
   const url = process.env.DATABASE_URL;
   try {
     await runMigrations(url);

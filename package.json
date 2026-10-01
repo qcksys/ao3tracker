@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "ready": "vp fmt && vp lint && vp run -r test && vp run -r build",
-    "dev": "vp run website#dev",
+    "dev": "vp run --filter @qcksys/ao3tracker-api dev",
     "prepare": "vp config"
   },
   "devDependencies": {

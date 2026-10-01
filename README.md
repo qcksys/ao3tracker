@@ -32,6 +32,8 @@ vp run build -r
 
 - Run the development server:
 
+Configure the API's [1Password local secrets](apps/api/README.md#local-secrets-in-1password) first. The browser extension and native app do not need API secrets for local builds.
+
 ```bash
 vp run dev
 ```

@@ -11,7 +11,7 @@ Hono framework, Drizzle ORM, and Better Auth for authentication.
 
 ```bash
 # Development
-vp run dev                    # Start local dev server with wrangler
+vp run dev                    # Start local dev server with 1Password secrets
 vp run types:cf               # Generate Cloudflare bindings types (CloudflareBindings interface)
 vp run types:tsc              # Run TypeScript type check (tsc --noEmit)
 vp run proxy                  # Start cloudflared tunnel for local dev
@@ -216,7 +216,7 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 ### Configuration Files
 
 - `wrangler.json` - Cloudflare Workers config with env-specific settings
-- `.dev.vars` - Local environment secrets (not committed)
+- `.env.schema` - Tracked Varlock schema with one 1Password reference to a Secure Note containing the local dotenv text; see [setup](README.md#local-secrets-in-1password). Package scripts use `varlock run`; keep plaintext values in 1Password and declare new keys in the schema. Remove legacy `.dev.vars` files after verifying their secrets in 1Password, since Wrangler gives those files precedence over injected values. Keep `secrets.required` synchronized across Wrangler environments so generated types retain the secret bindings; deployments validate the names against existing Cloudflare secrets.
 - `drizzle.config.ts` - Drizzle Kit config (reads from env vars via `src/env.ts`)
 - `better-auth.config.ts` - Better Auth configuration
 - `vitest.config.ts` - Vitest configuration with Cloudflare Workers pool
