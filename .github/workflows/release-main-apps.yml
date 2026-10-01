@@ -29,6 +29,7 @@ jobs:
     uses: ./.github/workflows/release-android.yml
     secrets: inherit
     with:
+      ci_verified: true
       source_ref: ${{ inputs.source_ref }}
 
   chrome:

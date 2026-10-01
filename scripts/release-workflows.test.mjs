@@ -174,3 +174,66 @@ test("store builds finish on the first attempt and reject stale sources only on 
     assert.ok(steps.indexOf(retryGuard) < steps.indexOf(version));
   }
 });
+
+test("automatic Android releases reuse CI tests for the same source commit", async () => {
+  for (const name of ["release-main-apps", "release-dev-apps"]) {
+    const { android } = (await workflow(name)).jobs;
+    assert.equal(android.with.ci_verified, true);
+    assert.equal(
+      android.with.source_ref,
+      name === "release-main-apps"
+        ? "${{ inputs.source_ref }}"
+        : "${{ needs.deploy.outputs.source_ref }}",
+    );
+  }
+  const config = await workflow("release-android");
+  assert.equal(config.on.workflow_call.inputs.ci_verified.type, "boolean");
+  assert.equal(config.on.workflow_call.inputs.ci_verified.default, false);
+  assert.equal(config.on.workflow_dispatch.inputs.ci_verified, undefined);
+  const { steps } = config.jobs.release;
+  const sharedTests = steps.find((step) => step.run?.includes("ao3tracker-core test"));
+  const nativeTests = steps.find((step) => step.run?.includes(":composeApp:jvmTest"));
+  for (const step of [sharedTests, nativeTests]) {
+    assert.equal(step.if, "${{ !inputs.ci_verified }}");
+  }
+  assert.match(sharedTests.run, /ao3tracker-webview-scripts test/);
+});
+
+test("Android releases restore CI task outputs without publishing signed build caches", async () => {
+  const ci = (await workflow("ci")).jobs.native;
+  assert.ok(ci.strategy.matrix.include.some((entry) => entry.target === "dev"));
+  const ciCache = ci.steps.find((step) => step.uses?.startsWith("actions/cache/restore@"));
+  const { steps } = (await workflow("release-android")).jobs.release;
+  const checkout = steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+  const cache = steps.find((step) => step.uses?.startsWith("actions/cache/restore@"));
+  assert.ok(cache, "release must restore Gradle outputs from native CI");
+  assert.equal(cache.with.path, ciCache.with.path);
+  assert.equal(
+    cache.with.key,
+    ciCache.with.key
+      .replace("${{ matrix.target }}", "dev")
+      .replace("${{ github.sha }}", checkout.with.ref),
+  );
+  assert.equal(
+    cache.with["restore-keys"],
+    ciCache.with["restore-keys"].replace("${{ matrix.target }}", "dev"),
+  );
+  assert.notEqual(cache.with["fail-on-cache-miss"], true);
+  assert.ok(!steps.some((step) => /^actions\/cache(?:@|\/save@)/.test(step.uses ?? "")));
+  for (const setup of steps.filter((step) =>
+    step.uses?.startsWith("gradle/actions/setup-gradle@"),
+  )) {
+    assert.equal(setup.with["cache-provider"], "external");
+  }
+  const bundle = steps.find((step) => step.name === "Build signed release bundle");
+  assert.ok(steps.indexOf(cache) < steps.indexOf(bundle));
+  assert.match(bundle.run, /--build-cache/);
+  assert.doesNotMatch(bundle.run, /--no-build-cache/);
+  assert.match(bundle.run, /--no-configuration-cache/);
+  assert.match(bundle.run, /--no-daemon/);
+  assert.match(bundle.run, /jarsigner -verify/);
+  assert.equal(
+    bundle.env.ANDROID_VERSION_CODE,
+    "${{ steps.version.outputs.android_version_code }}",
+  );
+});
