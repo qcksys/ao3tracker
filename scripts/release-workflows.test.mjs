@@ -16,15 +16,27 @@ for (const [branch, entry, protectedWorkflow, releaseGroup] of [
   test(`${branch}: superseded preparation can be canceled without canceling an active release`, async () => {
     const config = await workflow(entry);
     assert.equal(config.concurrency, undefined);
-    assert.deepEqual(config.on.workflow_run.branches, [branch]);
+    if (branch === "main") {
+      assert.deepEqual(config.on.workflow_run.branches, [branch]);
+    } else {
+      assert.ok(config.on.workflow_call);
+      assert.equal(config.on.workflow_run, undefined);
+      assert.equal(config.on.workflow_call.inputs.source_ref.required, true);
+    }
     const { prepare, deploy } = config.jobs;
     assert.equal(prepare.concurrency, undefined);
     assert.equal(prepare.uses, "./.github/workflows/prepare-release.yml");
     assert.equal(prepare.with.branch, branch);
-    assert.match(prepare.if, /conclusion == 'success'/);
-    assert.match(prepare.if, /event == 'push'/);
-    assert.ok(prepare.if.includes(`head_branch == '${branch}'`));
-    assert.match(prepare.if, /head_repository.id == github.repository_id/);
+    if (branch === "main") {
+      assert.match(prepare.if, /conclusion == 'success'/);
+      assert.match(prepare.if, /event == 'push'/);
+      assert.ok(prepare.if.includes(`head_branch == '${branch}'`));
+      assert.match(prepare.if, /head_repository.id == github.repository_id/);
+    } else {
+      assert.match(prepare.if, /github.event_name == 'push'/);
+      assert.match(prepare.if, /github.ref == 'refs\/heads\/dev'/);
+      assert.match(prepare.if, /inputs.source_ref == github.sha/);
+    }
     assert.equal(deploy.needs, "prepare");
     assert.equal(deploy.if, "needs.prepare.outputs.eligible == 'true'");
     assert.deepEqual(deploy.concurrency, {
@@ -154,7 +166,10 @@ test("store builds finish on the first attempt and reject stale sources only on 
     assert.equal(config.concurrency.queue, "max");
     const { steps } = config.jobs.release;
     const retryGuard = steps.find((step) => step.run?.includes("assert-current-source"));
-    assert.equal(retryGuard.if, "github.event_name == 'workflow_run' && github.run_attempt > 1");
+    assert.equal(
+      retryGuard.if,
+      "(github.event_name == 'workflow_run' || github.event_name == 'push') && github.run_attempt > 1",
+    );
     const version = steps.find((step) => step.run?.includes("scripts/release-version.mjs"));
     assert.ok(steps.indexOf(retryGuard) < steps.indexOf(version));
   }

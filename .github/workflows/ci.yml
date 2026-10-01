@@ -9,13 +9,20 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
+  release-dev:
+    needs: [workspace, android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    uses: ./.github/workflows/deploy-dev-api.yml
+    secrets: inherit
+    with:
+      source_ref: ${{ github.sha }}
+
   native-changes:
     name: Detect native changes
+    concurrency:
+      group: ci-native-changes-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.run_attempt == 1 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -36,6 +43,9 @@ jobs:
 
   workspace:
     name: Workspace checks
+    concurrency:
+      group: ci-workspace-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.run_attempt == 1 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -71,6 +81,9 @@ jobs:
 
   native:
     name: ${{ matrix.name }}
+    concurrency:
+      group: ci-native-${{ matrix.target }}-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.run_attempt == 1 }}
     needs: native-changes
     if: needs.native-changes.outputs.required == 'true'
     runs-on: ubuntu-24.04

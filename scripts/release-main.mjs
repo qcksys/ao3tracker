@@ -17,6 +17,17 @@ export function isCurrentSuccessfulRun(event, branchSha, branch = "main") {
   );
 }
 
+export function isCurrentDevPush(event, branchSha, repositoryId) {
+  return (
+    event.ref === "refs/heads/dev" &&
+    event.deleted !== true &&
+    Number.isSafeInteger(repositoryId) &&
+    event.repository?.id === repositoryId &&
+    /^[0-9a-f]{40}$/.test(event.after ?? "") &&
+    event.after === branchSha
+  );
+}
+
 export function assertCurrentSource(sourceRef, branchSha, branch = "main") {
   if (
     (branch !== "main" && branch !== "dev") ||
@@ -57,14 +68,20 @@ async function main() {
     return;
   }
   const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
-  const eligible = isCurrentSuccessfulRun(event, ref.object?.sha, branch);
+  // Direct dev calls rely on CI's needs gate for successful checks.
+  const devPush = process.env.GITHUB_EVENT_NAME === "push" && branch === "dev";
+  const eligible = devPush
+    ? isCurrentDevPush(event, ref.object?.sha, Number(process.env.GITHUB_REPOSITORY_ID))
+    : process.env.GITHUB_EVENT_NAME === "workflow_run" &&
+      isCurrentSuccessfulRun(event, ref.object?.sha, branch);
+  const sourceRef = devPush ? event.after : event.workflow_run?.head_sha;
   await appendFile(
     process.env.GITHUB_OUTPUT,
-    `eligible=${eligible}\n${eligible ? `source_ref=${event.workflow_run.head_sha}\n` : ""}`,
+    `eligible=${eligible}\n${eligible ? `source_ref=${sourceRef}\n` : ""}`,
   );
   console.log(
     eligible
-      ? `Releasing tested commit ${event.workflow_run.head_sha}.`
+      ? `Releasing tested commit ${sourceRef}.`
       : `Skipping release: CI is not a successful same-repository push for the current ${branch} commit.`,
   );
 }

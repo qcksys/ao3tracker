@@ -1,10 +1,12 @@
 name: Release dev
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [dev]
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact dev commit that passed both CI checks
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -12,10 +14,9 @@ permissions:
 jobs:
   prepare:
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'dev' &&
-      github.event.workflow_run.head_repository.id == github.repository_id
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/dev' &&
+      inputs.source_ref == github.sha
     uses: ./.github/workflows/prepare-release.yml
     with:
       branch: dev
