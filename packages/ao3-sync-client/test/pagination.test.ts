@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { getFullSync } from "../src/sync";
 
 it("retains the first page's cursor so mutations during pagination are fetched next time", async () => {

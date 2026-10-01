@@ -41,8 +41,8 @@ Better Auth handles all auth endpoints including sign-in, sign-up, password rese
 
 ### Prerequisites
 
-- Node.js 24+ (via Volta)
-- pnpm 10+
+- Node.js 24, managed by Vite+ using the root `package.json` → `engines.node` pin
+- Vite+ (`vp`); it manages the pinned pnpm backend
 - Cloudflare account
 - PlanetScale database
 
@@ -50,46 +50,46 @@ Better Auth handles all auth endpoints including sign-in, sign-up, password rese
 
 ```bash
 # Install dependencies
-pnpm install
+vp install
 
 # Generate Cloudflare bindings types
-pnpm types:cf
+vp run types:cf
 
 # Create .dev.vars with required secrets
 cp .dev.vars.example .dev.vars
 
 # Start local dev server
-pnpm dev
+vp run dev
 
 # Optional: Start cloudflared tunnel for HTTPS
-pnpm proxy
+vp run proxy
 ```
 
 ### Commands
 
 ```bash
 # Development
-pnpm dev                  # Start local dev server
-pnpm types:cf             # Generate Cloudflare bindings types
-pnpm types:tsc            # Run TypeScript type check
+vp run dev                  # Start local dev server
+vp run types:cf             # Generate Cloudflare bindings types
+vp run types:tsc            # Run TypeScript type check
 
 # Testing
-pnpm test                 # Run all tests
-pnpm test -- test/lww.test.ts              # Run specific test file
-pnpm test -- -t "should parse"             # Run tests matching pattern
+vp run test                 # Run all tests
+vp run test test/lww.test.ts              # Run specific test file
+vp run test -t "should parse"             # Run tests matching pattern
 
 # Database
-pnpm db:generate          # Generate Drizzle migrations
-pnpm db:migrate           # Run migrations
-pnpm db:push              # Push schema directly (dev only)
+vp run db:generate          # Generate Drizzle migrations
+vp run db:migrate           # Run migrations
+vp run db:push              # Push schema directly (dev only)
 
 # Deployment
-pnpm deploy:dev           # Deploy to dev environment
-pnpm deploy:prod          # Deploy to production
+vp run deploy:dev           # Deploy to dev environment
+vp run deploy:prod          # Deploy to production
 
 # Linting
-pnpm biome:check:unsafe   # Fix linting issues
-pnpm biome:ci             # CI linting check
+vp run biome:check:unsafe   # Fix linting issues
+vp run biome:ci             # CI linting check
 ```
 
 ### Environment Variables

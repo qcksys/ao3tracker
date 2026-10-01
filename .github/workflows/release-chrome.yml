@@ -39,33 +39,33 @@ jobs:
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
-          node-version: 24
-          cache: pnpm
+          version-file: pnpm-workspace.yaml
+          run-install: false
+          cache: true
       - name: Reject stale automatic release retries
         if: github.event_name == 'workflow_run'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
-        run: node scripts/release-main.mjs assert-current-source
+        run: vp node scripts/release-main.mjs assert-current-source
       - name: Allocate a fresh release version
         id: version
-        run: node scripts/release-version.mjs
+        run: vp node scripts/release-version.mjs
       - name: Install locked dependencies
-        run: pnpm install --frozen-lockfile
+        run: vp install --frozen-lockfile
       - name: Check shared packages and extension
         run: |
-          node --test scripts/release-chrome.test.mjs
-          pnpm --filter @qcksys/ao3tracker-core --filter @qcksys/ao3tracker-sync-client typecheck
-          pnpm --filter @qcksys/ao3tracker-browser-extension compile
-          pnpm --filter @qcksys/ao3tracker-core --filter @qcksys/ao3tracker-sync-client --filter @qcksys/ao3tracker-browser-extension test
+          vp node --test scripts/release-chrome.test.mjs
+          vp run --filter @qcksys/ao3tracker-core --filter @qcksys/ao3tracker-sync-client typecheck
+          vp run --filter @qcksys/ao3tracker-browser-extension compile
+          vp run --filter @qcksys/ao3tracker-core --filter @qcksys/ao3tracker-sync-client --filter @qcksys/ao3tracker-browser-extension test
       - name: Build Chrome ZIP
         env:
           CHROME_VERSION: ${{ steps.version.outputs.chrome_version }}
           CHROME_VERSION_NAME: ${{ steps.version.outputs.android_version_name }}
-        run: pnpm --filter @qcksys/ao3tracker-browser-extension zip -b chrome
+        run: vp run --filter @qcksys/ao3tracker-browser-extension zip -b chrome
       - name: Save Chrome release artifact
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
@@ -76,7 +76,7 @@ jobs:
           retention-days: 30
           compression-level: 0
       - name: Verify store identity and API origins
-        run: node scripts/release-chrome.mjs verify
+        run: vp node scripts/release-chrome.mjs verify
       - name: Prepare Google service-account credentials
         if: ${{ !inputs.build_only }}
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
@@ -86,4 +86,4 @@ jobs:
           export_environment_variables: true
       - name: Upload draft to Chrome Web Store v2
         if: ${{ !inputs.build_only }}
-        run: node scripts/release-chrome.mjs upload
+        run: vp node scripts/release-chrome.mjs upload

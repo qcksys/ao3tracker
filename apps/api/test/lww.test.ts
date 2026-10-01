@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { type LWWField, resolveLWW } from "~/db/helpers/lww";
 
 describe("lww", () => {

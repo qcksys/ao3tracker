@@ -1,4 +1,4 @@
-import { type InferInsertModel, type InferSelectModel, relations } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   boolean,
   datetime,
@@ -8,10 +8,9 @@ import {
   primaryKey,
   varchar,
 } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
-import { tWork } from "~/db/schema/work";
 
 export const tTrackWork = mysqlTable(
   `${DB_TABLE_PREFIX}track_work`,
@@ -49,12 +48,6 @@ export const tTrackWork = mysqlTable(
 
 /** Composite primary key target for upsert operations */
 export const tTrackWorkPK = [tTrackWork.userId, tTrackWork.workId] as const;
-export const rTrackWork = relations(tTrackWork, ({ one }) => ({
-  work: one(tWork, {
-    fields: [tTrackWork.workId],
-    references: [tWork.id],
-  }),
-}));
 
 export type TTrackWorkS = InferSelectModel<typeof tTrackWork>;
 export type TTrackWorkI = OmitTimestampCols<InferInsertModel<typeof tTrackWork>>;

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { chapterIndexHtml, workPageHtml } from "./fixtures";
 
 let scrollListeners: EventListenerOrEventListenerObject[];

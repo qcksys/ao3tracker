@@ -8,6 +8,10 @@ GitHub Actions checks the workspace and Android app on pull requests and pushes 
 
 ## Development
 
+Use Vite+ (`vp`) for dependency installation and workspace tasks. Run `vp install --frozen-lockfile` after checkout. The pnpm workspace files and lockfile remain because Vite+ manages pnpm as its installation backend. CI uses the official `voidzero-dev/setup-vp` action.
+
+The root [package.json](package.json) pins Node.js 24 through `engines.node`. Vite+ and CI use this [documented fallback](https://viteplus.dev/guide/env#node-js-selection) directly.
+
 - Check everything is ready:
 
 ```bash

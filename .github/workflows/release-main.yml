@@ -31,30 +31,34 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
-          node-version: 24
+          version-file: pnpm-workspace.yaml
+          run-install: false
       - name: Check successful CI still matches main
         id: release
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/release-main.mjs
+        run: vp node scripts/release-main.mjs
 
   api:
     needs: ready
     if: needs.ready.outputs.eligible == 'true'
     uses: ./.github/workflows/deploy-api.yml
+    secrets: inherit
     with:
       source_ref: ${{ needs.ready.outputs.source_ref }}
 
   android:
     needs: [ready, api]
     uses: ./.github/workflows/release-android.yml
+    secrets: inherit
     with:
       source_ref: ${{ needs.ready.outputs.source_ref }}
 
   chrome:
     needs: [ready, api]
     uses: ./.github/workflows/release-chrome.yml
+    secrets: inherit
     with:
       source_ref: ${{ needs.ready.outputs.source_ref }}

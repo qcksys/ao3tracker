@@ -9,9 +9,9 @@ Canonical guidance for AI coding agents (Claude Code, etc.) working in `packages
 ## Commands
 
 ```bash
-pnpm run test       # vp test run — vitest under happy-dom (DOM helper tests)
-pnpm run test:watch # vp test watch
-pnpm run typecheck  # tsc --noEmit
+vp run test       # vp test run — vitest under happy-dom (DOM helper tests)
+vp run test:watch # vp test watch
+vp run typecheck  # tsc --noEmit
 ```
 
 There is no build step: the package ships TypeScript source via `main`/`types` pointing at `./src/index.ts`. Consumers bundle it themselves.

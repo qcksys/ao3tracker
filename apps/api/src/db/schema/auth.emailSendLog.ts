@@ -7,7 +7,7 @@ import {
   primaryKey,
   varchar,
 } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, timestampCols } from "~/db/helpers/schema";
 
