@@ -207,6 +207,16 @@ class AuthRepository(
         }
     }
 
+    suspend fun importGuestData(expectedOwner: String): com.qcksys.ao3tracker.data.database.GuestImportResult {
+        val session = _authState.value as? AuthState.Authenticated
+            ?: error("Sign in to import guest data")
+        check(currentOwner() == expectedOwner) { "Account changed" }
+        val generation = accountData.generation
+        return accountData.importGuest(expectedOwner) {
+            accountData.generation == generation && isCurrentSession(session.token, expectedOwner)
+        }
+    }
+
     fun hasCredentialSupport(): Boolean = credentialHelper?.isSupported() == true
 
     suspend fun signOut() {

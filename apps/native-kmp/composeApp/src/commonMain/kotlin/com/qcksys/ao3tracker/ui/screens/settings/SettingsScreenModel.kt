@@ -32,7 +32,7 @@ class SettingsScreenModel(
 
     private fun loadWorkCount() {
         screenModelScope.launch {
-            _workCount.value = repository.getWorkCount()
+            repository.observeWorkCount().collect { _workCount.value = it }
         }
     }
 

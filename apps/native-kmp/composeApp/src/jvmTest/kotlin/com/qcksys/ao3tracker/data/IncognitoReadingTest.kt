@@ -1,12 +1,9 @@
 package com.qcksys.ao3tracker.data
 
-import androidx.room.Room
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import cafe.adriel.voyager.core.annotation.InternalVoyagerApi
 import cafe.adriel.voyager.core.model.ScreenModelStore
 import com.qcksys.ao3tracker.data.auth.SyncAuthentication
 import com.qcksys.ao3tracker.data.database.AccountDataStore
-import com.qcksys.ao3tracker.data.database.Ao3Database
 import com.qcksys.ao3tracker.data.database.ChapterEntity
 import com.qcksys.ao3tracker.data.database.TagEntity
 import com.qcksys.ao3tracker.data.database.WorkEntity
@@ -289,13 +286,10 @@ class IncognitoReadingTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val directory = Files.createTempDirectory("ao3tracker-incognito-")
-        val db = Room.databaseBuilder<Ao3Database>(directory.resolve("test.db").toString())
-            .setDriver(BundledSQLiteDriver())
-            .setQueryCoroutineContext(dispatcher)
-            .build()
+        val accounts = createTestAccounts(directory, dispatcher)
         val modelHolder = "incognito-test:${directory.fileName}"
         try {
-            val f = Fixture(db, modelHolder)
+            val f = Fixture(accounts, modelHolder)
             beforeInitialization(f)
             f.accounts.initialize()
             f.accounts.activate(AccountDataStore.GUEST)
@@ -304,7 +298,7 @@ class IncognitoReadingTest {
         } finally {
             ScreenModelStore.onDisposeNavigator(modelHolder)
             runCurrent()
-            db.close()
+            accounts.close()
             Dispatchers.resetMain()
             Files.walk(directory).use { paths ->
                 paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)
@@ -312,12 +306,12 @@ class IncognitoReadingTest {
         }
     }
 
-    private class Fixture(val db: Ao3Database, modelHolder: String) {
-        val accounts = AccountDataStore(db)
+    private class Fixture(val accounts: AccountDataStore, modelHolder: String) {
+        val db get() = accounts.database
         val settings = AppSettings(null)
-        val repository = Ao3Repository(db, accounts)
-        private val searches = SavedSearchRepository(db.savedSearchDao(), accounts)
-        private val favourites = FavouriteTagRepository(db.favouriteTagDao(), accounts)
+        val repository = Ao3Repository(accounts)
+        private val searches = SavedSearchRepository(accounts)
+        private val favourites = FavouriteTagRepository(accounts)
         private val auth = object : SyncAuthentication {
             override val authState = MutableStateFlow<AuthState>(AuthState.Idle)
             override fun currentOwner(): String? = null
@@ -337,7 +331,7 @@ class IncognitoReadingTest {
                 request: SyncPostRequest
             ): Result<SyncPostResponse> = error("Reading tests must not send remote state")
         }
-        private val sync = SyncRepository(remote, db, auth, favourites, searches, accounts)
+        private val sync = SyncRepository(remote, auth, favourites, searches, accounts)
         val model = ScreenModelStore.getOrPut(modelHolder, null) {
             ReadScreenModel(repository, searches, SyncTriggers(sync), accounts, settings)
         }

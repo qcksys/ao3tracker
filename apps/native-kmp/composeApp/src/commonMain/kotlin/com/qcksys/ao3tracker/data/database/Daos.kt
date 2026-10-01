@@ -84,6 +84,9 @@ interface WorkDao {
 
     @Query("SELECT COUNT(*) FROM works WHERE rowDeletedAt IS NULL")
     suspend fun getWorkCount(): Int
+
+    @Query("SELECT COUNT(*) FROM works WHERE rowDeletedAt IS NULL")
+    fun observeWorkCount(): Flow<Int>
 }
 
 @Dao
@@ -277,4 +280,16 @@ interface AccountDao {
 
     @Upsert
     suspend fun archive(account: AccountArchiveEntity)
+
+    @Query("SELECT * FROM account_database WHERE owner = :owner")
+    suspend fun getDatabase(owner: String): AccountDatabaseEntity?
+
+    @Query("SELECT * FROM account_database WHERE selected = 1 LIMIT 1")
+    suspend fun getSelectedDatabase(): AccountDatabaseEntity?
+
+    @Upsert
+    suspend fun saveDatabase(database: AccountDatabaseEntity)
+
+    @Query("UPDATE account_database SET selected = (owner = :owner)")
+    suspend fun selectDatabase(owner: String)
 }

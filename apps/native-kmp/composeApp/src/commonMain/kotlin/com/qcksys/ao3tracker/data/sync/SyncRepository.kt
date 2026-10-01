@@ -1,7 +1,6 @@
 package com.qcksys.ao3tracker.data.sync
 
 import com.qcksys.ao3tracker.data.auth.SyncAuthentication
-import com.qcksys.ao3tracker.data.database.Ao3Database
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.FavouriteTagEntity
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
@@ -47,15 +46,14 @@ import kotlin.time.Instant
 @OptIn(ExperimentalTime::class)
 class SyncRepository(
     private val syncService: SyncRemote,
-    private val database: Ao3Database,
     private val authRepository: SyncAuthentication,
     private val favouriteTagRepository: FavouriteTagRepository,
     private val savedSearchRepository: SavedSearchRepository,
     private val accountData: AccountDataStore
 ) {
-    private val workDao = database.workDao()
-    private val chapterDao = database.chapterDao()
-    private val tagDao = database.tagDao()
+    private val workDao get() = accountData.database.workDao()
+    private val chapterDao get() = accountData.database.chapterDao()
+    private val tagDao get() = accountData.database.tagDao()
 
     // Repository-owned scope that survives screen lifecycle changes
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

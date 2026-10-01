@@ -92,6 +92,12 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("CREATE TABLE IF NOT EXISTS account_database (owner TEXT NOT NULL PRIMARY KEY, fileName TEXT NOT NULL, selected INTEGER NOT NULL)")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("CREATE TABLE IF NOT EXISTS active_account (id INTEGER NOT NULL PRIMARY KEY, owner TEXT NOT NULL, remoteCursor TEXT, localCursor INTEGER)")
