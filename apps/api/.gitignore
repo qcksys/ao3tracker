@@ -17,10 +17,10 @@ node_modules/
 
 # env
 .env
-.env.production
+.env.*
+!.env.schema
 .dev.vars
 .dev.vars.*
-!.dev.vars.example
 
 # logs
 logs/

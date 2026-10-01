@@ -48,6 +48,7 @@ For app-specific commands (running dev servers, deploying, building a single pla
 - **Package management**: use `vp install`, `vp add`, `vp remove`, and `vp exec` everywhere, including `apps/native-kmp/webview-scripts/`. Keep the pnpm `packageManager` pin, workspace configuration, and lockfile: Vite+ delegates installation to that backend. The Gradle build invokes `vp install --frozen-lockfile` at the workspace root before `vp run build` in `webview-scripts/`.
 - **Formatting**: `vp fmt` is the only formatter for workspace source and documentation. The root `vite.config.ts` sets two-space indentation and LF endings; generated Worker types and database snapshots retain their generator's formatting. API and WebView Biome configurations run lint and import organization with formatting disabled. Run `vp fmt --check`, `vp lint`, and the app's `biome:ci` checks after changes.
 - **Don't commit secrets**: `.env`, `.dev.vars`, `local.properties`, `release.keystore` are all gitignored — keep it that way.
+- **Local API secrets**: use the API package scripts, which use Varlock and its 1Password plugin to load one Secure Note via the CLI. See [API setup](apps/api/README.md#local-secrets-in-1password) when configuring a checkout or changing secret loading. Builds and tests run without vault access.
 - **No root-level `CLAUDE.md` content**: this file (`AGENTS.md`) is the source of truth; `CLAUDE.md` is a symlink to it. Same pattern in each app. Don't reintroduce the Vite+ template stub.
 
 ## Changesets
