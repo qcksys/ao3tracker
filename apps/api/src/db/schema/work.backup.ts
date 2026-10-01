@@ -1,4 +1,4 @@
-import { type InferInsertModel, type InferSelectModel, relations } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   bigint,
   datetime,
@@ -8,10 +8,9 @@ import {
   mysqlTable,
   varchar,
 } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, timestampCols } from "~/db/helpers/schema";
-import { tWork } from "~/db/schema/work";
 
 export const backupFormats = ["html", "pdf", "mobi", "epub", "azw3"] as const;
 export type BackupFormat = (typeof backupFormats)[number];
@@ -35,13 +34,6 @@ export const tWorkBackup = mysqlTable(
     ];
   },
 );
-
-export const rWorkBackup = relations(tWorkBackup, ({ one }) => ({
-  work: one(tWork, {
-    fields: [tWorkBackup.workId],
-    references: [tWork.id],
-  }),
-}));
 
 export type TWorkBackupS = InferSelectModel<typeof tWorkBackup>;
 export type TWorkBackupI = OmitTimestampCols<InferInsertModel<typeof tWorkBackup>>;

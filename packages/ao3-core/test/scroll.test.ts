@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { getWorkInfo } from "../src/dom/extract";
 import { publishScrollPercentage } from "../src/dom/scroll";
 import { scrollProgressMessageSchema } from "../src/schemas/messages";

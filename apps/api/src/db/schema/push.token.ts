@@ -1,9 +1,8 @@
-import { type InferInsertModel, type InferSelectModel, relations } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { datetime, index, mysqlTable, primaryKey, varchar } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, timestampCols } from "~/db/helpers/schema";
-import { tAuthUser } from "~/db/schema/auth.user";
 
 export const tPushToken = mysqlTable(
   `${DB_TABLE_PREFIX}push_token`,
@@ -32,13 +31,6 @@ export const tPushTokenTimestampExclude = [
   tPushToken.rowCreatedAt,
   tPushToken.rowUpdatedAt,
 ] as const;
-
-export const rPushToken = relations(tPushToken, ({ one }) => ({
-  user: one(tAuthUser, {
-    fields: [tPushToken.userId],
-    references: [tAuthUser.id],
-  }),
-}));
 
 export type TPushTokenS = InferSelectModel<typeof tPushToken>;
 export type TPushTokenI = OmitTimestampCols<InferInsertModel<typeof tPushToken>>;

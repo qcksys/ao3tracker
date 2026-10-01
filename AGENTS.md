@@ -6,15 +6,17 @@ Canonical guidance for AI coding agents (Claude Code, etc.) working in this repo
 
 ## Repository layout
 
-This is a pnpm monorepo. Top-level tooling is Vite+ (the `vp` CLI), but most apps use their own toolchain — the root scripts are mainly for cross-cutting tasks like `pnpm install` and changesets.
+Vite+ (`vp`) manages workspace commands, Node.js, and dependency installation. It uses the pinned pnpm backend and lockfile. Apps retain their own build tools, invoked through `vp run`; the native app uses Gradle.
 
-| Path                                                   | Stack                                                                                                           | Per-app guide                                                        |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| [apps/api/](apps/api/)                                 | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale MySQL, Better Auth, Vitest                                   | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
-| [apps/browser-extension/](apps/browser-extension/)     | WXT, React 19, Tailwind 4, shadcn/ui (Base UI variant), react-router                                            | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
-| [apps/native-kmp/](apps/native-kmp/)                   | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM); embedded WebView scripts use pnpm+vitest | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md)               |
-| [packages/ao3-core/](packages/ao3-core/)               | Shared AO3 DOM extraction + zod wire schemas (consumed by browser-extension and native-kmp/webview-scripts)     | —                                                                    |
-| [packages/ao3-sync-client/](packages/ao3-sync-client/) | Typed sync/auth client for the `/api/track/sync` and Better Auth endpoints                                      | —                                                                    |
+Node.js is pinned by `engines.node` in the root [package.json](package.json). Vite+ and CI resolve this fallback directly; keep Node overrides out of the workflows and higher-priority project declarations absent.
+
+| Path                                                   | Stack                                                                                                       | Per-app guide                                                        |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [apps/api/](apps/api/)                                 | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale MySQL, Better Auth, Vitest                               | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
+| [apps/browser-extension/](apps/browser-extension/)     | WXT, React 19, Tailwind 4, shadcn/ui (Base UI variant), react-router                                        | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
+| [apps/native-kmp/](apps/native-kmp/)                   | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM); embedded WebView scripts use Vite+   | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md)               |
+| [packages/ao3-core/](packages/ao3-core/)               | Shared AO3 DOM extraction + zod wire schemas (consumed by browser-extension and native-kmp/webview-scripts) | —                                                                    |
+| [packages/ao3-sync-client/](packages/ao3-sync-client/) | Typed sync/auth client for the `/api/track/sync` and Better Auth endpoints                                  | —                                                                    |
 
 Workspace config: [pnpm-workspace.yaml](pnpm-workspace.yaml) (`apps/*`, `apps/native-kmp/webview-scripts`, `packages/*`). Lockfile: [pnpm-lock.yaml](pnpm-lock.yaml). Changesets: [.changeset/](.changeset/).
 
@@ -25,7 +27,7 @@ Both clients (browser extension and native KMP app) ingest AO3 pages and sync to
 ## When you make a change
 
 1. **Identify which app you're in.** If your edits are inside `apps/<name>/`, follow `apps/<name>/AGENTS.md` — it overrides anything generic. If you're touching tooling shared across apps (workspace files, root scripts, changesets), this file is the guide.
-2. **Use the app's own build commands**, not generic ones. The api uses pnpm; the browser-extension uses pnpm + wxt; native-kmp uses Gradle, with a nested pnpm workspace package inside `webview-scripts/` (formerly bun-based; migrated to pnpm + esbuild). Don't run `pnpm install` at the root expecting it to drive Gradle.
+2. **Use the app's own build commands**, not generic ones. Use `vp run` for package scripts: the API builds with Vite+, the extension with WXT, and WebView scripts with Vite's programmatic API. Native KMP builds use Gradle; `vp install` installs only workspace dependencies.
 3. **When a change spans apps** (e.g. an API contract change that affects both `apps/api` and a client), update the corresponding AGENTS.md sections so the contract stays documented in both places.
 
 ## Root-level commands
@@ -33,7 +35,7 @@ Both clients (browser extension and native KMP app) ingest AO3 pages and sync to
 These operate across the workspace via Vite+:
 
 ```bash
-pnpm install      # Install all workspace dependencies
+vp install      # Install all workspace dependencies
 vp run ready      # fmt + lint + test + build, recursive across apps
 vp run -r test    # Run tests in every workspace package
 vp run -r build   # Build every workspace package
@@ -43,8 +45,8 @@ For app-specific commands (running dev servers, deploying, building a single pla
 
 ## Conventions that apply everywhere
 
-- **Package manager**: pnpm everywhere, including `apps/native-kmp/webview-scripts/`. Don't introduce `npm`/`yarn`/`bun` lockfiles. The Gradle build at [apps/native-kmp/composeApp/build.gradle.kts](apps/native-kmp/composeApp/build.gradle.kts) invokes `pnpm install` at the workspace root before `pnpm run build` in `webview-scripts/`.
-- **Formatting**: `pnpm exec vp fmt` is the only formatter for workspace source and documentation. The root `vite.config.ts` sets two-space indentation and LF endings; generated Worker types and database snapshots retain their generator's formatting. API and WebView Biome configurations run lint and import organization with formatting disabled. Run `pnpm exec vp fmt --check`, `pnpm exec vp lint`, and the app's `biome:ci` checks after changes.
+- **Package management**: use `vp install`, `vp add`, `vp remove`, and `vp exec` everywhere, including `apps/native-kmp/webview-scripts/`. Keep the pnpm `packageManager` pin, workspace configuration, and lockfile: Vite+ delegates installation to that backend. The Gradle build invokes `vp install --frozen-lockfile` at the workspace root before `vp run build` in `webview-scripts/`.
+- **Formatting**: `vp fmt` is the only formatter for workspace source and documentation. The root `vite.config.ts` sets two-space indentation and LF endings; generated Worker types and database snapshots retain their generator's formatting. API and WebView Biome configurations run lint and import organization with formatting disabled. Run `vp fmt --check`, `vp lint`, and the app's `biome:ci` checks after changes.
 - **Don't commit secrets**: `.env`, `.dev.vars`, `local.properties`, `release.keystore` are all gitignored — keep it that way.
 - **No root-level `CLAUDE.md` content**: this file (`AGENTS.md`) is the source of truth; `CLAUDE.md` is a symlink to it. Same pattern in each app. Don't reintroduce the Vite+ template stub.
 
@@ -78,12 +80,12 @@ Skip changesets for: pure refactors with no behaviour change, internal tooling t
 From the repo root:
 
 ```bash
-pnpm changeset           # Interactive: pick packages, bump type, summary
-pnpm changeset status    # Show which packages have pending changesets
-pnpm changeset version   # Apply pending changesets — bumps versions + writes CHANGELOG.md (release time only)
+vp exec changeset           # Interactive: pick packages, bump type, summary
+vp exec changeset status    # Show which packages have pending changesets
+vp exec changeset version   # Apply pending changesets — bumps versions + writes CHANGELOG.md (release time only)
 ```
 
-`pnpm changeset` writes a markdown file under [.changeset/](.changeset/) with a random slug like `chilly-rats-clap.md`. Commit it with the PR that introduces the change.
+`vp exec changeset` writes a markdown file under [.changeset/](.changeset/) with a random slug like `chilly-rats-clap.md`. Commit it with the PR that introduces the change.
 
 ### Bump types
 
@@ -107,7 +109,7 @@ Optional longer body explaining why and any migration notes. Reads as the
 release note for these packages.
 ```
 
-You can also hand-write the file instead of running `pnpm changeset` — just match the format above.
+You can also hand-write the file instead of running `vp exec changeset` — just match the format above.
 
 <!--VITE PLUS START-->
 

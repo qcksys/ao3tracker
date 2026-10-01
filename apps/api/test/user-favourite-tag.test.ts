@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { type FavouriteTagUpsert, resolveFavouriteTagMerge } from "~/db/queries/user-favourite-tag";
 
 const baseTs = new Date("2024-01-01T12:00:00Z");

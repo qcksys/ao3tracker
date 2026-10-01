@@ -1,8 +1,7 @@
-import { type InferInsertModel, type InferSelectModel, relations } from "drizzle-orm";
+import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import { boolean, datetime, index, int, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
-import { tAuthUser } from "~/db/schema/auth.user";
 
 export const tAuthPasskey = mysqlTable(
   `${DB_TABLE_PREFIX}auth_passkey`,
@@ -24,13 +23,6 @@ export const tAuthPasskey = mysqlTable(
     index("passkey_credentialID_idx").on(table.credentialID),
   ],
 );
-
-export const rAuthPasskey = relations(tAuthPasskey, ({ one }) => ({
-  user: one(tAuthUser, {
-    fields: [tAuthPasskey.userId],
-    references: [tAuthUser.id],
-  }),
-}));
 
 export type TAuthPasskeyS = InferSelectModel<typeof tAuthPasskey>;
 export type TAuthPasskeyI = InferInsertModel<typeof tAuthPasskey>;

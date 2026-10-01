@@ -11,8 +11,8 @@ Consumed by [`apps/browser-extension`](../../apps/browser-extension). Future nat
 ## Commands
 
 ```bash
-pnpm run test       # vp test run — vitest under Node
-pnpm run typecheck  # tsc --noEmit
+vp run test       # vp test run — vitest under Node
+vp run typecheck  # tsc --noEmit
 ```
 
 No build step: ships as TypeScript source via `main`/`types` pointing at `./src/index.ts`.

@@ -61,26 +61,23 @@ jobs:
             *) echo "::error::Release status must be completed or draft."; exit 1 ;;
           esac
 
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - name: Set up Vite+
+        uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
-          node-version: 24
+          version-file: pnpm-workspace.yaml
+          run-install: false
+          cache: true
 
       - name: Reject stale automatic release retries
         if: github.event_name == 'workflow_run'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
-        run: node scripts/release-main.mjs assert-current-source
+        run: vp node scripts/release-main.mjs assert-current-source
 
       - name: Allocate a fresh release version
         id: version
-        run: node scripts/release-version.mjs
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
-        with:
-          run_install: false
+        run: vp node scripts/release-version.mjs
 
       - name: Set up Java
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -95,15 +92,15 @@ jobs:
           log-accepted-android-sdk-licenses: false
 
       - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
+        run: vp install --frozen-lockfile
 
       - name: Test shared extraction and WebView scripts
         run: |
-          pnpm --filter @qcksys/ao3tracker-core test
-          pnpm --filter ao3tracker-webview-scripts test
+          vp run --filter @qcksys/ao3tracker-core test
+          vp run --filter ao3tracker-webview-scripts test
 
       - name: Test native code
-        run: bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:jvmTest -x :composeApp:pnpmInstall --no-configuration-cache --no-daemon
+        run: bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:jvmTest -x :composeApp:vpInstall --no-configuration-cache --no-daemon
 
       - name: Build signed release bundle
         env:
@@ -123,7 +120,7 @@ jobs:
           done
           umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-          bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:bundleRelease -x :composeApp:pnpmInstall --no-configuration-cache --no-build-cache --no-daemon
+          bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:bundleRelease -x :composeApp:vpInstall --no-configuration-cache --no-build-cache --no-daemon
           test -s apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab
           test -s apps/native-kmp/composeApp/build/outputs/mapping/release/mapping.txt
           jarsigner -verify apps/native-kmp/composeApp/build/outputs/bundle/release/composeApp-release.aab > "$RUNNER_TEMP/android-bundle-verification.txt"

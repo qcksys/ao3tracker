@@ -1,7 +1,7 @@
 import type { ExecutedQuery } from "@planetscale/database";
 import { getTableColumns } from "drizzle-orm";
 import type { MySqlTable } from "drizzle-orm/mysql-core";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { createDbConnection } from "~/db/db.client";
 import {
   batchProcessChapters,
@@ -141,7 +141,7 @@ describe("atomic sync writes", () => {
     expect(query).toContain(
       "`rowDeletedAt` = IF(VALUES(`ao3track__track_work`.`lastReadAt`) > `ao3track__track_work`.`lastReadAt`",
     );
-    expect(query).toContain("`ao3track__track_work`.`rowDeletedAt` is null or");
+    expect(query).toMatch(/`ao3track__track_work`\.`rowDeletedAt` is null\)* or/);
     expect(query.lastIndexOf("`lastReadAt` =")).toBeGreaterThan(
       query.lastIndexOf("`rowDeletedAt` ="),
     );

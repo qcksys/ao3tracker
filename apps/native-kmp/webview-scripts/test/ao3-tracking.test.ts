@@ -15,7 +15,7 @@ import {
   getWorkTagInfo,
   type WorkBadgeData,
 } from "@qcksys/ao3tracker-core";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { applyListBadges } from "~/ao3-tracking";
 import { chapterIndexHtml, minimalHtml, workPageHtml } from "./fixtures";
 

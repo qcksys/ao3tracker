@@ -9,7 +9,7 @@ export default defineConfig({
     endOfLine: "lf",
     ignorePatterns: [
       "apps/api/worker-configuration.d.ts",
-      "apps/api/src/db/migrations/meta/*_snapshot.json",
+      "apps/api/src/db/migrations/**/snapshot.json",
       "apps/native-kmp/composeApp/schemas/**",
     ],
   },

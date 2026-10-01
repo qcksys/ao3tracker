@@ -1,8 +1,7 @@
-import { type InferInsertModel, type InferSelectModel, relations, sql } from "drizzle-orm";
+import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
 import { datetime, index, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
-import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
+import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
-import { tAuthUser } from "~/db/schema/auth.user";
 
 export const tAuthSession = mysqlTable(
   `${DB_TABLE_PREFIX}auth_session`,
@@ -22,13 +21,6 @@ export const tAuthSession = mysqlTable(
   },
   (table) => [index("session_userId_idx").on(table.userId)],
 );
-
-export const rAuthSession = relations(tAuthSession, ({ one }) => ({
-  user: one(tAuthUser, {
-    fields: [tAuthSession.userId],
-    references: [tAuthUser.id],
-  }),
-}));
 
 export type TAuthSessionS = InferSelectModel<typeof tAuthSession>;
 export type TAuthSessionI = InferInsertModel<typeof tAuthSession>;

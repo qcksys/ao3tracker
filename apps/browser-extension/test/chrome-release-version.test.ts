@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { chromeReleaseVersion } from "../lib/chrome-release-version";
 
 describe("Chrome release version", () => {

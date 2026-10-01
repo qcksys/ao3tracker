@@ -1,5 +1,5 @@
 import type { FavouriteTagItem, SavedSearchItem, TagTypeId } from "@qcksys/ao3tracker-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { liveFavouriteTagSet, mergeFavouriteTags, mergeSavedSearches } from "~/lww";
 
 const fav = (

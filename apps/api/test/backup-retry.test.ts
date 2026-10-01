@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { TDatabase } from "~/db/db.client";
 import { findLatestBackupUpdatedAt, upsertBackup } from "~/db/queries/backup";
 import { parseWorkPage } from "~/lib/ao3-parser";

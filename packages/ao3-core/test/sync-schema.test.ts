@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { postSyncRequestSchema, type PostSyncRequest } from "../src/schemas/sync";
 
 it("accepts old chapter uploads and retains explicit chapter tombstones", () => {
