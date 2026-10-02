@@ -5,6 +5,7 @@ import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import com.qcksys.ao3tracker.data.model.User
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -227,12 +228,18 @@ class AuthRepository(
 
     fun hasCredentialSupport(): Boolean = credentialHelper?.isSupported() == true
 
-    suspend fun signOut() {
-        val currentState = _authState.value
-        val operation = beginOperation()
-        complete(operation) { clearSession() }
+    suspend fun signOut(isCurrentOperation: () -> Boolean = { true }) {
+        val (currentState, environment) = authMutex.withLock {
+            if (!isCurrentOperation()) throw CancellationException("Account changed")
+            val state = _authState.value
+            val environment = appSettings.apiEnvironment.value
+            authGeneration++
+            _authState.value = AuthState.Loading
+            clearSession()
+            state to environment
+        }
         if (currentState is AuthState.Authenticated)
-            authService.signOut(currentState.token, operation.environment.authBaseUrl)
+            authService.signOut(currentState.token, environment.authBaseUrl)
     }
 
     fun clearError() {

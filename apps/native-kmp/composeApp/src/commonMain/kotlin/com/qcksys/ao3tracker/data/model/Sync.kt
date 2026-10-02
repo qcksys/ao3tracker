@@ -204,7 +204,14 @@ data class SyncState(
     val lastSyncedAt: String? = null,
     val isSyncing: Boolean = false,
     val statusMessage: String? = null,
-    val error: String? = null
+    val error: String? = null,
+    val debugEntries: List<SyncDebugEntry> = emptyList()
+)
+
+@Serializable
+data class SyncDebugEntry(
+    val timestamp: String,
+    val message: String
 )
 
 /**

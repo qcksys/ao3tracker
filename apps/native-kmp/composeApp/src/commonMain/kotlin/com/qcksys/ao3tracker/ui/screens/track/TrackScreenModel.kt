@@ -7,14 +7,14 @@ import com.qcksys.ao3tracker.data.model.ReadingStatus
 import com.qcksys.ao3tracker.data.model.SortField
 import com.qcksys.ao3tracker.data.model.SortOrder
 import com.qcksys.ao3tracker.data.model.SortState
-import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.SyncState
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
-import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
+import com.qcksys.ao3tracker.data.sync.SyncCompletion
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,7 +45,7 @@ enum class FilterSection {
 
 class TrackScreenModel(
     private val repository: Ao3Repository,
-    private val syncRepository: SyncRepository,
+    private val syncCoordinator: SyncCoordinator,
     private val favouriteTagRepository: FavouriteTagRepository,
     private val syncTriggers: SyncTriggers
 ) : ScreenModel {
@@ -78,10 +78,8 @@ class TrackScreenModel(
     val expandedFilterSections: StateFlow<Set<FilterSection>> = _expandedFilterSections.asStateFlow()
 
     // Sync state
-    val syncState: StateFlow<SyncState> = syncRepository.syncState
-
-    private val _lastSyncResult = MutableStateFlow<SyncResult?>(null)
-    val lastSyncResult: StateFlow<SyncResult?> = _lastSyncResult.asStateFlow()
+    val syncState: StateFlow<SyncState> = syncCoordinator.syncState
+    val lastSyncResult = syncCoordinator.lastSyncResult
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val works: StateFlow<List<Work>> = combine(
@@ -345,14 +343,11 @@ class TrackScreenModel(
     }
 
     fun sync() {
-        screenModelScope.launch {
-            val result = syncRepository.sync()
-            _lastSyncResult.value = result
-        }
+        syncCoordinator.requestSync()
     }
 
-    fun clearSyncResult() {
-        _lastSyncResult.value = null
+    fun clearSyncResult(completion: SyncCompletion) {
+        syncCoordinator.clearLastSyncResult(completion)
     }
 
     fun isFavouriteTag(tagType: TagType, tag: String): Boolean {

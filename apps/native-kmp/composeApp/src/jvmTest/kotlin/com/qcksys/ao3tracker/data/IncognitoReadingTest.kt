@@ -23,6 +23,7 @@ import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
@@ -83,6 +84,49 @@ class IncognitoReadingTest {
             val external = "${url()}?view_adult=true#comment_1"
             f.model.navigateToReadingPosition(ReadNavigation(external, null))
             assertEquals(external, f.model.currentUrl.value)
+        }
+    }
+
+    @Test
+    fun `saved search updates apply current filters in incognito and refresh the page state`() = runTest {
+        fixture { f ->
+            val searches = SavedSearchRepository(f.accounts)
+            val saved = searches.save("My stories", "https://archiveofourown.org/works")
+            searches.markSynced(saved)
+            val url = "https://archiveofourown.org/works?work_search%5Bquery%5D=fluff"
+            val scripts = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.jsInjectionFlow.collect { scripts.add(it) }
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$url"}""")
+            f.model.handleWebViewMessage("""{"type":"saveSearch","url":"$url","name":"New filters"}""")
+            advanceUntilIdle()
+            assertNotNull(f.model.pendingSaveSearch.value)
+            f.model.confirmUpdateSavedSearch(saved.id, url)
+            advanceUntilIdle()
+            assertNull(f.model.pendingSaveSearch.value)
+            val updated = searches.getPendingSync().single()
+            assertEquals(saved.id, updated.id)
+            assertEquals(saved.name, updated.name)
+            assertEquals(url, updated.url)
+            assertEquals(1, f.db.savedSearchDao().getAll().size)
+            assertTrue(scripts.last { it.contains("applyBrowsingState") }.contains(url))
+        }
+    }
+
+    @Test
+    fun `queued saved search update cannot edit a different account`() = runTest {
+        fixture { f ->
+            val searches = SavedSearchRepository(f.accounts)
+            val saved = searches.save("Guest stories", "https://archiveofourown.org/works")
+            f.model.confirmUpdateSavedSearch(saved.id, "https://archiveofourown.org/bookmarks")
+            f.accounts.activate("PRODUCTION:other")
+            f.db.savedSearchDao().upsert(saved.copy(name = "Account stories"))
+            advanceUntilIdle()
+            assertEquals(saved.url, f.db.savedSearchDao().getOne(saved.id)?.url)
+            f.accounts.activate(AccountDataStore.GUEST)
+            assertEquals(saved, f.db.savedSearchDao().getOne(saved.id))
         }
     }
 
@@ -508,8 +552,9 @@ class IncognitoReadingTest {
             ): Result<SyncPostResponse> = error("Reading tests must not send remote state")
         }
         private val sync = SyncRepository(remote, auth, favourites, searches, accounts)
+        private val coordinator = SyncCoordinator(sync, auth, accounts, signOut = { error("Reading tests must not sign out") })
         val model = ScreenModelStore.getOrPut(modelHolder, null) {
-            ReadScreenModel(repository, searches, SyncTriggers(sync), accounts, settings)
+            ReadScreenModel(repository, searches, SyncTriggers(coordinator), accounts, settings)
         }
 
         suspend fun seedTrackedWork() = accounts.edit {

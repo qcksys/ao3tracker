@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.database.SearchCheckEntity
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
-import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.util.plainTextClipEntry
 import com.qcksys.ao3tracker.webview.SearchCheckScriptGenerated
 import kotlinx.coroutines.CancellationException
@@ -72,13 +71,14 @@ fun SearchesScreen() {
     val runningCheck by screenModel.runningCheck.collectAsState()
     val isChecking by screenModel.isChecking.collectAsState()
     val errors by screenModel.errors.collectAsState()
+    val checkStatus by screenModel.checkStatus.collectAsState()
 
     LaunchedEffect(screenModel) { screenModel.checkAll(automatic = true) }
     DisposableEffect(screenModel) { onDispose { screenModel.cancelChecks() } }
 
     SearchesScreenContent(
         searches = searches,
-        onOpen = { url -> NavigationState.navigateToRead(url) },
+        onOpen = screenModel::openSearch,
         onRename = screenModel::renameSavedSearch,
         onDelete = screenModel::deleteSavedSearch,
         checks = checks.associateBy { it.searchId },
@@ -87,7 +87,9 @@ fun SearchesScreen() {
         errors = errors,
         onCheck = screenModel::checkSearch,
         onCheckAll = { screenModel.checkAll() },
-        onCancelChecks = screenModel::cancelChecks
+        onCancelChecks = screenModel::cancelChecks,
+        onFullScan = screenModel::fullScan,
+        checkStatus = checkStatus
     )
     runningCheck?.let { check ->
         key(check.runId) {
@@ -98,6 +100,10 @@ fun SearchesScreen() {
                     put("hiddenWorkIds", JsonArray(check.preferences.hiddenWorkIds.map(::JsonPrimitive)))
                     put("language", if (check.preferences.languageFilterEnabled) check.preferences.searchLanguage else null)
                     put("maxFandoms", check.preferences.maxFandoms)
+                    put("previousContext", check.request.previous?.context)
+                    put("since", check.request.previous?.checkedAt)
+                    put("fullScan", check.fullScan)
+                    put("resumeUrl", check.request.previous?.resumeUrl)
                 }.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
                 "window.__ao3SearchCheckOptions = $options;\n${SearchCheckScriptGenerated.script}"
             }
@@ -124,9 +130,12 @@ internal fun SearchesScreenContent(
     errors: Map<String, String> = emptyMap(),
     onCheck: (String) -> Unit = {},
     onCheckAll: () -> Unit = {},
-    onCancelChecks: () -> Unit = {}
+    onCancelChecks: () -> Unit = {},
+    onFullScan: (String) -> Unit = {},
+    checkStatus: String? = null
 ) {
     var renaming by remember { mutableStateOf<SavedSearchEntity?>(null) }
+    var scanning by remember { mutableStateOf<SavedSearchEntity?>(null) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -162,6 +171,13 @@ internal fun SearchesScreenContent(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                 ) {
+                    item {
+                        Text(
+                            checkStatus ?: "Recent updates only; older changes may be missed. Counts stay until you open the search.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
                     items(searches, key = { it.id }) { search ->
                         Row(
                             modifier = Modifier
@@ -187,10 +203,10 @@ internal fun SearchesScreenContent(
                                 val check = checks[search.id]?.takeIf { it.url == search.url }
                                 Text(
                                     text = when {
-                                        runningCheck?.request?.search?.id == search.id -> "Checking · ${runningCheck.pages} pages read"
+                                        runningCheck?.request?.search?.id == search.id -> "${if (runningCheck.fullScan) "Full scan" else "Checking"} · ${runningCheck.pages} pages read"
                                         check == null -> "Not checked on this device"
                                         check.previousCheckedAt == null -> "Baseline saved on this device"
-                                        else -> "${check.newWorks} new works · ${check.updatedWorks} updated works"
+                                        else -> "${check.newWorks} newly found · ${check.updatedWorks} updated works"
                                     },
                                     style = MaterialTheme.typography.bodyMedium
                                 )
@@ -198,6 +214,10 @@ internal fun SearchesScreenContent(
                                     val checked = Instant.fromEpochMilliseconds(it.checkedAt)
                                         .toLocalDateTime(TimeZone.currentSystemDefault()).toString().replace('T', ' ').take(16)
                                     Text("Checked $checked", style = MaterialTheme.typography.bodySmall)
+                                    if (it.partial) Text("Partial results · Refresh to continue from the next page.", style = MaterialTheme.typography.bodySmall)
+                                }
+                                TextButton(onClick = { scanning = search }, enabled = !isChecking) {
+                                    Text("Full scan")
                                 }
                                 errors[search.id]?.let { error ->
                                     Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -246,6 +266,18 @@ internal fun SearchesScreenContent(
                 }
             }
         }
+    }
+
+    scanning?.let { search ->
+        AlertDialog(
+            onDismissRequest = { scanning = null },
+            title = { Text("Full scan of ${search.name}?") },
+            text = { Text("Reads every results page, including older works. Large searches can take many requests and several minutes. The first full scan establishes a baseline for older works.") },
+            confirmButton = {
+                TextButton(onClick = { scanning = null; onFullScan(search.id) }) { Text("Start full scan") }
+            },
+            dismissButton = { TextButton(onClick = { scanning = null }) { Text("Cancel") } }
+        )
     }
 
     renaming?.let { search ->

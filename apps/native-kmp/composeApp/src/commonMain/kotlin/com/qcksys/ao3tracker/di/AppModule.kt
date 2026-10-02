@@ -10,6 +10,7 @@ import com.qcksys.ao3tracker.data.database.DB_FILE_NAME
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
 import com.qcksys.ao3tracker.data.database.MIGRATION_8_9
+import com.qcksys.ao3tracker.data.database.MIGRATION_9_10
 import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_1_2
 import com.qcksys.ao3tracker.data.database.MIGRATION_2_3
@@ -31,6 +32,7 @@ import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsTransport
 import com.qcksys.ao3tracker.data.settings.getSettingsStorage
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.sync.SyncService
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
@@ -56,7 +58,8 @@ val appModule = module {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
-                    MIGRATION_8_9
+                    MIGRATION_8_9,
+                    MIGRATION_9_10
                 )
                 .build()
         }
@@ -90,8 +93,15 @@ val appModule = module {
     // Sync
     single<SyncRemote> { SyncService(get(), get()) }
     single { SyncRepository(get(), get(), get(), get(), get()) }
-    // Eager so the favourites subscriber is wired before the first user action.
-    single(createdAtStart = true) { SyncTriggers(get()) }
+    single {
+        val auth = get<AuthRepository>()
+        val push = get<PushRepository>()
+        SyncCoordinator(get(), auth, get(), signOut = { isCurrentSession ->
+            push.unregisterToken(isCurrentSession)
+            auth.signOut(isCurrentSession)
+        })
+    }
+    single { SyncTriggers(get()) }
 
     // Push notifications
     single<PushTokenStore> { getPushTokenStorage() }

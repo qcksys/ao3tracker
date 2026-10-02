@@ -1,6 +1,11 @@
 import type { SearchCheckMessage } from "@qcksys/ao3tracker-core/schemas";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { checkSearch } from "../src/search-check";
+import { checkSearch as scanSearch } from "../src/search-check";
+
+const checkSearch: typeof scanSearch = (...args) => {
+  args[9] = { fullScan: true };
+  return scanSearch(...args);
+};
 
 const url = "https://archiveofourown.org/works";
 const page = (ids: number[], next?: string, viewer = "reader") => {

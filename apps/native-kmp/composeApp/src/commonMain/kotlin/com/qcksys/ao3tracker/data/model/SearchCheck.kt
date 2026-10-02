@@ -16,5 +16,16 @@ data class SearchCheckMessage(
     val pages: Int = 0,
     val context: String = "",
     val works: List<SearchWork>? = null,
-    val error: String = ""
+    val error: String = "",
+    val baseline: Boolean = false,
+    val complete: Boolean = true,
+    val fullScan: Boolean = false,
+    val retryAfterSeconds: Long? = null,
+    val nextUrl: String? = null
+)
+
+@Serializable
+data class SearchChanges(
+    val newIds: Set<Long> = emptySet(),
+    val updatedIds: Set<Long> = emptySet()
 )
