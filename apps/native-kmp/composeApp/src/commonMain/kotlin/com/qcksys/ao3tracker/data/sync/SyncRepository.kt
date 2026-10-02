@@ -78,6 +78,7 @@ class SyncRepository(
     companion object {
         private const val TAG = "SyncRepository"
         private const val MAX_WORKS_PER_BATCH = 50
+        private const val MAX_ROWS_PER_BATCH = 500
         private val NUMERIC_ENTITY_REGEX = Regex("&#(\\d+);")
         private val HEX_ENTITY_REGEX = Regex("&#x([0-9a-fA-F]+);")
     }
@@ -349,9 +350,8 @@ class SyncRepository(
     }
 
     /**
-     * Sends local changes to server in batches of MAX_WORKS_PER_BATCH.
-     * Favourite tags are attached to the first batch only — they're a small set
-     * with no batching needs, and sending them once avoids duplicate processing.
+     * Sends work batches with their chapters and independently batches saved rows
+     * within the API's per-collection limits.
      */
     private suspend fun sendLocalChanges(
         token: String,
@@ -367,23 +367,21 @@ class SyncRepository(
             return Result.success(Unit)
         }
 
-        // Group chapters by workId for batching
-        val chaptersByWorkId = chapters.groupBy { it.workId }
-
-        // If we have per-row rows (favourites / saved searches) but no
-        // works/chapters, send them in a standalone request.
-        if (works.isEmpty() && chapters.isEmpty()) {
+        val favouriteBatches = favouriteTags.chunked(MAX_ROWS_PER_BATCH)
+        val savedSearchBatches = savedSearches.chunked(MAX_ROWS_PER_BATCH)
+        var batchIndex = 0
+        suspend fun sendBatch(workBatch: List<SyncWorkRequest>, chapterBatch: List<SyncChapterRequest>): Result<Unit> {
+            ensureCurrentSession(token, owner, generation)
             val request = SyncPostRequest(
-                works = emptyList(),
-                chapters = emptyList(),
-                favouriteTags = favouriteTags.ifEmpty { null },
-                savedSearches = savedSearches.ifEmpty { null }
+                works = workBatch,
+                chapters = chapterBatch,
+                favouriteTags = favouriteBatches.getOrNull(batchIndex),
+                savedSearches = savedSearchBatches.getOrNull(batchIndex)
             )
-            val result = syncService.sendSyncData(token, request)
-            return if (result.isFailure) Result.failure(result.exceptionOrNull()!!) else Result.success(Unit)
+            batchIndex++
+            return syncService.sendSyncData(token, request).map { }
         }
 
-        var firstBatch = true
         // Send works in batches of MAX_WORKS_PER_BATCH with their chapters
         for (i in works.indices step MAX_WORKS_PER_BATCH) {
             ensureCurrentSession(token, owner, generation)
@@ -391,15 +389,7 @@ class SyncRepository(
             val workIds = workBatch.map { it.workId }.toSet()
             val chapterBatch = chapters.filter { it.workId in workIds }
 
-            val request = SyncPostRequest(
-                works = workBatch,
-                chapters = chapterBatch,
-                favouriteTags = if (firstBatch) favouriteTags.ifEmpty { null } else null,
-                savedSearches = if (firstBatch) savedSearches.ifEmpty { null } else null
-            )
-            firstBatch = false
-
-            val result = syncService.sendSyncData(token, request)
+            val result = sendBatch(workBatch, chapterBatch)
             if (result.isFailure) {
                 return Result.failure(result.exceptionOrNull()!!)
             }
@@ -418,8 +408,8 @@ class SyncRepository(
                     workDao.getWorkByIdIncludingDeleted(workId)
                 }
                 if (localWork != null) {
-                    val request = SyncPostRequest(
-                        works = listOf(
+                    val result = sendBatch(
+                        workBatch = listOf(
                             SyncWorkRequest(
                                 workId = workId,
                                 lastReadAt = toIso8601(localWork.lastRead ?: Clock.System.now().toEpochMilliseconds()),
@@ -432,16 +422,19 @@ class SyncRepository(
                                 deleted = localWork.rowDeletedAt != null
                             )
                         ),
-                        chapters = workChapters,
-                        favouriteTags = if (firstBatch) favouriteTags.ifEmpty { null } else null,
-                        savedSearches = if (firstBatch) savedSearches.ifEmpty { null } else null
+                        chapterBatch = workChapters
                     )
-                    firstBatch = false
-                    val result = syncService.sendSyncData(token, request)
                     if (result.isFailure) {
                         return Result.failure(result.exceptionOrNull()!!)
                     }
                 }
+            }
+        }
+
+        while (batchIndex < maxOf(favouriteBatches.size, savedSearchBatches.size)) {
+            val result = sendBatch(emptyList(), emptyList())
+            if (result.isFailure) {
+                return Result.failure(result.exceptionOrNull()!!)
             }
         }
 

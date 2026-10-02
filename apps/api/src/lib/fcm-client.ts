@@ -281,8 +281,8 @@ export async function sendNotificationsToUsers(
     {
       priority: "high",
       notification: {
-        channel_id: "work_updates",
-        click_action: "OPEN_WORK",
+        channel_id: "ao3_work_updates",
+        click_action: "com.qcksys.ao3tracker.OPEN_WORK",
       },
     },
   );

@@ -8,7 +8,7 @@ Every workflow uses the pinned `voidzero-dev/setup-vp` action to install Vite+ f
 | -------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `CI`                             | Pull requests, pushes to `main`/`dev`, or manual  | Formatting, lint, workflow validation, JavaScript tests/builds, JVM tests, Android debug and Dev APKs |
 | `Release main`                   | Successful push CI on current `main`              | Production API deployment, then Android and Chrome releases in parallel                               |
-| `Deploy production API`          | Called by `Release main`                          | Read-only migration readiness check, then production Worker deployment                                |
+| `Deploy production API`          | Called by `Release main`                          | Pending migrations, database readiness check, then production Worker deployment                       |
 | `Release dev`                    | Called after CI checks pass on a `dev` push       | Dev API deployment and health check, then separate Android Dev and Chrome Beta releases               |
 | `Release Android to Google Play` | Called by `Release main`/`Release dev`, or manual | Signed AAB and R8 mapping; optionally a Google Play **internal testing** release                      |
 | `Release Chrome extension`       | Called by `Release main`/`Release dev`, or manual | Chrome ZIP; production draft upload or beta submission for review                                     |
@@ -20,7 +20,7 @@ The development workflow uses `workflow_call`; CI calls the copy from the same t
 Automatic releases check out the exact successful CI commit. Failed CI, pull requests, manual CI runs, and superseded commits do not deploy. CI cancellation is scoped to individual check jobs by event and ref (and matrix target for native builds); there is no workflow-level cancellation that could interrupt a protected release. New first-attempt runs cancel superseded checks, while retries queue. Each release then has two phases, using separate concurrency groups per branch:
 
 - **Prepare and build:** source eligibility is checked before joining the build concurrency group. A new eligible release run cancels an earlier API build. Retries queue without canceling an active build and recheck the source before building, even when GitHub reuses the earlier eligibility job's outputs. The build saves an immutable API artifact, without deployment credentials. Canceled or failed preparation cannot proceed to deployment.
-- **Deploy and release:** after preparation succeeds, a non-canceling lock covers API deployment, its health check, and both Android and Chrome builds/uploads. A newer run can replace a pending release, but cannot interrupt one that has acquired this lock. The API job checks the source branch again immediately before deployment, so an obsolete pending artifact cannot deploy. Store jobs on the first attempt finish even if the branch advances after API deployment starts.
+- **Deploy and release:** after preparation succeeds, a non-canceling lock covers database migrations, API deployment, its health check, and both Android and Chrome builds/uploads. A newer run can replace a pending release, but cannot interrupt one that has acquired this lock. The API job checks the source branch before migrations and again immediately before deployment, so an obsolete pending release cannot migrate or deploy. Store jobs on the first attempt finish even if the branch advances after API deployment starts.
 
 The deployment phase downloads the API artifact by ID from the same workflow run and deploys it without rebuilding. Failed-job retries reuse that artifact; a full rerun produces a new artifact with a distinct attempt number. Each automatic store retry checks its source branch (`main` or `dev`) again so it cannot reuse an old release approval. Manual and automatic uploads still share a non-canceling lock per store and channel, and allocate versions only after acquiring it. Manual store runs retain their existing serialization. This is not a guarantee to release every intermediate merge.
 
@@ -72,29 +72,29 @@ Configure the following in [repository settings](https://github.com/qcksys/ao3tr
 | Secret                 | Value                                                                                                     |
 | ---------------------- | --------------------------------------------------------------------------------------------------------- |
 | `CLOUDFLARE_API_TOKEN` | Token scoped to the configured account/zone with Worker deployment and required binding/route permissions |
-| `DATABASE_URL`         | Read-only connection to the same production PlanetScale database used by the Worker                       |
+| `DATABASE_URL`         | Connection with migration permissions to the same production PlanetScale database used by the Worker      |
 
-The account ID is already recorded in `apps/api/wrangler.json`. Provision the production Worker runtime secrets and configured Cloudflare resources separately; the workflow preserves existing Worker secrets and never uploads its read-only database credential. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
+The account ID is already recorded in `apps/api/wrangler.json`. Provision the production Worker runtime secrets and configured Cloudflare resources separately; the workflow preserves existing Worker secrets and never uploads its migration database credential. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
 
 ### Database migrations
 
-Deployments require every repository migration to be recorded in `ao3track__migrations` with its UTC timestamp (to the second) and SQL checksum. RC ledgers must also match each migration folder name; legacy ledgers are accepted without changes. The checker accepts LF/CRLF line-ending variants, checks required columns and temporal precision against the latest snapshot, and blocks on missing or mismatched history. It does not prove all indexes, defaults, or data are correct.
+The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations`. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.
 
-Apply reviewed schema changes through PlanetScale before deploying code that requires them. In particular, the pending sync-cursor and Better Auth changes require migrations `20260930095035_sync-mutation-cursors` and `20260930103837_auth-two-factor-lockout` (formerly `0011` and `0012`). For databases created through schema pushes or manual SQL, inspect the live schema and reconcile the ledger only after verifying each change. The pipeline never replays historical migrations or writes the ledger. If this check or API deployment fails, both store releases are blocked.
+After migration, the read-only readiness checker requires every repository migration to be recorded with its UTC timestamp (to the second), SQL checksum, and RC migration folder name. The checker accepts LF/CRLF line-ending variants, checks required columns and temporal precision against the latest snapshot, and blocks on missing or mismatched history. It does not prove all indexes, defaults, or data are correct. Migration, readiness, or API deployment failures block both store releases.
 
-Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The repository conversion preserves all historical SQL. The first manual `vp run db:migrate` with the RC upgrades the existing ledger with `name` and `applied_at` columns, then applies pending SQL. Review this separately with a credential permitted to change the schema; CI's read-only database credential cannot perform that upgrade.
+Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The repository conversion preserves all historical SQL. The first migration run upgrades a legacy ledger with `name` and `applied_at` columns, then applies pending SQL. Review migration SQL before merging and keep it compatible with the currently deployed Worker, since migrations run first. DDL is not transactionally rolled back; inspect partial failures before retrying. For databases changed through schema pushes or manual SQL, reconcile the ledger only after verifying which changes are already applied. CI does not baseline history or suppress mismatches.
 
 ### `api-development`
 
 | Secret                     | Value                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------ |
-| `DEV_DATABASE_URL`         | Read-only connection to the development Worker's PlanetScale database          |
+| `DEV_DATABASE_URL`         | Connection with migration permissions to the dev Worker's PlanetScale database |
 | `DEV_CLOUDFLARE_API_TOKEN` | Optional token scoped to development Worker deployment and its bindings/domain |
 | `CLOUDFLARE_API_TOKEN`     | Existing deployment token, used when `DEV_CLOUDFLARE_API_TOKEN` is absent      |
 
-Set these as repository secrets, or in the `api-development` environment if the repository's GitHub plan supports environment secrets. The dev database check uses only `DEV_DATABASE_URL`; it never falls back to the production `DATABASE_URL`. The selected Cloudflare token must be able to deploy `ao3tracker-api-dev` and its configured resources.
+Set these as repository secrets, or in the `api-development` environment if the repository's GitHub plan supports environment secrets. Dev migrations and readiness checks use only `DEV_DATABASE_URL`; they never fall back to the production `DATABASE_URL`. The selected Cloudflare token must be able to deploy `ao3tracker-api-dev` and its configured resources.
 
-Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender separately. Apply reviewed schema changes to the dev database and reconcile its migration ledger before deployment. The same read-only readiness check used for production blocks deployment on mismatches; it does not migrate the database. Release preparation builds with the `dev` Wrangler environment; the protected release deploys that artifact, then checks `https://dev.ao3tracker.com/ping`.
+Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment; the protected release applies pending migrations, runs the same readiness check as production, deploys that artifact, then checks `https://dev.ao3tracker.com/ping`.
 
 ### `google-play`
 

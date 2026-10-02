@@ -507,29 +507,57 @@ export async function batchProcessChapters(
 ): Promise<ChapterSyncResult[]> {
   if (chapters.length === 0) return [];
 
+  const zeroWorkIds = chapters
+    .filter((chapter) => !chapter.chapterId)
+    .map((chapter) => chapter.workId);
+  const firstChapters =
+    zeroWorkIds.length === 0
+      ? []
+      : await db
+          .select({ workId: tWorkChapter.workId, chapterId: tWorkChapter.id })
+          .from(tWorkChapter)
+          .innerJoin(tWork, eq(tWork.id, tWorkChapter.workId))
+          .where(
+            and(
+              inArray(tWorkChapter.workId, zeroWorkIds),
+              eq(tWorkChapter.number, 1),
+              gt(tWork.currentChapters, 1),
+              isNull(tWorkChapter.rowDeletedAt),
+            ),
+          );
+  const firstChapterByWork = new Map(
+    firstChapters.map((chapter) => [chapter.workId, chapter.chapterId]),
+  );
   const rows = chapters.map((chapter) => ({
     userId,
     workId: chapter.workId,
-    chapterId: chapter.chapterId ?? 0,
+    chapterId: !chapter.chapterId
+      ? (firstChapterByWork.get(chapter.workId) ?? 0)
+      : chapter.chapterId,
     lastReadAt: chapter.lastReadAt,
     markedCompleteAt: chapter.markedCompleteAt ?? null,
     readProgress: chapter.readProgress ?? 0,
     rowDeletedAt: chapter.deleted ? chapter.lastReadAt : null,
   }));
-  await db
-    .insert(tTrackChapter)
-    .values(rows)
-    .onDuplicateKeyUpdate({
-      set: {
-        markedCompleteAt: replaceWhenNewer(
-          tTrackChapter.markedCompleteAt,
-          tTrackChapter.lastReadAt,
-        ),
-        readProgress: replaceWhenNewer(tTrackChapter.readProgress, tTrackChapter.lastReadAt),
-        rowDeletedAt: replaceWhenNewer(tTrackChapter.rowDeletedAt, tTrackChapter.lastReadAt),
-        lastReadAt: replaceWhenNewer(tTrackChapter.lastReadAt, tTrackChapter.lastReadAt),
-      },
-    });
+  await upsertChapterRows(db, rows);
+  const retiredRows = rows.flatMap((row, index) => {
+    if (row.chapterId === (chapters[index].chapterId ?? 0)) return [];
+    return [{ ...row, chapterId: 0, rowDeletedAt: row.lastReadAt }];
+  });
+  if (retiredRows.length > 0) {
+    const retirementWins = gte(incoming(tTrackChapter.lastReadAt), tTrackChapter.lastReadAt);
+    await db
+      .insert(tTrackChapter)
+      .values(retiredRows)
+      .onDuplicateKeyUpdate({
+        set: {
+          markedCompleteAt: replaceWhen(tTrackChapter.markedCompleteAt, retirementWins),
+          readProgress: replaceWhen(tTrackChapter.readProgress, retirementWins),
+          rowDeletedAt: replaceWhen(tTrackChapter.rowDeletedAt, retirementWins),
+          lastReadAt: replaceWhen(tTrackChapter.lastReadAt, retirementWins),
+        },
+      });
+  }
 
   const stored = await db
     .select()
@@ -544,12 +572,13 @@ export async function batchProcessChapters(
       ),
     );
   const byId = new Map(stored.map((row) => [`${row.workId}:${row.chapterId}`, row]));
-  return rows.map((row) => {
+  return rows.map((row, index) => {
     const current = byId.get(`${row.workId}:${row.chapterId}`);
     return {
       workId: row.workId,
-      chapterId: row.chapterId,
+      chapterId: chapters[index].chapterId ?? 0,
       status:
+        row.chapterId === (chapters[index].chapterId ?? 0) &&
         current &&
         sameDate(current.rowDeletedAt, row.rowDeletedAt) &&
         sameDate(current.lastReadAt, row.lastReadAt) &&
@@ -559,6 +588,37 @@ export async function batchProcessChapters(
           : "ignored",
     };
   });
+}
+
+async function upsertChapterRows(
+  db: TDatabase,
+  rows: Array<
+    Pick<
+      TTrackChapterS,
+      | "userId"
+      | "workId"
+      | "chapterId"
+      | "lastReadAt"
+      | "markedCompleteAt"
+      | "readProgress"
+      | "rowDeletedAt"
+    >
+  >,
+): Promise<void> {
+  await db
+    .insert(tTrackChapter)
+    .values(rows)
+    .onDuplicateKeyUpdate({
+      set: {
+        markedCompleteAt: replaceWhenNewer(
+          tTrackChapter.markedCompleteAt,
+          tTrackChapter.lastReadAt,
+        ),
+        readProgress: replaceWhenNewer(tTrackChapter.readProgress, tTrackChapter.lastReadAt),
+        rowDeletedAt: replaceWhenNewer(tTrackChapter.rowDeletedAt, tTrackChapter.lastReadAt),
+        lastReadAt: replaceWhenNewer(tTrackChapter.lastReadAt, tTrackChapter.lastReadAt),
+      },
+    });
 }
 
 // ============================================================================
@@ -603,9 +663,8 @@ export async function markWorkAsPrivate(db: TDatabase, workId: number): Promise<
  * Migrate single-chapter tracking records (chapterId=0) to actual chapter IDs.
  * Called when a work gains additional chapters (goes from 1 to 2+ chapters).
  *
- * Handles the case where a user has both chapterId=0 and the actual firstChapterId:
- * - Keeps the record with the newer lastReadAt
- * - Deletes the other record
+ * Copies reading mutations with LWW and publishes a chapterId=0 tombstone so
+ * clients can retire the old identity on both full and incremental syncs.
  *
  * @returns Number of records migrated or merged
  */
@@ -614,7 +673,6 @@ export async function migrateSingleChapterTracking(
   workId: number,
   firstChapterId: number,
 ): Promise<number> {
-  // Find all chapterId=0 records for this work
   const zeroRecords = await db
     .select()
     .from(tTrackChapter)
@@ -627,64 +685,30 @@ export async function migrateSingleChapterTracking(
   let migratedCount = 0;
 
   for (const zeroRecord of zeroRecords) {
-    // Check if user already has a record with the actual chapter ID
-    const existingRecord = await db
-      .select()
-      .from(tTrackChapter)
+    await upsertChapterRows(db, [
+      {
+        userId: zeroRecord.userId,
+        workId,
+        chapterId: firstChapterId,
+        lastReadAt: zeroRecord.lastReadAt,
+        markedCompleteAt: zeroRecord.markedCompleteAt,
+        readProgress: zeroRecord.readProgress,
+        rowDeletedAt: zeroRecord.rowDeletedAt,
+      },
+    ]);
+    const retiredAt = zeroRecord.lastReadAt;
+    await db
+      .update(tTrackChapter)
+      .set({ rowDeletedAt: retiredAt, lastReadAt: retiredAt })
       .where(
         and(
           eq(tTrackChapter.userId, zeroRecord.userId),
           eq(tTrackChapter.workId, workId),
-          eq(tTrackChapter.chapterId, firstChapterId),
+          eq(tTrackChapter.chapterId, 0),
+          eq(tTrackChapter.lastReadAt, zeroRecord.lastReadAt),
+          isNull(tTrackChapter.rowDeletedAt),
         ),
-      )
-      .limit(1);
-
-    if (existingRecord.length > 0) {
-      // User has both records - keep the one with newer lastReadAt
-      const existing = existingRecord[0];
-      const keepZero = zeroRecord.lastReadAt > existing.lastReadAt;
-
-      if (keepZero) {
-        // Update the existing record with data from zeroRecord, then delete zeroRecord
-        await db
-          .update(tTrackChapter)
-          .set({
-            lastReadAt: zeroRecord.lastReadAt,
-            markedCompleteAt: zeroRecord.markedCompleteAt ?? existing.markedCompleteAt,
-            readProgress: Math.max(zeroRecord.readProgress, existing.readProgress),
-          })
-          .where(
-            and(
-              eq(tTrackChapter.userId, zeroRecord.userId),
-              eq(tTrackChapter.workId, workId),
-              eq(tTrackChapter.chapterId, firstChapterId),
-            ),
-          );
-      }
-      // Delete the chapterId=0 record
-      await db
-        .delete(tTrackChapter)
-        .where(
-          and(
-            eq(tTrackChapter.userId, zeroRecord.userId),
-            eq(tTrackChapter.workId, workId),
-            eq(tTrackChapter.chapterId, 0),
-          ),
-        );
-    } else {
-      // No existing record - simply update chapterId from 0 to actual ID
-      await db
-        .update(tTrackChapter)
-        .set({ chapterId: firstChapterId })
-        .where(
-          and(
-            eq(tTrackChapter.userId, zeroRecord.userId),
-            eq(tTrackChapter.workId, workId),
-            eq(tTrackChapter.chapterId, 0),
-          ),
-        );
-    }
+      );
     migratedCount++;
   }
 

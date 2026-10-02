@@ -48,7 +48,16 @@ jobs:
         with:
           artifact-ids: ${{ inputs.api_artifact_id }}
           path: apps/api/dist/
-      - name: Check production database readiness
+      - name: Confirm source before production migrations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+        run: vp node scripts/release-main.mjs assert-current-source
+      - name: Apply production database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: vp node apps/api/scripts/migrate.mjs
+      - name: Verify production database after migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: vp node scripts/check-api-migrations.mjs

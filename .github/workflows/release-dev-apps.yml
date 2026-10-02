@@ -52,16 +52,27 @@ jobs:
         with:
           artifact-ids: ${{ inputs.api_artifact_id }}
           path: apps/api/dist/
-      - name: Check development database readiness
+      - name: Confirm source before development migrations
+        if: steps.release.outputs.eligible == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_REF: ${{ steps.release.outputs.source_ref }}
+        run: vp node scripts/release-main.mjs assert-current-source
+      - name: Apply development database migrations
         if: steps.release.outputs.eligible == 'true'
         env:
           DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
         run: |
           if [[ -z "$DATABASE_URL" ]]; then
-            echo "::error::Set DEV_DATABASE_URL to a read-only connection to the development database."
+            echo "::error::Set DEV_DATABASE_URL to a development database connection with migration permissions."
             exit 1
           fi
-          vp node scripts/check-api-migrations.mjs
+          vp node apps/api/scripts/migrate.mjs
+      - name: Verify development database after migrations
+        if: steps.release.outputs.eligible == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
+        run: vp node scripts/check-api-migrations.mjs
       - name: Confirm source is still current dev
         if: steps.release.outputs.eligible == 'true'
         env:

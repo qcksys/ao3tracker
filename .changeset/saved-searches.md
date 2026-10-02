@@ -19,3 +19,6 @@ Fix cross-device synchronization and local data safety:
 - Use server mutation timestamps with bounded replay for incremental sync, atomic last-write-wins updates, and persistent deletion tombstones. Apply API migration `0011_sync-mutation-cursors` before deploying the new server.
 - Preserve native deletions during metadata refresh, synchronize mark-unread resets, use server values on timestamp ties, and clear local data only after a successful sync with no intervening edits.
 - Report the chapter identified in the page DOM when tracking scroll progress on a work's root URL.
+- Restore a deleted extension work when reading resumes, while retaining deletion for flag-only edits.
+- Batch native favourite tags and saved searches at the API's 500-row limit, including uploads containing only those collections.
+- Preserve chapter-zero tombstones when single-chapter works gain real chapter IDs, and reconcile later legacy uploads without duplicating progress.
