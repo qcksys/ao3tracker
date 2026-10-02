@@ -109,30 +109,6 @@ class TrackScreenModel(
         initialValue = emptyList()
     )
 
-    private fun sortWorks(works: List<Work>, sortState: SortState): List<Work> {
-        val comparator: Comparator<Work> = when (sortState.field) {
-            SortField.LAST_READ -> compareBy(nullsLast()) { it.lastRead }
-            SortField.FAVOURITE -> compareBy { it.favourite }
-            SortField.TITLE -> compareBy(nullsLast()) { it.title?.lowercase() }
-            SortField.AUTHOR -> compareBy(nullsLast()) { it.author?.lowercase() }
-            SortField.WORD_COUNT -> compareBy(nullsLast()) { it.wordCount }
-            SortField.CHAPTERS -> compareBy(nullsLast()) { it.currentChapters }
-            SortField.HITS -> compareBy(nullsLast()) { it.hits }
-            SortField.KUDOS -> compareBy(nullsLast()) { it.kudos }
-            SortField.COMMENTS -> compareBy(nullsLast()) { it.comments }
-            SortField.BOOKMARKS -> compareBy(nullsLast()) { it.bookmarks }
-            SortField.PUBLISHED -> compareBy(nullsLast()) { it.published }
-            SortField.UPDATED -> compareBy(nullsLast()) { it.lastUpdated }
-            SortField.DATE_ADDED -> compareBy(nullsLast()) { it.rowCreatedAt }
-        }
-
-        return if (sortState.order == SortOrder.DESCENDING) {
-            works.sortedWith(comparator.reversed())
-        } else {
-            works.sortedWith(comparator)
-        }
-    }
-
     // Total works count (unfiltered)
     val totalWorksCount: StateFlow<Int> = repository
         .getFilteredWorks(FilterState())

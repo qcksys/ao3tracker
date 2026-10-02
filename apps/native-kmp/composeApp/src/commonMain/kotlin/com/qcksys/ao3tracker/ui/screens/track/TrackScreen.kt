@@ -175,7 +175,7 @@ fun TrackScreen() {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("Tracked Works") },
+                title = { Text("Works", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
                     // Sync button
                     IconButton(
