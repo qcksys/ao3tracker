@@ -468,15 +468,7 @@ fun TrackScreen() {
                         WorkCard(
                             work = work,
                             onClick = {
-                                // Navigate to Read tab with the last read chapter or work URL
-                                val lastChapter = work.lastChapterRead
-                                val url = if (lastChapter != null) {
-                                    "https://archiveofourown.org/works/${work.id}/chapters/${lastChapter.id}"
-                                } else {
-                                    "https://archiveofourown.org/works/${work.id}"
-                                }
-                                val scrollProgress = lastChapter?.readProgress ?: 0f
-                                NavigationState.navigateToRead(url, scrollProgress)
+                                NavigationState.navigateToWork(work.id)
                                 tabNavigator.current = ReadTab
                             },
                             onFavourite = { screenModel.toggleFavourite(work.id, work.favourite) },

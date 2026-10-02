@@ -54,7 +54,7 @@ class NotificationItemCardTest(private val type: NotificationType) {
         rule.onNodeWithText(notification.body).performClick()
 
         assertEquals(
-            ReadNavigation("https://archiveofourown.org/works/123456", 0f),
+            ReadNavigation("https://archiveofourown.org/works/123456", 0f, workId = 123456),
             NavigationState.pendingNavigation.value
         )
         rule.onNodeWithText(notification.title).assertDoesNotExist()

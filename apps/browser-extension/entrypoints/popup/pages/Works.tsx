@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   type FavouriteTagItem,
+  type SyncChapterMetadata,
   type SyncTagMetadata,
   type SyncWorkMetadata,
   type WorkBadgeStatus,
@@ -21,6 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   favouriteTagsItem,
+  chapterMetadataItem,
   type TrackedChapter,
   type TrackedWork,
   tagMetadataItem,
@@ -81,6 +83,7 @@ interface RawData {
   works: Record<number, TrackedWork>;
   metadata: Record<number, SyncWorkMetadata>;
   chapters: Record<string, TrackedChapter>;
+  chapterMetadata: Record<number, SyncChapterMetadata[]>;
   tagMetadata: SyncTagMetadata[];
   favouriteTags: FavouriteTagItem[];
 }
@@ -102,14 +105,16 @@ export default function Works() {
   const [showFilters, setShowFilters] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [works, metadata, chapters, tagMetadata, favouriteTags] = await Promise.all([
-      trackedWorksItem.getValue(),
-      workMetadataItem.getValue(),
-      trackedChaptersItem.getValue(),
-      tagMetadataItem.getValue(),
-      favouriteTagsItem.getValue(),
-    ]);
-    setRaw({ works, metadata, chapters, tagMetadata, favouriteTags });
+    const [works, metadata, chapters, chapterMetadata, tagMetadata, favouriteTags] =
+      await Promise.all([
+        trackedWorksItem.getValue(),
+        workMetadataItem.getValue(),
+        trackedChaptersItem.getValue(),
+        chapterMetadataItem.getValue(),
+        tagMetadataItem.getValue(),
+        favouriteTagsItem.getValue(),
+      ]);
+    setRaw({ works, metadata, chapters, chapterMetadata, tagMetadata, favouriteTags });
   }, []);
 
   useEffect(() => {
@@ -339,7 +344,7 @@ function WorkRow({ row }: { row: WorksListRow }) {
     <li className="border-border bg-card/60 rounded border p-2">
       <div className="flex items-start justify-between gap-2">
         <a
-          href={`https://archiveofourown.org/works/${row.workId}`}
+          href={row.readingUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-primary line-clamp-2 text-sm font-medium underline-offset-4 hover:underline"

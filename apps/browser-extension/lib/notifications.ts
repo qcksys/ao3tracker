@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { allowsNotification, notificationTypeSchema } from "@qcksys/ao3tracker-core/schemas";
 import { extensionBranding } from "./branding";
+import { getWorkReadingUrl } from "./tracker-repo";
 
 import {
   authTokenItem,
@@ -168,7 +169,7 @@ export function attachNotificationClickHandler(): void {
       const workId = map[notificationId];
       void browser.notifications.clear(notificationId);
       if (workId) {
-        await browser.tabs.create({ url: `https://archiveofourown.org/works/${workId}` });
+        await browser.tabs.create({ url: await getWorkReadingUrl(workId) });
         delete map[notificationId];
         await notificationWorkIdsItem.setValue(map);
       }

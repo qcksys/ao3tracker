@@ -29,6 +29,7 @@ import { withLocalState } from "../lib/local-state";
 import { renameSavedSearch, saveSearch } from "../lib/saved-searches-repo";
 import {
   authTokenItem,
+  chapterMetadataItem,
   favouriteTagsItem,
   lastSyncedAtItem,
   savedSearchesItem,
@@ -38,7 +39,13 @@ import {
   type TrackedWork,
 } from "../lib/storage";
 import { runSync, StaleSyncSessionError } from "../lib/sync";
-import { ingestPageEvent, setFavourite, setSubscribed } from "../lib/tracker-repo";
+import {
+  getWorkReadingUrl,
+  ingestPageEvent,
+  setFavourite,
+  setSubscribed,
+} from "../lib/tracker-repo";
+import { buildWorksList } from "../lib/works-view";
 
 const baseUrl = "https://ao3tracker.com";
 const time = "2025-01-01T00:00:00.000Z";
@@ -127,6 +134,71 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("account ownership", () => {
+  it("caches chapter order from sync for Works links and isolates it by account", async () => {
+    await setAuthSession("alice", baseUrl);
+    const chapters = [
+      { id: 91, workId: 1, number: 1, title: null, dateUpdated: null },
+      { id: 42, workId: 1, number: 2, title: null, dateUpdated: null },
+    ];
+    installFetch(async (_input, init) =>
+      init?.method === "POST"
+        ? postResponse()
+        : response(
+            remote({
+              works: [{ ...work(1), pendingSync: false }],
+              chapters: [
+                {
+                  workId: 1,
+                  chapterId: 91,
+                  lastReadAt: time,
+                  markedCompleteAt: time,
+                  readProgress: 0.4,
+                  deleted: false,
+                },
+              ],
+              chapterMetadata: chapters,
+            }),
+          ),
+    );
+    await runSync();
+    expect(await chapterMetadataItem.getValue()).toEqual({ 1: chapters });
+    const rows = buildWorksList({
+      works: await trackedWorksItem.getValue(),
+      chapters: await trackedChaptersItem.getValue(),
+      chapterMetadata: await chapterMetadataItem.getValue(),
+      metadata: {},
+      tagMetadata: [],
+    });
+    expect(rows[0]?.readingUrl).toBe(
+      "https://archiveofourown.org/works/1/chapters/42?scrollTo=0#chapters",
+    );
+    expect(await getWorkReadingUrl(1)).toBe(rows[0]?.readingUrl);
+    await setAuthSession("bob", baseUrl);
+    expect(await chapterMetadataItem.getValue()).toEqual({});
+    await setAuthSession("alice", baseUrl);
+    expect(await chapterMetadataItem.getValue()).toEqual({ 1: chapters });
+  });
+
+  it("caches the page chapter selector without creating reading progress", async () => {
+    const before = await trackedChaptersItem.getValue();
+    await ingestPageEvent({
+      type: "workChapterIndex",
+      url: "https://archiveofourown.org/works/1/chapters/91",
+      authorUrl: null,
+      chapters: [
+        { chapterNumber: "1", chapterUrl: "/works/1/chapters/91", chapterDate: null },
+        { chapterNumber: "2", chapterUrl: "/works/1/chapters/42", chapterDate: null },
+      ],
+    });
+    expect(
+      (await chapterMetadataItem.getValue())[1]?.map((chapter) => [chapter.id, chapter.number]),
+    ).toEqual([
+      [91, 1],
+      [42, 2],
+    ]);
+    expect(await trackedChaptersItem.getValue()).toEqual(before);
+  });
+
   it("archives unsynced data and restores only the matching account and endpoint", async () => {
     await setAuthSession("alice", baseUrl);
     await trackedWorksItem.setValue({ 1: work(1) });

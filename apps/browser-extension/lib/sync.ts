@@ -12,6 +12,7 @@ import {
 } from "@qcksys/ao3tracker-sync-client";
 import {
   favouriteTagsItem,
+  chapterMetadataItem,
   lastSyncedAtItem,
   lastSyncErrorItem,
   savedSearchesItem,
@@ -127,11 +128,12 @@ async function syncSession(session: SyncSession): Promise<{ pushed: number; pull
   // that arrived during the pull must participate in the merge.
   const pending = await withLocalState(async () => {
     await requireCurrentSession(session);
-    const [works, chapters, metadata, tags] = await Promise.all([
+    const [works, chapters, metadata, tags, chapterMetadata] = await Promise.all([
       trackedWorksItem.getValue(),
       trackedChaptersItem.getValue(),
       workMetadataItem.getValue(),
       tagMetadataItem.getValue(),
+      chapterMetadataItem.getValue(),
     ]);
     for (const row of remote.works) {
       works[row.workId] = mergeWork(works[row.workId], row);
@@ -146,10 +148,15 @@ async function syncSession(session: SyncSession): Promise<{ pushed: number; pull
     }
     for (const row of remote.workMetadata) metadata[row.id] = row;
     const returnedIds = new Set(remote.works.map((row) => row.workId));
+    for (const workId of returnedIds) chapterMetadata[workId] = [];
+    for (const chapter of remote.chapterMetadata) {
+      (chapterMetadata[chapter.workId] ??= []).push(chapter);
+    }
     await Promise.all([
       trackedWorksItem.setValue(works),
       trackedChaptersItem.setValue(chapters),
       workMetadataItem.setValue(metadata),
+      chapterMetadataItem.setValue(chapterMetadata),
       tagMetadataItem.setValue(
         tags.filter((tag) => !returnedIds.has(tag.workId)).concat(remote.tagMetadata),
       ),

@@ -4,6 +4,7 @@ import { withLocalState } from "./local-state";
 import {
   apiBaseUrlItem,
   authTokenItem,
+  chapterMetadataItem,
   favouriteTagsItem,
   lastSeenNotificationIdItem,
   lastSyncedAtItem,
@@ -36,6 +37,7 @@ async function readData() {
   const [
     works,
     chapters,
+    chapterMetadata,
     metadata,
     tags,
     favourites,
@@ -47,6 +49,7 @@ async function readData() {
   ] = await Promise.all([
     trackedWorksItem.getValue(),
     trackedChaptersItem.getValue(),
+    chapterMetadataItem.getValue(),
     workMetadataItem.getValue(),
     tagMetadataItem.getValue(),
     favouriteTagsItem.getValue(),
@@ -59,6 +62,7 @@ async function readData() {
   return {
     works,
     chapters,
+    chapterMetadata,
     metadata,
     tags,
     favourites,
@@ -81,6 +85,7 @@ function emptyData(): AccountData {
   return {
     works: {},
     chapters: {},
+    chapterMetadata: {},
     metadata: {},
     tags: [],
     favourites: [],
@@ -156,6 +161,7 @@ async function selectAccount(
     { item: authTokenItem, value: token },
     { item: trackedWorksItem, value: next.works },
     { item: trackedChaptersItem, value: next.chapters },
+    { item: chapterMetadataItem, value: next.chapterMetadata ?? {} },
     { item: workMetadataItem, value: next.metadata },
     { item: tagMetadataItem, value: next.tags },
     { item: favouriteTagsItem, value: next.favourites },
