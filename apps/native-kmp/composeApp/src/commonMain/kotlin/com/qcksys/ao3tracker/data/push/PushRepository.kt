@@ -2,7 +2,11 @@ package com.qcksys.ao3tracker.data.push
 
 import com.qcksys.ao3tracker.data.auth.AuthRepository
 import com.qcksys.ao3tracker.data.model.AuthState
+import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.util.AppLogger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Repository for managing push notification token registration.
@@ -10,9 +14,16 @@ import com.qcksys.ao3tracker.util.AppLogger
  */
 class PushRepository(
     private val pushTokenService: PushTokenService,
-    private val pushTokenStorage: PushTokenStorage,
-    private val authRepository: AuthRepository
+    private val pushTokenStorage: PushTokenStore,
+    private val authRepository: AuthRepository,
+    private val appSettings: AppSettings
 ) {
+    private val registrationMutex = Mutex()
+
+    suspend fun updateNotificationPreferences(preferences: NotificationPreferences): Result<Unit> =
+        registrationMutex.withLock {
+            registerToken(preferences).onSuccess { appSettings.setNotificationPreferences(preferences) }
+        }
     companion object {
         private const val TAG = "PushRepository"
     }
@@ -20,14 +31,18 @@ class PushRepository(
     /**
      * Registers the current FCM token with the server if:
      * - User is authenticated
-     * - A token is available in local storage
+     * - A token is stored locally or can be fetched from the platform
      *
      * Should be called:
      * - On app startup when authenticated
      * - After successful sign-in
      * - When FCM token refreshes (via onNewToken callback)
      */
-    suspend fun registerTokenIfNeeded(): Result<Unit> {
+    suspend fun registerTokenIfNeeded(): Result<Unit> = registrationMutex.withLock {
+        registerToken(appSettings.notificationPreferences.value)
+    }
+
+    private suspend fun registerToken(preferences: NotificationPreferences): Result<Unit> {
         val authState = authRepository.authState.value
         val authToken = (authState as? AuthState.Authenticated)?.token
         if (authToken == null) {
@@ -35,10 +50,19 @@ class PushRepository(
             return Result.success(Unit)
         }
 
+        val environment = appSettings.apiEnvironment.value
         val fcmToken = pushTokenStorage.getFcmToken()
+            ?: runCatching { pushTokenStorage.fetchFcmToken() }.getOrElse {
+                if (it is CancellationException) throw it
+                return Result.failure(it)
+            }
         if (fcmToken == null) {
             AppLogger.d("Not registering push token: no FCM token available", TAG)
             return Result.success(Unit)
+        }
+
+        if (authRepository.authState.value != authState || appSettings.apiEnvironment.value != environment) {
+            return Result.failure(Exception("Account or API environment changed"))
         }
 
         val platform = pushTokenStorage.getPlatform()
@@ -46,7 +70,7 @@ class PushRepository(
 
         AppLogger.d("Registering push token for platform=$platform, deviceId=$deviceId", TAG)
 
-        return pushTokenService.registerToken(fcmToken, platform, deviceId, authToken)
+        return pushTokenService.registerToken(fcmToken, platform, deviceId, authToken, preferences)
             .onSuccess { AppLogger.d("Push token registered successfully", TAG) }
             .onFailure { AppLogger.e("Failed to register push token", TAG, it) }
     }
@@ -55,7 +79,7 @@ class PushRepository(
      * Unregisters the device from push notifications.
      * Should be called before signing out.
      */
-    suspend fun unregisterToken(): Result<Unit> {
+    suspend fun unregisterToken(): Result<Unit> = registrationMutex.withLock {
         val authState = authRepository.authState.value
         val authToken = (authState as? AuthState.Authenticated)?.token
         if (authToken == null) {
@@ -69,8 +93,7 @@ class PushRepository(
 
         return pushTokenService.unregisterToken(deviceId, authToken)
             .onSuccess {
-                pushTokenStorage.clearFcmToken()
-                AppLogger.d("Push token unregistered and cleared successfully", TAG)
+                AppLogger.d("Push token unregistered successfully", TAG)
             }
             .onFailure { AppLogger.e("Failed to unregister push token", TAG, it) }
     }

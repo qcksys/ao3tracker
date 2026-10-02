@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PencilIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -34,6 +34,7 @@ type RenameValues = z.infer<typeof renameSchema>;
 export default function Searches() {
   const { state, dispatch } = usePopupState();
   const { data: session } = authClient.useSession();
+  const [copyResult, setCopyResult] = useState<{ message: string; error: boolean } | null>(null);
 
   if (!state) return <div className="text-muted-foreground text-sm">Loading…</div>;
   if (!session?.user) {
@@ -55,6 +56,16 @@ export default function Searches() {
           bookmarks listing. Syncs across devices.
         </p>
       </header>
+      {copyResult && (
+        <p
+          role={copyResult.error ? "alert" : "status"}
+          className={
+            copyResult.error ? "text-destructive text-xs" : "text-muted-foreground text-xs"
+          }
+        >
+          {copyResult.message}
+        </p>
+      )}
       {searches.length === 0 ? (
         <p className="text-muted-foreground text-xs">No saved searches yet.</p>
       ) : (
@@ -74,6 +85,23 @@ export default function Searches() {
               >
                 {s.name}
               </button>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                aria-label={`Copy link for ${s.name}`}
+                title="Copy link"
+                onClick={async () => {
+                  setCopyResult(null);
+                  try {
+                    await navigator.clipboard.writeText(s.url);
+                    setCopyResult({ message: "Link copied", error: false });
+                  } catch {
+                    setCopyResult({ message: "Couldn't copy link. Try again.", error: true });
+                  }
+                }}
+              >
+                <CopyIcon />
+              </Button>
               <RenameSearchDialog
                 currentName={s.name}
                 onRename={(name) => dispatch({ kind: "renameSavedSearch", id: s.id, name })}

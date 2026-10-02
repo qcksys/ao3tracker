@@ -1,0 +1,2 @@
+ALTER TABLE `ao3track__notification` ADD `dispatchPending` boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE INDEX `idx_notification_dispatch` ON `ao3track__notification` (`dispatchPending`,`rowUpdatedAt`);

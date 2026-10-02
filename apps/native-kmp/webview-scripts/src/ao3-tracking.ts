@@ -10,6 +10,8 @@
  */
 import { applyListBadges as applyBadges, type WorkBadgeData } from "@qcksys/ao3tracker-core/badges";
 import {
+  applyFandomLimit,
+  applyHiddenWorks,
   classifyAo3Url,
   computeChapterScrollPercentage,
   consumeScrollToParam,
@@ -20,21 +22,35 @@ import {
   getWorkInfo,
   getWorkTagInfo,
   injectSaveSearchButton,
-  normalizeWhitespace,
+  installCrossoverLimit,
+  installDefaultSearchTags,
+  installSearchLanguage,
   publishScrollPercentage,
+  suggestSavedSearchName,
+  updateSavedSearchButton,
+  withCrossoverLimit,
+  withDefaultHiddenTags,
+  withSearchLanguage,
 } from "@qcksys/ao3tracker-core/dom";
 import type {
+  BrowsingReadyMessage,
+  BrowsingState,
   ListWorksMessage,
   SaveSearchMessage,
   ScrollProgressMessage,
+  SetWorkHiddenMessage,
 } from "@qcksys/ao3tracker-core/schemas";
+import { installDiagnostics } from "./diagnostics";
 
 declare global {
   interface Window {
     __ao3TrackerInitialized?: boolean;
+    __ao3TrackerDiagnostics?: ReturnType<typeof installDiagnostics>;
     __ao3Tracker?: {
       applyListBadges(payloadJson: string): void;
       reportReadingActivity(): void;
+      applyBrowsingState(payloadJson: string): void;
+      setDiagnosticsEnabled(enabled: boolean): void;
     };
     AndroidBridge?: {
       postMessage(msg: string): void;
@@ -63,6 +79,61 @@ function postMessage(msg: string): void {
 function updateScrollAndPost(): void {
   const message = publishScrollPercentage(document, window);
   if (message) postMessage(JSON.stringify(message));
+}
+
+let diagnostics: ReturnType<typeof installDiagnostics> | undefined;
+if (typeof window !== "undefined") {
+  window.__ao3TrackerDiagnostics ??= installDiagnostics(postMessage);
+  diagnostics = window.__ao3TrackerDiagnostics;
+}
+
+function setDiagnosticsEnabled(enabled: boolean): void {
+  diagnostics?.setEnabled(enabled);
+}
+
+let browsingState: BrowsingState = {
+  hiddenWorkIds: [],
+  hiddenTags: [],
+  savedSearchUrls: [],
+  languageFilterEnabled: false,
+  searchLanguage: "en",
+  maxFandoms: null,
+};
+
+export function applyBrowsingState(payloadJson: string): void {
+  browsingState = JSON.parse(payloadJson) as BrowsingState;
+  const language = browsingState.languageFilterEnabled ? browsingState.searchLanguage : null;
+  const filteredUrl = withCrossoverLimit(
+    withSearchLanguage(
+      withDefaultHiddenTags(window.location.href, browsingState.hiddenTags),
+      language,
+    ),
+    browsingState.maxFandoms,
+  );
+  if (filteredUrl !== window.location.href) {
+    window.location.replace(filteredUrl);
+    return;
+  }
+  updateSavedSearchButton(
+    document,
+    window.location.href,
+    browsingState.savedSearchUrls,
+    browsingState.hiddenTags,
+    language,
+    browsingState.maxFandoms,
+  );
+  applyHiddenWorks(document, browsingState.hiddenWorkIds, (workId, hidden) => {
+    diagnostics?.capture({ event: "webview_action", action: hidden ? "hide_work" : "show_work" });
+    postMessage(
+      JSON.stringify({
+        type: "setWorkHidden",
+        url: window.location.href,
+        workId,
+        hidden,
+      } satisfies SetWorkHiddenMessage),
+    );
+  });
+  applyFandomLimit(document, browsingState.maxFandoms);
 }
 
 export function applyListBadges(payloadJson: string): void {
@@ -121,20 +192,27 @@ function init(): void {
 
   consumeScrollToParam(document, window);
 
-  // On filterable list/search pages, inject a "Save this search" button. The
-  // host shows a naming dialog and persists the URL, so we just post the URL +
-  // a suggested name (the page heading) over the bridge on click.
   injectSaveSearchButton(document, window.location, (url) => {
-    // Collapse internal whitespace in the heading and cap to the server's name
-    // length so the suggested default is clean and never over-long.
-    const heading = normalizeWhitespace(document.querySelector("#main h2.heading")?.textContent);
+    diagnostics?.capture({ event: "webview_action", action: "save_search" });
     const message: SaveSearchMessage = {
       type: "saveSearch",
       url,
-      name: heading ? heading.slice(0, 191) : null,
+      name: suggestSavedSearchName(document, url),
     };
     postMessage(JSON.stringify(message));
   });
+
+  installDefaultSearchTags(document, window.location, () => browsingState.hiddenTags);
+  installCrossoverLimit(document, window.location, () => browsingState.maxFandoms);
+  installSearchLanguage(document, window.location, () =>
+    browsingState.languageFilterEnabled ? browsingState.searchLanguage : null,
+  );
+  postMessage(
+    JSON.stringify({
+      type: "browsingReady",
+      url: window.location.href,
+    } satisfies BrowsingReadyMessage),
+  );
 
   const listWorkIds = findListWorkIds(document);
   if (listWorkIds.length > 0) {
@@ -148,9 +226,16 @@ function init(): void {
 }
 
 if (typeof window !== "undefined") {
-  window.__ao3Tracker = window.__ao3Tracker ?? { applyListBadges, reportReadingActivity };
+  window.__ao3Tracker = window.__ao3Tracker ?? {
+    applyListBadges,
+    reportReadingActivity,
+    applyBrowsingState,
+    setDiagnosticsEnabled,
+  };
   window.__ao3Tracker.applyListBadges = applyListBadges;
   window.__ao3Tracker.reportReadingActivity = reportReadingActivity;
+  window.__ao3Tracker.applyBrowsingState = applyBrowsingState;
+  window.__ao3Tracker.setDiagnosticsEnabled = setDiagnosticsEnabled;
 }
 
 if (typeof window !== "undefined" && !window.__ao3TrackerInitialized) {

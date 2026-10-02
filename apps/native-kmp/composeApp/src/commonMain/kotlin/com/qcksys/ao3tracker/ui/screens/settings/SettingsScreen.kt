@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
@@ -74,20 +75,25 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.auth.AuthRepository
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.settings.ApiEnvironment
+import com.qcksys.ao3tracker.data.settings.defaultApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
+import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.push.NotificationItem
+import com.qcksys.ao3tracker.data.push.NotificationPreferences
 import com.qcksys.ao3tracker.data.push.NotificationType
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.util.shareText
 import io.sentry.kotlin.multiplatform.Sentry
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -98,10 +104,13 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import ao3tracker.composeapp.generated.resources.Res
 import ao3tracker.composeapp.generated.resources.app_logo
+import ao3tracker.composeapp.generated.resources.app_logo_beta
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    val accountData = koinInject<AccountDataStore>()
+    val activeAccount by accountData.active.collectAsState()
     val repository = koinInject<Ao3Repository>()
     val authRepository = koinInject<AuthRepository>()
     val pushRepository = koinInject<com.qcksys.ao3tracker.data.push.PushRepository>()
@@ -116,11 +125,47 @@ fun SettingsScreen() {
     val apiEnvironment by appSettings.apiEnvironment.collectAsState()
     val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
     val incognitoModeEnabled by appSettings.incognitoModeEnabled.collectAsState()
+    val diagnosticDataEnabled by appSettings.diagnosticDataEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lastSyncResult by syncRepository.lastSyncResult.collectAsState()
-    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember(activeAccount?.owner) { mutableStateOf(false) }
     var isSyncingOut by remember { mutableStateOf(false) }
+    var importOwner by remember(activeAccount?.owner) { mutableStateOf<String?>(null) }
+    var isImportingGuest by remember { mutableStateOf(false) }
+
+    importOwner?.let { owner ->
+        AlertDialog(
+            onDismissRequest = { importOwner = null },
+            title = { Text("Import from guest?") },
+            text = {
+                Text("Copy guest works, reading progress, favourite tags and saved searches into this account. " +
+                    "Works and saved items already in this account are kept as they are. Guest data stays available when you sign out.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    importOwner = null
+                    isImportingGuest = true
+                    scope.launch {
+                        try {
+                            val result = authRepository.importGuestData(owner)
+                            snackbarHostState.showSnackbar(
+                                if (result.isEmpty) "No new guest data to import"
+                                else "Imported ${result.works} works, ${result.favourites} favourite tags and ${result.searches} saved searches. Sync to upload them."
+                            )
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            snackbarHostState.showSnackbar("Import failed: ${e.message}")
+                        } finally {
+                            isImportingGuest = false
+                        }
+                    }
+                }) { Text("Import") }
+            },
+            dismissButton = { TextButton(onClick = { importOwner = null }) { Text("Cancel") } }
+        )
+    }
 
     // Show sync result
     LaunchedEffect(lastSyncResult) {
@@ -147,9 +192,9 @@ fun SettingsScreen() {
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete All Local Data?") },
+            title = { Text("Delete This Library?") },
             text = {
-                Text("This will permanently delete all tracked works, chapters, and tags from this device. This action cannot be undone.")
+                Text("This will permanently delete works, chapters, favourite tags and saved searches from the current local library. Other local libraries are kept. This action cannot be undone.")
             },
             confirmButton = {
                 Button(
@@ -158,7 +203,7 @@ fun SettingsScreen() {
                         screenModel.deleteAllLocalData { result ->
                             scope.launch {
                                 if (result.isSuccess) {
-                                    snackbarHostState.showSnackbar("All local data deleted")
+                                    snackbarHostState.showSnackbar("Current local library deleted")
                                 } else {
                                     snackbarHostState.showSnackbar("Failed to delete data: ${result.exceptionOrNull()?.message}")
                                 }
@@ -197,29 +242,6 @@ fun SettingsScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Incognito mode", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = incognitoModeEnabled,
-                            onCheckedChange = appSettings::setIncognitoModeEnabled,
-                            modifier = Modifier.semantics { contentDescription = "Incognito mode" }
-                        )
-                    }
-                    Text(
-                        "Stops saving works, chapters and reading progress on this device. " +
-                            "AO3 stays signed in, and your existing library can still sync.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            Ao3LinkSettings()
-
             // Account section
             AccountSection(
                 authState = authState,
@@ -260,7 +282,7 @@ fun SettingsScreen() {
                         }
                     }
                 },
-                isSyncingOut = isSyncingOut,
+                isSyncingOut = isSyncingOut || isImportingGuest,
                 onSignInWithSavedCredentials = {
                     scope.launch {
                         when (val result = authRepository.signInWithSavedCredentials()) {
@@ -300,31 +322,66 @@ fun SettingsScreen() {
                 }
             )
 
-            // Sync section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            SettingsSection(
+                title = "Reading",
+                summary = if (incognitoModeEnabled) "Incognito on · Tracking paused" else "Incognito off · Tracking enabled",
+                icon = Icons.Default.Book
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Incognito mode", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = incognitoModeEnabled,
+                            onCheckedChange = appSettings::setIncognitoModeEnabled,
+                            modifier = Modifier.semantics { contentDescription = "Incognito mode" }
+                        )
+                    }
+                    Text(
+                        "Stops saving works, chapters and reading progress on this device. " +
+                            "AO3 stays signed in, and your existing library can still sync.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Ao3LinkSettings()
+                }
+            }
+
+            BrowsingSettings(appSettings)
+
+            SettingsSection(
+                title = "Privacy",
+                summary = if (diagnosticDataEnabled) "Diagnostic data enabled" else "Diagnostic data disabled",
+                icon = Icons.Default.BugReport
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Send diagnostic data", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = diagnosticDataEnabled,
+                            onCheckedChange = appSettings::setDiagnosticDataEnabled,
+                            modifier = Modifier.semantics { contentDescription = "Send diagnostic data" }
+                        )
+                    }
+                    Text(
+                        "Help improve AO3 Tracker with app and reader feature usage, error counts, and Sentry crash reports. " +
+                            "Usage events contain no reading content, work IDs, search terms, or account details. " +
+                            "Turning this off stops new diagnostic collection on this device."
+                    )
+                }
+            }
+
+            SettingsSection(
+                title = "Sync",
+                summary = when {
+                    syncState.isSyncing -> syncState.statusMessage ?: "Syncing..."
+                    authState !is AuthState.Authenticated -> "Sign in to sync across devices"
+                    autoSyncOnOpen -> "Sync on open enabled"
+                    else -> "Manual sync · Sync on open disabled"
+                },
+                icon = Icons.Default.Sync
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Sync,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Sync",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     // Auto sync on open toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -415,22 +472,42 @@ fun SettingsScreen() {
             PushNotificationsSection(
                 isAuthenticated = authState is AuthState.Authenticated,
                 pushRepository = pushRepository,
+                appSettings = appSettings,
                 snackbarHostState = snackbarHostState
             )
 
-            // Database section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            SettingsSection(
+                title = "Library & data",
+                summary = "$workCount tracked works · Import, export and delete",
+                icon = Icons.Default.FileDownload
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
                     Text(
-                        text = "Database",
-                        style = MaterialTheme.typography.titleMedium
+                        text = when (activeAccount?.owner) {
+                            null -> "Loading library..."
+                            AccountDataStore.GUEST -> "Guest library"
+                            else -> (authState as? AuthState.Authenticated)?.user?.email ?: "Saved account library"
+                        },
+                        style = MaterialTheme.typography.bodyMedium
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Each account and guest has its own library on this device. Signing out keeps your data for the next sign-in.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                    val signedInOwner = authRepository.currentOwner()
+                    if (signedInOwner != null && signedInOwner == activeAccount?.owner) {
+                        OutlinedButton(
+                            onClick = { importOwner = signedInOwner },
+                            enabled = !isImportingGuest && !isSyncingOut && !syncState.isSyncing,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (isImportingGuest) "Importing..." else "Import from guest")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -496,17 +573,17 @@ fun SettingsScreen() {
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            text = "Delete All Local Data",
+                            text = "Delete Current Library",
                             modifier = Modifier.padding(start = 8.dp)
                         )
                     }
                 }
             }
 
-            // About section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            SettingsSection(
+                title = "About",
+                summary = "App information, privacy and contact",
+                icon = Icons.Default.Info
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -514,7 +591,10 @@ fun SettingsScreen() {
                 ) {
                     // App logo and name
                     Image(
-                        painter = painterResource(Res.drawable.app_logo),
+                        painter = painterResource(
+                            if (defaultApiEnvironment() == ApiEnvironment.DEV) Res.drawable.app_logo_beta
+                            else Res.drawable.app_logo
+                        ),
                         contentDescription = "AO3 Tracker Logo",
                         modifier = Modifier
                             .size(80.dp)
@@ -528,11 +608,7 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.headlineSmall
                     )
 
-                    Text(
-                        text = "Version 0.1.0",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    AppVersionInfo()
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -587,17 +663,17 @@ fun SettingsScreen() {
             DeveloperSection(
                 devModeEnabled = devModeEnabled,
                 onDevModeChanged = { enabled ->
-                    if (!enabled) {
-                        // Reset to production API when turning off dev mode
+                    if (!enabled && appSettings.canSelectApiEnvironment && apiEnvironment != defaultApiEnvironment()) {
                         scope.launch {
                             pushRepository.unregisterToken()
                             authRepository.signOut()
-                            appSettings.setApiEnvironment(ApiEnvironment.PRODUCTION)
+                            appSettings.setApiEnvironment(defaultApiEnvironment())
                         }
                     }
                     appSettings.setDevModeEnabled(enabled)
                 },
                 apiEnvironment = apiEnvironment,
+                canSelectApiEnvironment = appSettings.canSelectApiEnvironment,
                 onApiEnvironmentChanged = { env ->
                     if (env != apiEnvironment) {
                         // Auto logout when changing API environment
@@ -907,7 +983,7 @@ private fun AuthenticatedView(
             modifier = Modifier.fillMaxWidth(),
             enabled = !isSyncingOut
         ) {
-            Text("Sign Out")
+            Text("Sign Out & Keep Data")
         }
 
         OutlinedButton(
@@ -930,37 +1006,22 @@ private fun AuthenticatedView(
 }
 
 @Composable
-private fun DeveloperSection(
+internal fun DeveloperSection(
     devModeEnabled: Boolean,
     onDevModeChanged: (Boolean) -> Unit,
     apiEnvironment: ApiEnvironment,
+    canSelectApiEnvironment: Boolean,
     onApiEnvironmentChanged: (ApiEnvironment) -> Unit,
     currentUserEmail: String? = null
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    SettingsSection(
+        title = "Advanced",
+        summary = "${apiEnvironment.displayName} · Developer options",
+        icon = Icons.Default.Code
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Code,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Developer",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -976,7 +1037,7 @@ private fun DeveloperSection(
                 )
             }
 
-            if (devModeEnabled) {
+            if (devModeEnabled && canSelectApiEnvironment) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Text(
@@ -1034,7 +1095,9 @@ private fun DeveloperSection(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+            }
 
+            if (devModeEnabled) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Text(
@@ -1071,6 +1134,7 @@ private fun DeveloperSection(
 private fun PushNotificationsSection(
     isAuthenticated: Boolean,
     pushRepository: com.qcksys.ao3tracker.data.push.PushRepository,
+    appSettings: AppSettings,
     snackbarHostState: SnackbarHostState
 ) {
     val pushTokenStorage = remember { getPushTokenStorage() }
@@ -1079,6 +1143,20 @@ private fun PushNotificationsSection(
     var isRegistering by remember { mutableStateOf(false) }
     var hasToken by remember { mutableStateOf(pushTokenStorage.getFcmToken() != null) }
     var showHistoryModal by remember { mutableStateOf(false) }
+    val preferences by appSettings.notificationPreferences.collectAsState()
+    var isSaving by remember { mutableStateOf(false) }
+    val savePreferences: (NotificationPreferences) -> Unit = { updated ->
+        scope.launch {
+            isSaving = true
+            try {
+                pushRepository.updateNotificationPreferences(updated).onFailure {
+                    snackbarHostState.showSnackbar("Could not save notification settings: ${it.message}")
+                }
+            } finally {
+                isSaving = false
+            }
+        }
+    }
 
     // Only show on supported platforms
     if (!isPushSupported) {
@@ -1093,36 +1171,46 @@ private fun PushNotificationsSection(
         )
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    SettingsSection(
+        title = "Notifications",
+        summary = when {
+            isSaving -> "Saving notification settings..."
+            isRegistering -> "Registering notifications..."
+            !preferences.enabled -> "Off on this device"
+            !isAuthenticated -> "Sign in to receive alerts"
+            else -> "On this device · Alert types and history"
+        },
+        icon = if (preferences.enabled) Icons.Default.Notifications else Icons.Default.NotificationsOff
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (hasToken) Icons.Default.Notifications else Icons.Default.NotificationsOff,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Push Notifications",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
             Text(
-                text = "Receive notifications when works you're tracking are updated on AO3.",
+                text = "Choose alerts for subscribed works on this device. Other devices keep their own settings.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            NotificationSettingRow("Enable notifications", preferences.enabled, !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(enabled = it))
+            }
+            NotificationSettingRow("New chapters", preferences.newChapters, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(newChapters = it))
+            }
+            NotificationSettingRow("Completed works", preferences.workCompleted, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(workCompleted = it))
+            }
+            NotificationSettingRow("Restricted works", preferences.workRestricted, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(workRestricted = it))
+            }
+            NotificationSettingRow("Deleted works", preferences.workDeleted, preferences.enabled && !isSaving && !isRegistering) {
+                savePreferences(preferences.copy(workDeleted = it))
+            }
+            if (isSaving) {
+                Text("Saving notification settings…", style = MaterialTheme.typography.bodySmall)
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             // Status indicator
@@ -1136,7 +1224,11 @@ private fun PushNotificationsSection(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = if (hasToken) "Registered" else "Not registered",
+                    text = when {
+                        !preferences.enabled -> "Disabled on this device"
+                        hasToken -> "Push token available"
+                        else -> "No push token available"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (hasToken) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1166,7 +1258,7 @@ private fun PushNotificationsSection(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = isAuthenticated && !isRegistering
+                enabled = isAuthenticated && preferences.enabled && !isRegistering && !isSaving
             ) {
                 if (isRegistering) {
                     CircularProgressIndicator(
@@ -1219,6 +1311,28 @@ private fun PushNotificationsSection(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationSettingRow(
+    label: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            modifier = Modifier.semantics { contentDescription = label }
+        )
     }
 }
 
@@ -1363,7 +1477,7 @@ private fun NotificationHistoryModal(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(notifications, key = { it.id }) { notification ->
-                                NotificationItemCard(notification = notification)
+                                NotificationItemCard(notification = notification, onDismiss = onDismiss)
                             }
                             if (isLoadingMore) {
                                 item {
@@ -1397,8 +1511,12 @@ private fun NotificationHistoryModal(
  * Individual notification item card.
  */
 @Composable
-private fun NotificationItemCard(notification: NotificationItem) {
+internal fun NotificationItemCard(notification: NotificationItem, onDismiss: () -> Unit) {
     Card(
+        onClick = {
+            onDismiss()
+            NavigationState.navigateToRead("https://archiveofourown.org/works/${notification.workId}")
+        },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant

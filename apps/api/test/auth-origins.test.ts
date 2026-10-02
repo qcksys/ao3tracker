@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 import { auth } from "~/lib/auth";
 import config from "../wrangler.json";

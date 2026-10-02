@@ -1,0 +1,35 @@
+name: Release dev
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        description: Exact dev commit that passed both CI checks
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/dev' &&
+      inputs.source_ref == github.sha
+    uses: ./.github/workflows/prepare-release.yml
+    with:
+      branch: dev
+
+  deploy:
+    needs: prepare
+    if: needs.prepare.outputs.eligible == 'true'
+    concurrency:
+      group: api-development
+      cancel-in-progress: false
+    uses: ./.github/workflows/release-dev-apps.yml
+    secrets: inherit
+    with:
+      source_ref: ${{ needs.prepare.outputs.source_ref }}
+      api_artifact_id: ${{ needs.prepare.outputs.api_artifact_id }}

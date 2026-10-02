@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TDatabase } from "~/db/db.client";
 import { getTokensByUserIds, invalidateToken } from "~/db/queries/push-token";
 import { FcmClient, sendNotificationsToUsers } from "~/lib/fcm-client";
@@ -86,6 +86,7 @@ describe("FCM delivery failures", () => {
         deviceId,
         token: deviceId,
         platform: "android",
+        notificationPreferences: null,
         lastValidatedAt: new Date(),
         rowCreatedAt: new Date(),
         rowUpdatedAt: new Date(),
@@ -110,6 +111,12 @@ describe("FCM delivery failures", () => {
       invalidTokensRemoved: 1,
     });
     expect(send.mock.calls.map(([tokens]) => tokens)).toEqual([["b"], ["b"]]);
+    expect(send.mock.calls[0][3]).toMatchObject({
+      notification: {
+        channel_id: "ao3_work_updates",
+        click_action: "com.qcksys.ao3tracker.OPEN_WORK",
+      },
+    });
     expect(invalidateToken).toHaveBeenCalledWith(db, "b");
   });
 });

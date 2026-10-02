@@ -1,0 +1,1 @@
+ALTER TABLE `ao3track__push_token` ADD `notificationPreferences` json;

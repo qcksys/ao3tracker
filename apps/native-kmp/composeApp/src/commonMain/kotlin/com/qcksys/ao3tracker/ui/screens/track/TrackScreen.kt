@@ -24,12 +24,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -41,7 +38,6 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
@@ -55,7 +51,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -94,7 +89,6 @@ import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
-import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.SettingsTab
@@ -112,11 +106,6 @@ fun TrackScreen() {
     val filterState by screenModel.filterState.collectAsState()
     val isFilterSheetVisible by screenModel.isFilterSheetVisible.collectAsState()
     val sheetState = rememberModalBottomSheetState()
-
-    // Saved searches
-    val savedSearches by screenModel.savedSearches.collectAsState()
-    val isSavedSearchSheetVisible by screenModel.isSavedSearchSheetVisible.collectAsState()
-    val savedSearchSheetState = rememberModalBottomSheetState()
 
     // Sort state
     val sortState by screenModel.sortState.collectAsState()
@@ -176,7 +165,7 @@ fun TrackScreen() {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("Tracked Works") },
+                title = { Text("Works", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
                     // Sync button
                     IconButton(
@@ -242,12 +231,6 @@ fun TrackScreen() {
                                 }
                             )
                         }
-                    }
-                    IconButton(onClick = { screenModel.showSavedSearchSheet() }) {
-                        Icon(
-                            imageVector = Icons.Default.Bookmarks,
-                            contentDescription = "Saved searches"
-                        )
                     }
                     IconButton(onClick = { screenModel.showFilterSheet() }) {
                         Icon(
@@ -423,7 +406,7 @@ fun TrackScreen() {
                 onValueChange = { screenModel.updateSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
                 placeholder = { Text("Search by title or author") },
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = null)
@@ -478,8 +461,8 @@ fun TrackScreen() {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(works, key = { it.id }) { work ->
                         WorkCard(
@@ -516,144 +499,7 @@ fun TrackScreen() {
                 )
             }
         }
-
-        // Saved searches bottom sheet
-        if (isSavedSearchSheetVisible) {
-            ModalBottomSheet(
-                onDismissRequest = { screenModel.hideSavedSearchSheet() },
-                sheetState = savedSearchSheetState
-            ) {
-                SavedSearchesSheetContent(
-                    searches = savedSearches,
-                    onOpen = { url ->
-                        screenModel.hideSavedSearchSheet()
-                        NavigationState.navigateToRead(url)
-                        tabNavigator.current = ReadTab
-                    },
-                    onRename = { id, name -> screenModel.renameSavedSearch(id, name) },
-                    onDelete = { id -> screenModel.deleteSavedSearch(id) }
-                )
-            }
-        }
     }
-}
-
-@Composable
-private fun SavedSearchesSheetContent(
-    searches: List<SavedSearchEntity>,
-    onOpen: (String) -> Unit,
-    onRename: (String, String) -> Unit,
-    onDelete: (String) -> Unit
-) {
-    var renaming by remember { mutableStateOf<SavedSearchEntity?>(null) }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Saved searches",
-            style = MaterialTheme.typography.headlineSmall,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
-
-        if (searches.isEmpty()) {
-            Text(
-                text = "No saved searches yet. Open an AO3 works or bookmarks page in the Read tab and tap \"Save this search\".",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-            ) {
-                items(searches, key = { it.id }) { search ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onOpen(search.url) }
-                            .padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = search.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = search.url,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        IconButton(onClick = { renaming = search }) {
-                            Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Rename ${search.name}"
-                            )
-                        }
-                        IconButton(onClick = { onDelete(search.id) }) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Delete ${search.name}"
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-    }
-
-    renaming?.let { search ->
-        RenameSavedSearchDialog(
-            currentName = search.name,
-            onConfirm = { name ->
-                onRename(search.id, name)
-                renaming = null
-            },
-            onDismiss = { renaming = null }
-        )
-    }
-}
-
-@Composable
-private fun RenameSavedSearchDialog(
-    currentName: String,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var name by remember { mutableStateOf(currentName) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Rename search") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(191) },
-                label = { Text("Name") },
-                singleLine = true
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(name) },
-                enabled = name.isNotBlank()
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
 }
 
 @Composable
@@ -672,7 +518,7 @@ private fun WorkCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -690,15 +536,15 @@ private fun WorkCard(
                     if (!(work.isPrivate && work.author == null)) {
                         Text(
                             text = "by ${work.author ?: "Anonymous"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    // Fandom tags
-                    val fandoms = work.tags.filter { it.type == TagType.FANDOM }
-                    if (fandoms.isNotEmpty()) {
+                    work.tags.firstOrNull { it.type == TagType.FANDOM }?.let { fandom ->
                         Text(
-                            text = fandoms.joinToString(", ") { it.tag },
+                            text = fandom.tag,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -737,7 +583,7 @@ private fun WorkCard(
                 ) {
                     Text(
                         text = "Reading: ${chapter.displayTitle}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -745,18 +591,13 @@ private fun WorkCard(
                     )
                     Text(
                         text = "${chapter.progressPercent}%",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
-            // Progress bar
-            LinearProgressIndicator(
-                progress = { work.readProgress },
-                modifier = Modifier.fillMaxWidth(),
-                drawStopIndicator = {}
-            )
+            ChapterProgressBar(work)
 
             Spacer(modifier = Modifier.height(4.dp))
 

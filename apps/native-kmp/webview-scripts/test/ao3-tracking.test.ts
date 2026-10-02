@@ -15,8 +15,9 @@ import {
   getWorkTagInfo,
   type WorkBadgeData,
 } from "@qcksys/ao3tracker-core";
-import { beforeEach, describe, expect, it } from "vite-plus/test";
-import { applyListBadges } from "~/ao3-tracking";
+import { injectSaveSearchButton } from "@qcksys/ao3tracker-core/dom";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { applyBrowsingState, applyListBadges } from "~/ao3-tracking";
 import { chapterIndexHtml, minimalHtml, workPageHtml } from "./fixtures";
 
 function mockLocation(url: string): Location {
@@ -37,6 +38,59 @@ function mockLocation(url: string): Location {
 beforeEach(() => {
   document.body.innerHTML = "";
   window.__ao3TrackerInitialized = false;
+});
+
+describe("browsing state bridge", () => {
+  it("updates saved searches and hidden works after each native response", () => {
+    const url = "https://archiveofourown.org/tags/Test/works";
+    const loc = mockLocation(url);
+    document.body.innerHTML =
+      '<div id="main"><h2 class="heading">Works</h2><form id="work-filters"></form><ol><li id="work_123"></li></ol></div>';
+    const button = injectSaveSearchButton(document, loc, vi.fn());
+    if (!button) throw new Error("Missing saved-search button");
+    const post = vi.fn();
+    window.AndroidBridge = { postMessage: post };
+    try {
+      applyBrowsingState(
+        JSON.stringify({ hiddenWorkIds: [123], hiddenTags: [], savedSearchUrls: [url] }),
+      );
+      expect(button.textContent).toBe("Saved search");
+      expect(
+        document.querySelector("#work_123")?.classList.contains("ao3-tracker-work-hidden"),
+      ).toBe(true);
+      document.querySelector<HTMLButtonElement>(".ao3-tracker-hidden-work button")?.click();
+      expect(post).toHaveBeenCalledWith(
+        JSON.stringify({
+          type: "setWorkHidden",
+          url,
+          workId: 123,
+          hidden: false,
+        }),
+      );
+      applyBrowsingState(
+        JSON.stringify({ hiddenWorkIds: [], hiddenTags: [], savedSearchUrls: [] }),
+      );
+      expect(button.textContent).toBe("Save this search");
+      expect(document.querySelector(".ao3-tracker-hidden-work")).toBeNull();
+    } finally {
+      delete window.AndroidBridge;
+    }
+  });
+
+  it("reloads a search with defaults only when they are missing", () => {
+    mockLocation("https://archiveofourown.org/works?work_search[query]=test");
+    const replace = vi.fn<(url: string) => void>();
+    window.location.replace = replace;
+    const state = JSON.stringify({ hiddenWorkIds: [], hiddenTags: ["Angst"], savedSearchUrls: [] });
+    applyBrowsingState(state);
+    const redirected = replace.mock.calls[0]?.[0];
+    if (!redirected) throw new Error("Missing filtered search navigation");
+    expect(new URL(redirected).searchParams.get("work_search[excluded_tag_names]")).toBe("Angst");
+    mockLocation(redirected);
+    window.location.replace = replace;
+    applyBrowsingState(state);
+    expect(replace).toHaveBeenCalledOnce();
+  });
 });
 
 describe("getWorkChapterSelect", () => {

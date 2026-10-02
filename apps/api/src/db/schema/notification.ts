@@ -1,6 +1,7 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
   bigint,
+  boolean,
   datetime,
   index,
   int,
@@ -32,6 +33,7 @@ export const tNotification = mysqlTable(
     workId: int({ unsigned: true }).notNull(),
     type: mysqlEnum("type", notificationTypes).notNull(),
     status: mysqlEnum("status", notificationStatuses).notNull().default("pending"),
+    dispatchPending: boolean().notNull().default(false),
     title: varchar({ length: 255 }).notNull(),
     body: text().notNull(),
     payload: text(),
@@ -46,6 +48,7 @@ export const tNotification = mysqlTable(
       index("idx_notification_userId").on(table.userId),
       index("idx_notification_workId").on(table.workId),
       index("idx_notification_status").on(table.status),
+      index("idx_notification_dispatch").on(table.dispatchPending, table.rowUpdatedAt),
       index("idx_notification_type").on(table.type),
       index("idx_notification_user_status").on(table.userId, table.status),
       index("idx_notification_rowCreatedAt").on(table.rowCreatedAt),

@@ -185,3 +185,10 @@ data class AccountArchiveEntity(
     val remoteCursor: String? = null,
     val localCursor: Long? = null
 )
+
+@Entity(tableName = "account_database")
+data class AccountDatabaseEntity(
+    @PrimaryKey val owner: String,
+    val fileName: String,
+    val selected: Boolean = false
+)

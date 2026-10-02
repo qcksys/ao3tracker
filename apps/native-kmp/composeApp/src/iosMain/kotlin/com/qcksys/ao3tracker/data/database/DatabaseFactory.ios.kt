@@ -6,7 +6,7 @@ import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
 
-actual fun getDatabaseBuilder(): RoomDatabase.Builder<Ao3Database> {
+actual fun getDatabaseBuilder(fileName: String): RoomDatabase.Builder<Ao3Database> {
     val documentDirectory = NSFileManager.defaultManager.URLForDirectory(
         directory = NSDocumentDirectory,
         inDomain = NSUserDomainMask,
@@ -14,7 +14,7 @@ actual fun getDatabaseBuilder(): RoomDatabase.Builder<Ao3Database> {
         create = false,
         error = null
     )
-    val dbFilePath = requireNotNull(documentDirectory).path + "/$DB_FILE_NAME"
+    val dbFilePath = requireNotNull(documentDirectory).path + "/$fileName"
     return Room.databaseBuilder<Ao3Database>(
         name = dbFilePath
     )

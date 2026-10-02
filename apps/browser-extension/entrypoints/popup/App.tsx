@@ -2,6 +2,7 @@ import { BookmarkIcon, ListIcon, SearchIcon, SettingsIcon, BookOpenIcon } from "
 import { HashRouter, NavLink, Route, Routes } from "react-router";
 
 import { cn } from "@/lib/utils";
+import { extensionBranding } from "@/lib/branding";
 import { PopupStateProvider } from "~popup/lib/state";
 import ForgotPassword from "~popup/pages/ForgotPassword";
 import Lists from "~popup/pages/Lists";
@@ -20,11 +21,23 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: SettingsIcon, end: false },
 ] as const;
 
+const branding = extensionBranding(import.meta.env.MODE);
+
 function App() {
   return (
     <PopupStateProvider>
       <HashRouter>
         <div className="bg-background text-foreground flex h-full w-full flex-col">
+          <header className="border-border flex items-center gap-2 border-b px-4 py-2">
+            <img
+              src={`/${branding.icons[48]}`}
+              alt=""
+              width={36}
+              height={36}
+              className="rounded-lg"
+            />
+            <span className="text-sm font-semibold">{branding.name}</span>
+          </header>
           <main className="flex-1 overflow-y-auto p-4">
             <Routes>
               <Route index element={<Tracker />} />

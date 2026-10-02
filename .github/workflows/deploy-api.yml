@@ -2,14 +2,24 @@ name: Deploy production API
 
 on:
   workflow_call:
+    outputs:
+      android_required:
+        value: ${{ jobs.deploy.outputs.android_required }}
+      chrome_required:
+        value: ${{ jobs.deploy.outputs.chrome_required }}
     inputs:
       source_ref:
         description: Exact commit SHA that passed CI
         required: true
         type: string
+      api_artifact_id:
+        description: Built production API artifact from release preparation
+        required: true
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: api-production
@@ -19,6 +29,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-24.04
+    outputs:
+      android_required: ${{ steps.changes.outputs.android }}
+      chrome_required: ${{ steps.changes.outputs.chrome }}
     timeout-minutes: 20
     environment: api-production
     steps:
@@ -34,20 +47,40 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
           version-file: pnpm-workspace.yaml
           run-install: false
+      - run: vp install --frozen-lockfile
+      - name: Check store build inputs
+        id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: vp node scripts/ci-native-changes.mjs stores
+      - name: Download built API
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          artifact-ids: ${{ inputs.api_artifact_id }}
+          path: apps/api/dist/
+      - name: Confirm source before production migrations
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
+        run: vp node scripts/release-main.mjs assert-current-source
+      - name: Apply production database migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: vp node apps/api/scripts/migrate.mjs
+      - name: Verify production database after migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: vp node scripts/check-api-migrations.mjs
       - name: Confirm source is still current main
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RELEASE_SOURCE_REF: ${{ inputs.source_ref }}
         run: vp node scripts/release-main.mjs assert-current-source
-      - run: vp install --frozen-lockfile
-      - name: Check production database readiness
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: vp node scripts/check-api-migrations.mjs
       - name: Deploy production Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -56,7 +89,7 @@ jobs:
             echo "::error::Set CLOUDFLARE_API_TOKEN in the api-production environment."
             exit 1
           fi
-          vp run --filter @qcksys/ao3tracker-api deploy:prod
+          vp exec --filter @qcksys/ao3tracker-api wrangler deploy --config dist/ssr/wrangler.json
       - name: Smoke test production API
         run: |
           curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 2 --max-time 20 \

@@ -2,10 +2,10 @@
   "$schema": "https://unpkg.com/@changesets/config@4.0.1/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "format": "oxfmt",
+  "format": false,
   "privatePackages": {
     "version": true,
-    "tag": false
+    "tag": true
   },
   "fixed": [],
   "linked": [],

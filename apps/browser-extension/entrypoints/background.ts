@@ -16,13 +16,22 @@ import {
   favouriteTagsItem,
   lastSyncErrorItem,
   lastSyncedAtItem,
-  notificationsEnabledItem,
+  getNotificationPreferences,
+  notificationPreferencesItem,
   resolveApiBaseUrl,
   savedSearchesItem,
 } from "@/lib/storage";
 import { runSync, StaleSyncSessionError } from "@/lib/sync";
 import { initializeAccount, setApiEndpoint, setAuthSession } from "@/lib/account-state";
 import { withLocalState } from "@/lib/local-state";
+import {
+  getBrowsingState,
+  setHiddenTags,
+  setSearchLanguage,
+  setMaxFandoms,
+  setWorkHidden,
+} from "@/lib/browsing-repo";
+import { browsingPreferencesItem } from "@/lib/storage";
 import {
   buildBadgePayloads,
   currentWorkSummary,
@@ -93,7 +102,8 @@ async function getPopupState(): Promise<PopupState> {
     savedSearches,
     currentWork,
     trackedCount,
-    notificationsEnabled,
+    notificationPreferences,
+    browsingPreferences,
   ] = await Promise.all([
     apiBaseUrlItem.getValue(),
     lastSyncedAtItem.getValue(),
@@ -102,7 +112,8 @@ async function getPopupState(): Promise<PopupState> {
     savedSearchesItem.getValue(),
     currentWorkSummary(),
     trackedWorkCount(),
-    notificationsEnabledItem.getValue(),
+    getNotificationPreferences(),
+    browsingPreferencesItem.getValue(),
   ]);
   return {
     // Coerce so the popup's "Active" endpoint matches what requests actually
@@ -112,7 +123,8 @@ async function getPopupState(): Promise<PopupState> {
     lastSyncError,
     syncing,
     trackedCount,
-    notificationsEnabled,
+    notificationPreferences,
+    browsingPreferences,
     currentWork,
     favouriteTags,
     savedSearches,
@@ -123,6 +135,11 @@ async function handleContentMessage(
   msg: ContentToBackground,
 ): Promise<BackgroundToContentResponse> {
   switch (msg.kind) {
+    case "getBrowsingState":
+      return { kind: "browsingState", state: await getBrowsingState() };
+    case "setWorkHidden":
+      await setWorkHidden(msg.workId, msg.hidden);
+      return { kind: "browsingState", state: await getBrowsingState() };
     case "pageEvent": {
       const affected = await ingestPageEvent(msg.payload);
       if (affected.length > 0) scheduleSync();
@@ -142,6 +159,21 @@ async function handleContentMessage(
 
 async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToPopupResponse> {
   switch (msg.kind) {
+    case "unhideWork":
+    case "setHiddenTags":
+    case "setSearchLanguage":
+    case "setMaxFandoms":
+      return withLocalState(async () => {
+        if (msg.kind === "unhideWork") await setWorkHidden(msg.workId, false);
+        else if (msg.kind === "setHiddenTags") await setHiddenTags(msg.hiddenTags);
+        else if (msg.kind === "setMaxFandoms") await setMaxFandoms(msg.maxFandoms);
+        else
+          await setSearchLanguage({
+            languageFilterEnabled: msg.languageFilterEnabled,
+            searchLanguage: msg.searchLanguage,
+          });
+        return { kind: "state", state: await getPopupState() };
+      });
     case "getState":
       return withLocalState(async () => ({ kind: "state", state: await getPopupState() }));
 
@@ -182,10 +214,12 @@ async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToP
       });
     }
 
-    case "setNotificationsEnabled": {
-      await notificationsEnabledItem.setValue(msg.enabled);
-      if (msg.enabled) void pollNotifications();
-      return { kind: "state", state: await getPopupState() };
+    case "setNotificationPreference": {
+      return withLocalState(async () => {
+        const preferences = await getNotificationPreferences();
+        await notificationPreferencesItem.setValue({ ...preferences, [msg.key]: msg.enabled });
+        return { kind: "state", state: await getPopupState() };
+      });
     }
   }
 }

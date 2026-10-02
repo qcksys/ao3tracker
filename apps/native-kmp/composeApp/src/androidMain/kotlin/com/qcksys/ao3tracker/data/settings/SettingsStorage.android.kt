@@ -85,6 +85,23 @@ actual class SettingsStorage {
         prefs.edit().putBoolean(KEY_INCOGNITO_MODE, enabled).apply()
     }
 
+    actual fun getNotificationPreferences(): String? = prefs.getString("notification_preferences", null)
+    actual fun isDiagnosticDataEnabled(): Boolean = prefs.getBoolean("diagnostic_data_enabled", true)
+
+    actual fun setDiagnosticDataEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("diagnostic_data_enabled", enabled).commit()
+    }
+
+    actual fun getBrowsingPreferences(): String? = prefs.getString("browsing_preferences", null)
+
+    actual fun setBrowsingPreferences(preferences: String) {
+        prefs.edit().putString("browsing_preferences", preferences).apply()
+    }
+
+    actual fun setNotificationPreferences(preferences: String) {
+        prefs.edit().putString("notification_preferences", preferences).apply()
+    }
+
     companion object {
         private const val PREFS_FILE_NAME = "ao3_app_settings_encrypted"
         private const val KEY_API_ENVIRONMENT = "api_environment"

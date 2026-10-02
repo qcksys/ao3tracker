@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TDatabase } from "~/db/db.client";
 import { getTokensByUserIds } from "~/db/queries/push-token";
 import { sendNotificationsToUsers } from "~/lib/fcm-client";
@@ -42,6 +42,7 @@ describe("notification queue retries", () => {
         deviceId,
         token: deviceId,
         platform: "android",
+        notificationPreferences: null,
         lastValidatedAt: new Date(),
         rowCreatedAt: new Date(),
         rowUpdatedAt: new Date(),

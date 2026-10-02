@@ -3,6 +3,7 @@ package com.qcksys.ao3tracker.push
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
@@ -12,6 +13,8 @@ import com.qcksys.ao3tracker.MainActivity
 import com.qcksys.ao3tracker.R
 import com.qcksys.ao3tracker.data.push.PushTokenStorage
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
+import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.data.settings.getSettingsStorage
 import io.github.aakira.napier.Napier
 
 /**
@@ -26,13 +29,26 @@ class Ao3FirebaseMessagingService : FirebaseMessagingService() {
         const val ACTION_OPEN_WORK = "com.qcksys.ao3tracker.OPEN_WORK"
         const val EXTRA_WORK_ID = "work_id"
         private const val TAG = "Ao3FCMService"
+
+        fun createNotificationChannel(context: Context) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    CHANNEL_NAME,
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "Notifications when subscribed works are updated on AO3"
+                }
+                context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            }
+        }
     }
 
     private val pushTokenStorage: PushTokenStorage by lazy { getPushTokenStorage() }
 
     override fun onCreate() {
         super.onCreate()
-        createNotificationChannel()
+        createNotificationChannel(this)
     }
 
     /**
@@ -55,6 +71,7 @@ class Ao3FirebaseMessagingService : FirebaseMessagingService() {
 
         val workId = remoteMessage.data["workId"]?.toLongOrNull()
         val type = remoteMessage.data["type"]
+        if (!AppSettings(getSettingsStorage()).notificationPreferences.value.allows(type)) return
 
         Napier.d("Message data - workId: $workId, type: $type", tag = TAG)
 
@@ -63,25 +80,6 @@ class Ao3FirebaseMessagingService : FirebaseMessagingService() {
         val body = remoteMessage.notification?.body ?: "A subscribed work has been updated"
 
         showNotification(title, body, workId)
-    }
-
-    /**
-     * Creates the notification channel for Android 8.0+
-     */
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_DEFAULT
-            ).apply {
-                description = "Notifications when subscribed works are updated on AO3"
-            }
-
-            val notificationManager = getSystemService(NotificationManager::class.java)
-            notificationManager.createNotificationChannel(channel)
-            Napier.d("Notification channel created: $CHANNEL_ID", tag = TAG)
-        }
     }
 
     /**

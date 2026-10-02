@@ -13,6 +13,7 @@ import { tAuthSession } from "~/db/schema/auth.session";
 import { tAuthTwoFactor } from "~/db/schema/auth.twoFactor";
 import { tAuthUser } from "~/db/schema/auth.user";
 import { tAuthVerification } from "~/db/schema/auth.verification";
+import { androidPasskeyOrigins } from "~/lib/android-app";
 import { sendEmail } from "~/lib/email";
 import { parseAllowedOrigins } from "~/lib/origins";
 
@@ -156,7 +157,19 @@ export const auth = ({ env, db }: { env: CloudflareBindings; db: TDatabase }) =>
     user: {
       fields: {},
     },
-    plugins: [twoFactor(), passkey(), openAPI({ disableDefaultReference: true }), bearer()],
+    plugins: [
+      twoFactor(),
+      passkey({
+        rpID: new URL(env.BETTER_AUTH_URL).hostname,
+        origin: [
+          new URL(env.BETTER_AUTH_URL).origin,
+          ...trustedOrigins,
+          ...androidPasskeyOrigins(env.ENVIRONMENT),
+        ],
+      }),
+      openAPI({ disableDefaultReference: true }),
+      bearer(),
+    ],
     database: drizzleAdapter(db, {
       provider: "mysql",
       schema: {

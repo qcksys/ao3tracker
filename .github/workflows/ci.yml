@@ -2,31 +2,65 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   push:
     branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  actions: read
 
 jobs:
+  changesets:
+    needs: [workspace, android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/changesets.yml
+
+  release-main:
+    needs: changesets
+    if: needs.changesets.outputs.tagged == 'true'
+    uses: ./.github/workflows/release-main.yml
+    secrets: inherit
+    with:
+      source_ref: ${{ github.sha }}
+
+  release-dev:
+    needs: [workspace, android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    uses: ./.github/workflows/deploy-dev-api.yml
+    secrets: inherit
+    with:
+      source_ref: ${{ github.sha }}
+
   workspace:
     name: Workspace checks
+    concurrency:
+      group: ci-workspace-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.run_attempt == 1 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    outputs:
+      native_required: ${{ steps.changes.outputs.required }}
+      native_matrix: ${{ steps.changes.outputs.matrix }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
           version-file: pnpm-workspace.yaml
           run-install: false
           cache: true
+      - name: Check native build inputs
+        id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: vp node scripts/ci-native-changes.mjs
       - run: vp install --frozen-lockfile
       - name: Validate GitHub Actions workflows
         run: |
@@ -46,13 +80,25 @@ jobs:
         run: vp node --test scripts/*.test.mjs
       - name: Workspace tests
         run: vp run -r test
+      - name: Seeded sync end-to-end tests
+        run: vp run test:e2e
       - name: Workspace builds
         run: vp run -r build
 
-  android:
-    name: Android and JVM checks
+  native:
+    name: ${{ matrix.name }}
+    concurrency:
+      group: ci-native-${{ matrix.target }}-${{ github.event_name }}-${{ github.ref }}
+      cancel-in-progress: ${{ github.run_attempt == 1 }}
+    needs: workspace
+    if: needs.workspace.outputs.native_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      APP_BUILD_TIME_UTC: "2020-01-01 00:00:00 UTC"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.workspace.outputs.native_matrix) }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -72,16 +118,44 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
-          cache-provider: basic
-          cache-read-only: ${{ github.event_name == 'pull_request' }}
+          cache-provider: external
+      - name: Restore Gradle cache
+        id: gradle-cache
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: native-gradle-v1-${{ runner.os }}-${{ runner.arch }}-jdk21-${{ matrix.target }}-${{ github.sha }}
+          restore-keys: |
+            native-gradle-v1-${{ runner.os }}-${{ runner.arch }}-jdk21-${{ matrix.target }}-
       - run: vp install --frozen-lockfile
-      - name: Test native code and build Android
+      - name: Run native checks
         run: >-
           bash apps/native-kmp/gradlew -p apps/native-kmp
-          :composeApp:jvmTest :composeApp:assembleDebug
-          -x :composeApp:vpInstall --no-configuration-cache
-      - name: Test reports
+          ${{ matrix.tasks }}
+          -x :composeApp:vpInstall --no-configuration-cache --profile
+      - name: Stop Gradle before saving cache
+        if: github.event_name != 'pull_request' && steps.gradle-cache.outputs.cache-hit != 'true'
+        run: bash apps/native-kmp/gradlew -p apps/native-kmp --stop
+      - name: Save Gradle cache
+        if: github.event_name != 'pull_request' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+      - name: Build profile
         if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: native-build-profile-${{ matrix.target }}
+          path: apps/native-kmp/build/reports/profile/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Test reports
+        if: always() && matrix.target == 'checks'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: native-test-reports
@@ -91,9 +165,36 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Android debug APK
+        if: matrix.target == 'checks'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: android-debug
           path: apps/native-kmp/composeApp/build/outputs/apk/debug/composeApp-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  android:
+    name: Android and JVM checks
+    needs: [workspace, native]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Verify native results
+        env:
+          CHANGES_RESULT: ${{ needs.workspace.result }}
+          NATIVE_REQUIRED: ${{ needs.workspace.outputs.native_required }}
+          NATIVE_RESULT: ${{ needs.native.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" == "success" ]]; then
+            if [[ "$NATIVE_REQUIRED" == "false" && "$NATIVE_RESULT" == "skipped" ]]; then
+              echo "No native build inputs changed."
+              exit 0
+            fi
+            if [[ "$NATIVE_REQUIRED" == "true" && "$NATIVE_RESULT" == "success" ]]; then
+              echo "All native checks passed."
+              exit 0
+            fi
+          fi
+          echo "::error::Native checks failed, were cancelled, or could not be evaluated."
+          exit 1

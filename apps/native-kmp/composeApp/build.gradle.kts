@@ -1,5 +1,9 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import groovy.json.JsonSlurper
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -18,10 +22,56 @@ plugins {
 val webviewScriptsDir = rootProject.file("webview-scripts")
 val webviewScriptsOutputDir = layout.buildDirectory.dir("generated/webview-scripts")
 val generatedKotlinDir = layout.buildDirectory.dir("generated/kotlin/webview")
+val generatedBuildInfoDir = layout.buildDirectory.dir("generated/kotlin/build-info")
+val desktopVersion = "1.0.0"
+
+val generateAppBuildInfo by tasks.registering {
+    val version = desktopVersion
+    val buildTimeOverride = providers.environmentVariable("APP_BUILD_TIME_UTC")
+    inputs.property("desktopVersion", version)
+    inputs.property("buildTimeOverride", buildTimeOverride.orElse(""))
+    val outputFile = generatedBuildInfoDir.get().file("GeneratedAppBuildInfo.kt").asFile
+    outputs.file(outputFile)
+    // CI validation uses stable metadata; local and signed builds retain their actual time.
+    outputs.upToDateWhen { buildTimeOverride.isPresent }
+    doLast {
+        val buildTimeUtc = buildTimeOverride.orNull ?: DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.now())
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText("""
+            |package com.qcksys.ao3tracker
+            |
+            |internal object GeneratedAppBuildInfo {
+            |    const val desktopVersion = "$version"
+            |    const val buildTimeUtc = ${groovy.json.JsonOutput.toJson(buildTimeUtc).replace("$", "\\$")}
+            |}
+        """.trimMargin())
+    }
+}
 
 val workspaceRoot = rootProject.file("../..")
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val vpCommand = if (isWindows) listOf("cmd", "/c", "vp") else listOf("vp")
+
+
+val generateAo3Languages by tasks.registering {
+    val sourceFile = workspaceRoot.resolve("packages/ao3-core/src/languages.json")
+    val outputFile = generatedKotlinDir.get().file("Ao3Languages.kt").asFile
+    inputs.file(sourceFile)
+    outputs.file(outputFile)
+    doLast {
+        val languages = JsonSlurper().parse(sourceFile) as List<*>
+        fun literal(value: Any?): String = groovy.json.JsonOutput.toJson(value)
+            .replace("$", "\\$")
+        val entries = languages.joinToString(",\n") { entry ->
+            val language = entry as Map<*, *>
+            "        ${literal(language["code"])} to ${literal(language["label"])}"
+        }
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText("package com.qcksys.ao3tracker.data.settings\n\ninternal object Ao3Languages {\n    val options = listOf(\n$entries\n    )\n}\n")
+    }
+}
 
 // Install at the workspace root to resolve the shared package links.
 val vpInstall by tasks.registering(Exec::class) {
@@ -52,13 +102,17 @@ val generateWebviewScriptKotlin by tasks.registering {
     dependsOn(compileWebviewScripts)
 
     val trackingJsFile = webviewScriptsDir.resolve("dist/ao3-tracking.min.js")
+    val searchCheckJsFile = webviewScriptsDir.resolve("dist/search-check.min.js")
     val scrollRestoreJsFile = webviewScriptsDir.resolve("dist/scroll-restore.min.js")
     val trackingOutputFile = generatedKotlinDir.get().file("Ao3TrackingScriptGenerated.kt").asFile
     val scrollRestoreOutputFile = generatedKotlinDir.get().file("ScrollRestoreScriptGenerated.kt").asFile
 
     inputs.file(trackingJsFile)
+    inputs.file(searchCheckJsFile)
     inputs.file(scrollRestoreJsFile)
     outputs.file(trackingOutputFile)
+    val searchCheckOutputFile = generatedKotlinDir.get().file("SearchCheckScriptGenerated.kt").asFile
+    outputs.file(searchCheckOutputFile)
     outputs.file(scrollRestoreOutputFile)
 
     doLast {
@@ -80,6 +134,17 @@ val generateWebviewScriptKotlin by tasks.registering {
 
         trackingOutputFile.parentFile.mkdirs()
         trackingOutputFile.writeText(trackingKotlinContent)
+
+        val searchCheckContent = searchCheckJsFile.readText().replace("$", "\${'$'}")
+        searchCheckOutputFile.writeText("""
+            |package com.qcksys.ao3tracker.webview
+            |
+            |object SearchCheckScriptGenerated {
+            |    val script: String = ${"\"\"\""}
+            |$searchCheckContent
+            |${"\"\"\""}
+            |}
+        """.trimMargin())
 
         // Generate scroll restore script
         val scrollRestoreJsContent = scrollRestoreJsFile.readText()
@@ -112,9 +177,15 @@ tasks.matching {
     it.name.startsWith("ksp")
 }.configureEach {
     dependsOn(generateWebviewScriptKotlin)
+    dependsOn(generateAppBuildInfo)
+    dependsOn(generateAo3Languages)
 }
 
 kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     androidTarget {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
@@ -136,6 +207,7 @@ kotlin {
     sourceSets {
         commonMain {
             kotlin.srcDir(generatedKotlinDir)
+            kotlin.srcDir(generatedBuildInfoDir)
         }
         androidMain.dependencies {
             implementation(compose.preview)
@@ -200,10 +272,16 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)
         }
+        androidUnitTest.dependencies {
+            implementation(libs.robolectric)
+        }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.ktor.client.java)
+        }
+        jvmTest.dependencies {
+            implementation(compose.desktop.uiTestJUnit4)
         }
     }
 }
@@ -247,7 +325,8 @@ android {
         versionCode = releaseVersionCode
         versionName = releaseVersionName
 
-        // Default to production API endpoints
+        buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "false")
+        buildConfigField("String", "API_ENVIRONMENT", "\"PRODUCTION\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
         buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
         // Sentry DSN
@@ -256,6 +335,9 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
     packaging {
         resources {
@@ -271,6 +353,9 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "true")
+        }
         getByName("release") {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
@@ -283,15 +368,19 @@ android {
                 debugSymbolLevel = "FULL"
             }
         }
+        create("dev") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".dev"
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "true")
+            buildConfigField("String", "API_ENVIRONMENT", "\"DEV\"")
+            buildConfigField("String", "AUTH_BASE_URL", "\"https://dev.ao3tracker.com/auth\"")
+            buildConfigField("String", "API_BASE_URL", "\"https://dev.ao3tracker.com/api\"")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    lint {
-        // DAL (Digital Asset Links) requires server-side assetlinks.json configuration.
-        // Credential Manager works without it; DAL is primarily for cross-app/website credential sharing.
-        disable += "CredManMissingDal"
     }
 }
 
@@ -310,7 +399,10 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.qcksys.ao3tracker"
-            packageVersion = "1.0.0"
+            packageVersion = desktopVersion
+            macOS { iconFile.set(project.file("icons/app.icns")) }
+            windows { iconFile.set(project.file("icons/app.ico")) }
+            linux { iconFile.set(project.file("icons/app.png")) }
         }
     }
 }

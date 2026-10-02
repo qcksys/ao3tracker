@@ -1,12 +1,9 @@
 package com.qcksys.ao3tracker.data
 
-import androidx.room.Room
-import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import cafe.adriel.voyager.core.annotation.InternalVoyagerApi
 import cafe.adriel.voyager.core.model.ScreenModelStore
 import com.qcksys.ao3tracker.data.auth.SyncAuthentication
 import com.qcksys.ao3tracker.data.database.AccountDataStore
-import com.qcksys.ao3tracker.data.database.Ao3Database
 import com.qcksys.ao3tracker.data.database.ChapterEntity
 import com.qcksys.ao3tracker.data.database.TagEntity
 import com.qcksys.ao3tracker.data.database.WorkEntity
@@ -27,6 +24,7 @@ import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
+import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
 import java.nio.file.Files
 import kotlin.test.Test
@@ -56,6 +54,147 @@ import kotlinx.serialization.json.Json
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
     @Test
+    fun `diagnostic bridge discards messages queued before a consent change`() = runTest {
+        fixture { f ->
+            val sent = mutableListOf<String>()
+            val client = com.qcksys.ao3tracker.diagnostics.DiagnosticsClient(
+                f.settings, "desktop", { _, request -> sent.add(request.data.toString()) }, backgroundScope
+            )
+            com.qcksys.ao3tracker.diagnostics.Diagnostics.install(client)
+            try {
+                runCurrent()
+                val event = """{"type":"diagnostic","data":{"event":"webview_ready"}}"""
+                f.model.handleWebViewMessage(event)
+                f.settings.setDiagnosticDataEnabled(false)
+                f.settings.setDiagnosticDataEnabled(true)
+                runCurrent()
+                assertTrue(sent.isEmpty())
+                f.model.handleWebViewMessage(event)
+                runCurrent()
+                assertEquals(1, sent.size)
+            } finally {
+                com.qcksys.ao3tracker.diagnostics.Diagnostics.uninstall(client)
+                client.close()
+            }
+        }
+    }
+
+    @Test
+    fun `explicit link actions track unread works and update blocklists in incognito`() = runTest {
+        fixture { f ->
+            val pageUrl = "https://archiveofourown.org/works/search"
+            val scripts = mutableListOf<String>()
+            val messages = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.jsInjectionFlow.collect { scripts.add(it) }
+            }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.linkActionMessage.collect { messages.add(it) }
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            f.settings.setHiddenTags("Angst")
+            f.model.updateCurrentUrl(pageUrl)
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$pageUrl"}""")
+            advanceUntilIdle()
+
+            f.model.handleLinkAction(ReaderLinkAction.TrackWork(123, "A new work"))
+            advanceUntilIdle()
+            val work = assertNotNull(f.db.workDao().getWorkById(123))
+            assertEquals("A new work", work.title)
+            assertTrue(work.subscribed)
+            assertNotNull(work.lastRead)
+            assertTrue(f.db.chapterDao().getAllChaptersIncludingDeletedOnce().isEmpty())
+            assertEquals("not-started", f.repository.getWorkBadges(listOf(123)).single().status)
+            assertTrue(scripts.any { it.contains("applyListBadges") && it.contains("not-started") })
+            assertEquals(pageUrl, f.model.currentUrl.value)
+
+            f.model.handleLinkAction(ReaderLinkAction.BlockTag("Alice/Bob"))
+            f.model.handleLinkAction(ReaderLinkAction.BlockTag("alice/bob"))
+            f.model.handleLinkAction(ReaderLinkAction.BlockWork(123))
+            f.model.handleLinkAction(ReaderLinkAction.BlockWork(123))
+            advanceUntilIdle()
+            assertEquals(listOf("Angst", "Alice/Bob"), f.settings.browsingPreferences.value.hiddenTags)
+            assertEquals(listOf(123L), f.settings.browsingPreferences.value.hiddenWorkIds)
+            assertTrue(scripts.any { it.contains("applyBrowsingState") && it.contains("Alice/Bob") })
+            assertEquals(work, f.db.workDao().getWorkById(123))
+            assertEquals("Added to tracked works", messages.first())
+        }
+    }
+
+    @Test
+    fun `adding an existing work preserves metadata flags and progress`() = runTest {
+        fixture { f ->
+            f.seedTrackedWork()
+            val work = f.db.workDao().getWorkById(1)
+            val chapters = f.db.chapterDao().getAllChaptersIncludingDeletedOnce()
+            val tags = f.db.tagDao().getAll()
+            f.repository.addTrackedWork(1, "Another link title")
+            assertEquals(work, f.db.workDao().getWorkById(1))
+            assertEquals(chapters, f.db.chapterDao().getAllChaptersIncludingDeletedOnce())
+            assertEquals(tags, f.db.tagDao().getAll())
+        }
+    }
+
+    @Test
+    fun `tracking a deleted work restores it with a newer sync clock`() = runTest {
+        fixture { f ->
+            f.seedTrackedWork()
+            f.repository.deleteWork(1)
+            val deleted = assertNotNull(f.db.workDao().getWorkByIdIncludingDeleted(1))
+            f.repository.addTrackedWork(1, "Another link title")
+            val restored = assertNotNull(f.db.workDao().getWorkById(1))
+            assertNull(restored.rowDeletedAt)
+            assertTrue(assertNotNull(restored.lastRead) > assertNotNull(deleted.lastRead))
+            assertEquals("Original", restored.title)
+            assertEquals(0.25f, f.db.chapterDao().getChapterById(11, 1)?.readProgress)
+        }
+    }
+
+    @Test
+    fun `queued link tracking cannot write to a replacement account`() = runTest {
+        fixture { f ->
+            f.model.handleLinkAction(ReaderLinkAction.TrackWork(123, "Old account"))
+            f.accounts.activate("other-account")
+            advanceUntilIdle()
+            assertNull(f.db.workDao().getWorkById(123))
+        }
+    }
+
+    @Test
+    fun `browsing controls work while incognito and push preference and saved search changes`() = runTest {
+        fixture { f ->
+            val pageUrl = "https://archiveofourown.org/works/search?work_search[query]=test"
+            val scripts = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.jsInjectionFlow.collect { scripts.add(it) }
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            f.model.updateCurrentUrl(pageUrl)
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$pageUrl"}""")
+            advanceUntilIdle()
+            assertTrue(scripts.any { it.contains("applyBrowsingState") && it.contains("savedSearchUrls") })
+
+            f.model.handleWebViewMessage("""{"type":"setWorkHidden","url":"$pageUrl","workId":123,"hidden":true}""")
+            advanceUntilIdle()
+            assertEquals(listOf(123L), f.settings.browsingPreferences.value.hiddenWorkIds)
+            assertTrue(scripts.last().contains("\"hiddenWorkIds\":[123]"))
+
+            f.settings.setHiddenTags("Angst")
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"hiddenTags\":[\"Angst\"]"))
+
+            f.model.confirmSaveSearch("My search", pageUrl)
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"savedSearchUrls\":[\"$pageUrl\"]"))
+            assertTrue(f.db.workDao().getAllWorksIncludingDeletedOnce().isEmpty())
+
+            f.model.handleWebViewMessage("""{"type":"setWorkHidden","url":"https://example.com/works","workId":456,"hidden":true}""")
+            advanceUntilIdle()
+            assertEquals(listOf(123L), f.settings.browsingPreferences.value.hiddenWorkIds)
+        }
+    }
+
+    @Test
     fun `initial account initialization preserves an external reading URL`() = runTest {
         val externalUrl = "${url()}?view_adult=true&view_full_work=true#comment_123"
         fixture(beforeInitialization = { it.model.navigateToExternalUrl(externalUrl) }) { f ->
@@ -72,16 +211,17 @@ class IncognitoReadingTest {
             }
             f.settings.setIncognitoModeEnabled(true)
             advanceUntilIdle()
-            assertTrue(scripts.isEmpty())
+            assertEquals(listOf("window.__ao3Tracker?.setDiagnosticsEnabled?.(false);"), scripts)
+            scripts.clear()
 
             f.settings.setIncognitoModeEnabled(false)
             advanceUntilIdle()
-            assertEquals(1, scripts.size)
-            assertTrue(scripts.single().contains("reportReadingActivity"))
+            assertEquals(1, scripts.count { it.contains("reportReadingActivity") })
+            assertEquals(1, scripts.count { it.contains("setDiagnosticsEnabled?.(true)") })
 
             f.settings.setIncognitoModeEnabled(false)
             advanceUntilIdle()
-            assertEquals(1, scripts.size)
+            assertEquals(2, scripts.size)
         }
     }
 
@@ -289,13 +429,10 @@ class IncognitoReadingTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val directory = Files.createTempDirectory("ao3tracker-incognito-")
-        val db = Room.databaseBuilder<Ao3Database>(directory.resolve("test.db").toString())
-            .setDriver(BundledSQLiteDriver())
-            .setQueryCoroutineContext(dispatcher)
-            .build()
+        val accounts = createTestAccounts(directory, dispatcher)
         val modelHolder = "incognito-test:${directory.fileName}"
         try {
-            val f = Fixture(db, modelHolder)
+            val f = Fixture(accounts, modelHolder)
             beforeInitialization(f)
             f.accounts.initialize()
             f.accounts.activate(AccountDataStore.GUEST)
@@ -304,7 +441,7 @@ class IncognitoReadingTest {
         } finally {
             ScreenModelStore.onDisposeNavigator(modelHolder)
             runCurrent()
-            db.close()
+            accounts.close()
             Dispatchers.resetMain()
             Files.walk(directory).use { paths ->
                 paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists)
@@ -312,12 +449,12 @@ class IncognitoReadingTest {
         }
     }
 
-    private class Fixture(val db: Ao3Database, modelHolder: String) {
-        val accounts = AccountDataStore(db)
+    private class Fixture(val accounts: AccountDataStore, modelHolder: String) {
+        val db get() = accounts.database
         val settings = AppSettings(null)
-        val repository = Ao3Repository(db, accounts)
-        private val searches = SavedSearchRepository(db.savedSearchDao(), accounts)
-        private val favourites = FavouriteTagRepository(db.favouriteTagDao(), accounts)
+        val repository = Ao3Repository(accounts)
+        private val searches = SavedSearchRepository(accounts)
+        private val favourites = FavouriteTagRepository(accounts)
         private val auth = object : SyncAuthentication {
             override val authState = MutableStateFlow<AuthState>(AuthState.Idle)
             override fun currentOwner(): String? = null
@@ -337,7 +474,7 @@ class IncognitoReadingTest {
                 request: SyncPostRequest
             ): Result<SyncPostResponse> = error("Reading tests must not send remote state")
         }
-        private val sync = SyncRepository(remote, db, auth, favourites, searches, accounts)
+        private val sync = SyncRepository(remote, auth, favourites, searches, accounts)
         val model = ScreenModelStore.getOrPut(modelHolder, null) {
             ReadScreenModel(repository, searches, SyncTriggers(sync), accounts, settings)
         }

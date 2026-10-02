@@ -2,6 +2,7 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { getUserNotifications } from "~/db/queries/notification";
 import { deletePushToken, upsertPushToken } from "~/db/queries/push-token";
 import { sNotificationS } from "~/db/schema/notification";
+import { sPushTokenS } from "~/db/schema/push.token";
 import type { TRouterEnvAuthReq } from "~/middleware/requireAuthMw";
 
 const registerTokenSchema = z
@@ -9,6 +10,7 @@ const registerTokenSchema = z
     token: z.string().min(1).max(512),
     deviceId: z.string().min(1).max(64),
     platform: z.enum(["android", "ios"]).default("android"),
+    notificationPreferences: sPushTokenS.shape.notificationPreferences.unwrap().optional(),
   })
   .openapi({ description: "Push token registration request" });
 
@@ -35,6 +37,7 @@ const registerRoute = createRoute({
         "application/json": {
           schema: z.object({
             success: z.boolean(),
+            notificationPreferences: sPushTokenS.shape.notificationPreferences.unwrap().optional(),
           }),
         },
       },
@@ -165,13 +168,14 @@ const notificationHistoryRoute = createRoute({
 export const pushRouter = new OpenAPIHono<TRouterEnvAuthReq>()
   .openapi(registerRoute, async (c) => {
     const userId = c.var.user.id;
-    const { token, deviceId, platform } = c.req.valid("json");
+    const { token, deviceId, platform, notificationPreferences } = c.req.valid("json");
 
     await upsertPushToken(c.var.db, {
       userId,
       token,
       deviceId,
       platform,
+      notificationPreferences,
       lastValidatedAt: new Date(),
     });
 
@@ -182,7 +186,7 @@ export const pushRouter = new OpenAPIHono<TRouterEnvAuthReq>()
       platform,
     });
 
-    return c.json({ success: true });
+    return c.json({ success: true, notificationPreferences });
   })
   .openapi(unregisterRoute, async (c) => {
     const userId = c.var.user.id;

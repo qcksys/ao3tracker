@@ -1,9 +1,11 @@
 import type { TDatabase } from "~/db/db.client";
 import {
+  getPendingNotificationDispatches,
   getSubscribedUsersForWork,
   hasRecentNotificationForWork,
   insertNotifications,
   type NotificationCreate,
+  recordNotificationDispatch,
 } from "~/db/queries/notification";
 import type { NotificationType } from "~/db/schema/notification";
 
@@ -89,6 +91,7 @@ export async function createWorkNotifications(
     DEDUP_WINDOW_MINUTES,
   );
   if (isDuplicate) {
+    await dispatchPendingNotifications(db, queue, event.workId);
     console.log({
       message: "Skipping duplicate notification",
       workId: event.workId,
@@ -125,32 +128,58 @@ export async function createWorkNotifications(
     title,
     body,
     payload,
+    dispatchPending: true,
   }));
 
   // Insert all notifications
   await insertNotifications(db, notifications);
 
-  // Queue notifications for delivery in batches
-  const BATCH_SIZE = 100;
-  for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
-    const batchUserIds = userIds.slice(i, i + BATCH_SIZE);
-    await queue.send({
-      type: "work_notification",
-      workId: event.workId,
-      notificationType: event.type,
-      title,
-      body,
-      payload,
-      userIds: batchUserIds,
-    });
-  }
+  await dispatchPendingNotifications(db, queue, event.workId);
 
   console.log({
-    message: "Notifications created and queued",
+    message: "Notifications persisted for delivery",
     workId: event.workId,
     type: event.type,
     userCount: userIds.length,
   });
 
   return userIds.length;
+}
+
+export async function dispatchPendingNotifications(
+  db: TDatabase,
+  queue: Queue<NotificationQueueMessage>,
+  workId?: number,
+): Promise<void> {
+  const pending = await getPendingNotificationDispatches(db, workId);
+  for (let i = 0; i < pending.length; i += 100) {
+    const batch = pending.slice(i, i + 100);
+    const ids = batch.map((notification) => notification.id);
+    try {
+      await queue.sendBatch(
+        batch.map((notification) => ({
+          body: {
+            type: "work_notification" as const,
+            workId: notification.workId,
+            notificationType: notification.type,
+            title: notification.title,
+            body: notification.body,
+            payload: notification.payload ?? "{}",
+            userIds: [notification.userId],
+          },
+        })),
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await recordNotificationDispatch(db, ids, errorMessage);
+      console.error({
+        message: "Notification dispatch deferred",
+        count: ids.length,
+        error: errorMessage,
+      });
+      continue;
+    }
+    // A crash before this update can replay a batch; queue delivery is at least once.
+    await recordNotificationDispatch(db, ids);
+  }
 }

@@ -12,10 +12,12 @@ import androidx.room.RoomDatabaseConstructor
         TagEntity::class,
         FavouriteTagEntity::class,
         SavedSearchEntity::class,
+        SearchCheckEntity::class,
         ActiveAccountEntity::class,
-        AccountArchiveEntity::class
+        AccountArchiveEntity::class,
+        AccountDatabaseEntity::class
     ],
-    version = 7,
+    version = 9,
     exportSchema = true
 )
 @ConstructedBy(Ao3DatabaseConstructor::class)
@@ -25,6 +27,7 @@ abstract class Ao3Database : RoomDatabase() {
     abstract fun tagDao(): TagDao
     abstract fun favouriteTagDao(): FavouriteTagDao
     abstract fun savedSearchDao(): SavedSearchDao
+    abstract fun searchCheckDao(): SearchCheckDao
     abstract fun accountDao(): AccountDao
 }
 

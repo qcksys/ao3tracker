@@ -1,3 +1,7 @@
+import {
+  allowsNotification,
+  defaultNotificationPreferences,
+} from "@qcksys/ao3tracker-core/notifications";
 import { importPKCS8, SignJWT } from "jose";
 import ky, { HTTPError, type KyInstance } from "ky";
 import type { TDatabase } from "~/db/db.client";
@@ -247,7 +251,12 @@ export async function sendNotificationsToUsers(
 ): Promise<SendNotificationResult> {
   // Get all tokens for these users
   const tokens = (await getTokensByUserIds(db, userIds)).filter(
-    (token) => deviceId === undefined || token.deviceId === deviceId,
+    (token) =>
+      (deviceId === undefined || token.deviceId === deviceId) &&
+      allowsNotification(
+        token.notificationPreferences ?? defaultNotificationPreferences,
+        notification.data.type,
+      ),
   );
 
   if (tokens.length === 0) {
@@ -272,8 +281,8 @@ export async function sendNotificationsToUsers(
     {
       priority: "high",
       notification: {
-        channel_id: "work_updates",
-        click_action: "OPEN_WORK",
+        channel_id: "ao3_work_updates",
+        click_action: "com.qcksys.ao3tracker.OPEN_WORK",
       },
     },
   );

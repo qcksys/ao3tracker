@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.util
 
 import io.github.aakira.napier.Napier
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
 
 /**
  * Application-wide logging utility using Napier.
@@ -23,13 +24,16 @@ object AppLogger {
 
     fun w(message: String, tag: String = DEFAULT_TAG, throwable: Throwable? = null) {
         Napier.w(message, throwable, tag)
+        Diagnostics.log("warning", tag)
     }
 
     fun e(message: String, tag: String = DEFAULT_TAG, throwable: Throwable? = null) {
         Napier.e(message, throwable, tag)
+        Diagnostics.log("error", tag)
     }
 
     fun wtf(message: String, tag: String = DEFAULT_TAG, throwable: Throwable? = null) {
         Napier.wtf(message, throwable, tag)
+        Diagnostics.log("error", tag)
     }
 }

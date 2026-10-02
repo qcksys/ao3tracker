@@ -17,7 +17,7 @@ import io.ktor.http.isSuccess
 /**
  * Service for registering and unregistering push notification tokens with the server.
  */
-class PushTokenService(
+open class PushTokenService(
     private val appSettings: AppSettings,
     private val authService: AuthService
 ) {
@@ -38,20 +38,25 @@ class PushTokenService(
      * @param deviceId A unique device identifier
      * @param authToken The user's authentication token
      */
-    suspend fun registerToken(
+    open suspend fun registerToken(
         fcmToken: String,
         platform: String,
         deviceId: String,
-        authToken: String
+        authToken: String,
+        preferences: NotificationPreferences
     ): Result<Unit> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/push/token") {
                 header("Authorization", "Bearer $authToken")
                 contentType(ContentType.Application.Json)
-                setBody(PushTokenRequest(token = fcmToken, platform = platform, deviceId = deviceId))
+                setBody(PushTokenRequest(token = fcmToken, platform = platform, deviceId = deviceId, notificationPreferences = preferences))
             }
 
             if (response.status.isSuccess()) {
+                val registered = response.body<PushTokenResponse>()
+                if (!registered.success || registered.notificationPreferences != preferences) {
+                    return Result.failure(Exception("Notification settings could not be confirmed. Please try again later."))
+                }
                 AppLogger.d("Push token registered successfully", TAG)
                 Result.success(Unit)
             } else {
@@ -70,7 +75,7 @@ class PushTokenService(
      * @param deviceId The device identifier to unregister
      * @param authToken The user's authentication token
      */
-    suspend fun unregisterToken(deviceId: String, authToken: String): Result<Unit> {
+    open suspend fun unregisterToken(deviceId: String, authToken: String): Result<Unit> {
         return try {
             val response: HttpResponse = client.delete("$baseUrl/push/token/$deviceId") {
                 header("Authorization", "Bearer $authToken")

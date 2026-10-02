@@ -38,7 +38,7 @@ import {
   type TrackedWork,
 } from "../lib/storage";
 import { runSync, StaleSyncSessionError } from "../lib/sync";
-import { ingestPageEvent } from "../lib/tracker-repo";
+import { ingestPageEvent, setFavourite, setSubscribed } from "../lib/tracker-repo";
 
 const baseUrl = "https://ao3tracker.com";
 const time = "2025-01-01T00:00:00.000Z";
@@ -199,6 +199,99 @@ describe("account ownership", () => {
 });
 
 describe("sync concurrency", () => {
+  it.each(["workInfo", "scrollProgress"] as const)(
+    "restores a deleted work and uploads its chapter when reading resumes with %s",
+    async (type) => {
+      await setAuthSession("alice", baseUrl);
+      const deletedAt = "2099-01-01T00:00:00.000Z";
+      const deletedWork = { ...work(1), deleted: true, lastReadAt: deletedAt, pendingSync: false };
+      const deletedChapter = {
+        workId: 1,
+        chapterId: 11,
+        lastReadAt: deletedAt,
+        markedCompleteAt: null,
+        readProgress: 0.2,
+        deleted: true,
+        pendingSync: false,
+      };
+      await trackedWorksItem.setValue({ 1: deletedWork });
+      await trackedChaptersItem.setValue({ "1:11": deletedChapter });
+      const fetchMock = installFetch(async (_input, init) =>
+        init?.method === "POST"
+          ? postResponse()
+          : response(remote({ works: [deletedWork], chapters: [deletedChapter] })),
+      );
+      await ingestPageEvent(
+        type === "workInfo"
+          ? {
+              type,
+              url: "https://archiveofourown.org/works/1",
+              chapterId: "11",
+              isPrivate: false,
+              workName: null,
+              workLastUpdated: null,
+              chapterName: null,
+              chapterNumber: null,
+              totalChapters: null,
+              authorUrl: null,
+              authorName: null,
+              summary: null,
+              wordCount: null,
+              language: null,
+              kudos: null,
+              hits: null,
+              bookmarks: null,
+              comments: null,
+              downloadPath: null,
+              downloadUpdatedAt: null,
+            }
+          : {
+              type,
+              url: "https://archiveofourown.org/works/1",
+              chapterId: "11",
+              scrollPercentage: 80,
+            },
+      );
+      expect((await trackedWorksItem.getValue())[1]).toMatchObject({
+        deleted: false,
+        pendingSync: true,
+      });
+      await runSync();
+      const posted = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body;
+      expect(parsePosted(posted)).toMatchObject({
+        works: [expect.objectContaining({ workId: 1, deleted: false })],
+        chapters: [
+          expect.objectContaining({
+            workId: 1,
+            chapterId: 11,
+            deleted: false,
+            readProgress: type === "workInfo" ? 0.2 : 0.8,
+          }),
+        ],
+      });
+      expect(Date.parse(parsePosted(posted).works[0].lastReadAt)).toBeGreaterThan(
+        Date.parse(deletedAt),
+      );
+      expect(Date.parse(parsePosted(posted).chapters[0].lastReadAt)).toBeGreaterThan(
+        Date.parse(deletedAt),
+      );
+      expect((await trackedWorksItem.getValue())[1]?.pendingSync).toBe(false);
+    },
+  );
+
+  it("preserves a work deletion when only favourite or subscription flags change", async () => {
+    await trackedWorksItem.setValue({ 1: { ...work(1), deleted: true, pendingSync: false } });
+    await setFavourite(1, true);
+    await setSubscribed(1, false);
+    expect((await trackedWorksItem.getValue())[1]).toMatchObject({
+      deleted: true,
+      lastReadAt: time,
+      favourite: true,
+      subscribed: false,
+      pendingSync: true,
+    });
+  });
+
   it("merges newer remote flags even when local reading progress is newer", async () => {
     await setAuthSession("alice", baseUrl);
     await trackedWorksItem.setValue({ 1: { ...work(1), lastReadAt: "2026-01-02T00:00:00.000Z" } });
@@ -267,6 +360,60 @@ describe("sync concurrency", () => {
       pendingSync: false,
     });
   });
+
+  it.each([-1, 0, 1])(
+    "reconciles a retired chapter identity with a local reading clock offset of %i ms",
+    async (offset) => {
+      await setAuthSession("alice", baseUrl);
+      const retiredAt = "2026-01-01T00:00:00.000Z";
+      const localReadAt = new Date(Date.parse(retiredAt) + offset).toISOString();
+      const canonicalChapter = {
+        workId: 1,
+        chapterId: 11,
+        lastReadAt: retiredAt,
+        markedCompleteAt: null,
+        readProgress: 0.2,
+        deleted: false,
+      };
+      await trackedWorksItem.setValue({ 1: { ...work(1), pendingSync: false } });
+      await trackedChaptersItem.setValue({
+        "1:0": {
+          ...canonicalChapter,
+          chapterId: 0,
+          lastReadAt: localReadAt,
+          readProgress: 0.8,
+          pendingSync: true,
+        },
+      });
+      const fetchMock = installFetch(async (_input, init) =>
+        init?.method === "POST"
+          ? postResponse()
+          : response(
+              remote({
+                chapters: [{ ...canonicalChapter, chapterId: 0, deleted: true }, canonicalChapter],
+              }),
+            ),
+      );
+      await runSync();
+      expect((await trackedChaptersItem.getValue())["1:11"]).toMatchObject(canonicalChapter);
+      const uploads = fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
+      if (offset > 0) {
+        expect(uploads).toHaveLength(1);
+        expect(parsePosted(uploads[0]?.[1]?.body).chapters).toEqual([
+          expect.objectContaining({
+            workId: 1,
+            chapterId: 0,
+            lastReadAt: localReadAt,
+            readProgress: 0.8,
+            deleted: false,
+          }),
+        ]);
+      } else {
+        expect((await trackedChaptersItem.getValue())["1:0"]).toBeUndefined();
+        expect(uploads).toHaveLength(0);
+      }
+    },
+  );
 
   it("uploads pending chapter tombstones with their live parent work", async () => {
     await setAuthSession("alice", baseUrl);

@@ -5,6 +5,25 @@ import type {
   SyncWorkMetadata,
 } from "@qcksys/ao3tracker-core";
 import { storage } from "@wxt-dev/storage";
+import type { BrowsingPreferences } from "@qcksys/ao3tracker-core/schemas";
+
+import {
+  defaultNotificationPreferences,
+  type NotificationPreferences,
+} from "@qcksys/ao3tracker-core/notifications";
+
+export const browsingPreferencesItem = storage.defineItem<BrowsingPreferences>(
+  "local:browsingPreferences",
+  {
+    fallback: {
+      hiddenWorkIds: [],
+      hiddenTags: [],
+      languageFilterEnabled: false,
+      searchLanguage: "en",
+      maxFandoms: null,
+    },
+  },
+);
 
 /**
  * Persistent state for the extension. Everything here is mirrored in the
@@ -69,14 +88,17 @@ export const apiBaseUrlPresets = [
  * Presets the running build is allowed to select / resolve to. Production
  * builds ship only the real endpoints (prod + dev); the `proxy`/`local` dev
  * conveniences are stripped so a tampered stored value can't redirect the
- * bearer token to an attacker origin. Non-production builds expose all of them.
+ * bearer token to an attacker origin. Beta builds allow only dev; local builds
+ * expose all presets.
  */
 export const availableApiBaseUrlPresets: readonly ApiBaseUrlPreset[] =
   // Gate on MODE (not PROD) so this stays aligned with the manifest
   // host_permissions in wxt.config.ts, which also keys off `mode`.
-  import.meta.env.MODE === "production"
-    ? apiBaseUrlPresets.filter((p) => p.id === "prod" || p.id === "dev")
-    : apiBaseUrlPresets;
+  import.meta.env.MODE === "beta"
+    ? apiBaseUrlPresets.filter((p) => p.id === "dev")
+    : import.meta.env.MODE === "production"
+      ? apiBaseUrlPresets.filter((p) => p.id === "prod" || p.id === "dev")
+      : apiBaseUrlPresets;
 
 /**
  * Coerce a stored api base url to a known-safe value. The stored item is
@@ -85,11 +107,14 @@ export const availableApiBaseUrlPresets: readonly ApiBaseUrlPreset[] =
  */
 export function resolveApiBaseUrl(value: string | null | undefined): string {
   const allowed = availableApiBaseUrlPresets.map((p) => p.url);
-  return value && allowed.includes(value) ? value : apiBaseUrlPresets[0].url;
+  return value && allowed.includes(value) ? value : defaultApiBaseUrl;
 }
 
+export const defaultApiBaseUrl =
+  import.meta.env.MODE === "beta" ? apiBaseUrlPresets[1].url : apiBaseUrlPresets[0].url;
+
 export const apiBaseUrlItem = storage.defineItem<string>("local:apiBaseUrl", {
-  fallback: apiBaseUrlPresets[0].url,
+  fallback: defaultApiBaseUrl,
 });
 
 export const authTokenItem = storage.defineItem<string | null>("local:authToken", {
@@ -147,14 +172,24 @@ export const lastSeenNotificationIdItem = storage.defineItem<number | null>(
   { fallback: null },
 );
 
-/**
- * Whether the background worker should poll for new notifications and surface
- * chrome notifications. Defaults to true so users get push by default after
- * sign-in (matching native KMP behaviour).
- */
+// Read the original toggle when upgrading an existing installation.
 export const notificationsEnabledItem = storage.defineItem<boolean>("local:notificationsEnabled", {
   fallback: true,
 });
+
+export const notificationPreferencesItem = storage.defineItem<NotificationPreferences | null>(
+  "local:notificationPreferences",
+  { fallback: null },
+);
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return (
+    (await notificationPreferencesItem.getValue()) ?? {
+      ...defaultNotificationPreferences,
+      enabled: await notificationsEnabledItem.getValue(),
+    }
+  );
+}
 
 /**
  * Map of chrome notification id → AO3 work id. Lets the click handler look up

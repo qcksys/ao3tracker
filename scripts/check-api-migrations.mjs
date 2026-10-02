@@ -68,16 +68,16 @@ export function verifyMigrationHistory(migrations, rows) {
         ? candidates[0]
         : candidates.find((candidate) => candidate.hashes.includes(row.hash));
     if (!migration || applied.has(migration.tag)) {
-      throw new ReadinessError("Production migration history has unknown or duplicate entries.");
+      throw new ReadinessError("API migration history has unknown or duplicate entries.");
     }
     if (!migration.hashes.includes(row.hash)) {
-      throw new ReadinessError(`Production migration checksum differs: ${migration.tag}.`);
+      throw new ReadinessError(`API migration checksum differs: ${migration.tag}.`);
     }
     applied.add(migration.tag);
   }
   for (const migration of migrations) {
     if (!applied.has(migration.tag)) {
-      throw new ReadinessError(`Production migration is not recorded: ${migration.tag}.`);
+      throw new ReadinessError(`API migration is not recorded: ${migration.tag}.`);
     }
   }
 }
@@ -87,14 +87,14 @@ export function verifySchemaColumns(snapshot, rows) {
   for (const column of snapshot.ddl.filter((entity) => entity.entityType === "columns")) {
     const name = `${column.table}.${column.name}`;
     const live = actual.get(name);
-    if (!live) throw new ReadinessError(`Production schema is missing ${name}.`);
+    if (!live) throw new ReadinessError(`API schema is missing ${name}.`);
     const temporalType = /^(datetime|timestamp)(?:\((\d+)\))?$/.exec(column.type);
     if (
       temporalType &&
       (live.data_type !== temporalType[1] ||
         Number(live.datetime_precision) < Number(temporalType[2] ?? 0))
     ) {
-      throw new ReadinessError(`Production schema needs ${column.type} for ${name}.`);
+      throw new ReadinessError(`API schema needs ${column.type} for ${name}.`);
     }
   }
 }
@@ -117,7 +117,7 @@ export async function checkDatabaseReadiness(connection, manifest) {
     );
   } catch {
     throw new ReadinessError(
-      "Could not read the production migration ledger and schema. Check DATABASE_URL, read permissions, and the ao3track__migrations ledger.",
+      "Could not read the API migration ledger and schema. Check DATABASE_URL, read permissions, and the ao3track__migrations ledger.",
     );
   }
   verifyMigrationHistory(manifest.migrations, history.rows);
@@ -127,7 +127,7 @@ export async function checkDatabaseReadiness(connection, manifest) {
 export async function main(env = process.env) {
   if (!env.DATABASE_URL) {
     throw new ReadinessError(
-      "Set a read-only production DATABASE_URL in the api-production environment.",
+      "Set DATABASE_URL to a connection to the deployment target's database.",
     );
   }
   const manifest = await readMigrationManifest();
@@ -137,9 +137,7 @@ export async function main(env = process.env) {
     fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(30_000) }),
   });
   await checkDatabaseReadiness(connection, manifest);
-  console.log(
-    `Production database is ready for ${manifest.migrations.length} recorded API migrations.`,
-  );
+  console.log(`API database is ready for ${manifest.migrations.length} recorded API migrations.`);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -148,7 +146,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       error instanceof ReadinessError ? error.message : "API database readiness check failed.",
     );
     console.error(
-      "Deployment stopped. Review and apply schema changes through PlanetScale, then reconcile the migration ledger after verifying production. This check never applies SQL or baselines history.",
+      "Deployment stopped. Review and apply schema changes through PlanetScale, then reconcile the migration ledger after verifying the target database. This check never applies SQL or baselines history.",
     );
     process.exitCode = 1;
   });

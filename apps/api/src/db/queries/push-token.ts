@@ -12,7 +12,7 @@ import {
 /** Data for token registration */
 export type PushTokenRegister = Pick<
   TPushTokenI,
-  "userId" | "token" | "deviceId" | "platform" | "lastValidatedAt"
+  "userId" | "token" | "deviceId" | "platform" | "lastValidatedAt" | "notificationPreferences"
 >;
 
 /**
@@ -24,7 +24,13 @@ export async function upsertPushToken(db: TDatabase, data: PushTokenRegister): P
     .values(data)
     .onDuplicateKeyUpdate(
       onDuplicateKeyUpdateConfig(tPushToken, {
-        exclude: [...tPushTokenPK, ...tPushTokenTimestampExclude],
+        exclude: [
+          ...tPushTokenPK,
+          ...tPushTokenTimestampExclude,
+          ...(data.notificationPreferences === undefined
+            ? [tPushToken.notificationPreferences]
+            : []),
+        ],
       }),
     );
 }

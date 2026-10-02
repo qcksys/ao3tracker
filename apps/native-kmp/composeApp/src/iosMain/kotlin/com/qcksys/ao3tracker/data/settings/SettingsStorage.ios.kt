@@ -54,6 +54,24 @@ actual class SettingsStorage {
         userDefaults.setBool(enabled, KEY_INCOGNITO_MODE)
     }
 
+    actual fun getNotificationPreferences(): String? = userDefaults.stringForKey("notification_preferences")
+    actual fun isDiagnosticDataEnabled(): Boolean =
+        userDefaults.objectForKey("diagnostic_data_enabled") == null || userDefaults.boolForKey("diagnostic_data_enabled")
+
+    actual fun setDiagnosticDataEnabled(enabled: Boolean) {
+        userDefaults.setBool(enabled, "diagnostic_data_enabled")
+    }
+
+    actual fun getBrowsingPreferences(): String? = userDefaults.stringForKey("browsing_preferences")
+
+    actual fun setBrowsingPreferences(preferences: String) {
+        userDefaults.setObject(preferences, "browsing_preferences")
+    }
+
+    actual fun setNotificationPreferences(preferences: String) {
+        userDefaults.setObject(preferences, "notification_preferences")
+    }
+
     companion object {
         private const val KEY_API_ENVIRONMENT = "api_environment"
         private const val KEY_DEV_MODE = "dev_mode_enabled"

@@ -41,7 +41,9 @@ actual fun Ao3WebView(
     onMessage: (String) -> Unit,
     onLoadingStateChange: (isLoading: Boolean) -> Unit,
     onBackAtRoot: () -> Unit,
-    jsInjectionFlow: SharedFlow<String>?
+    jsInjectionFlow: SharedFlow<String>?,
+    pageScript: String?,
+    onLinkAction: (ReaderLinkAction) -> Unit
 ) {
     var webViewRef by remember { mutableStateOf<WKWebView?>(null) }
 
@@ -90,9 +92,10 @@ actual fun Ao3WebView(
                 webView.URL?.absoluteString?.let { onUrlChange(it) }
                 // Inject tracking script
                 if (!isTrustedAo3Url(webView.URL?.absoluteString)) return
-                webView.evaluateJavaScript(guardAo3Script(Ao3TrackingScript.script), null)
-                // Inject scroll restore script (reads scrollTo from URL param)
-                webView.evaluateJavaScript(guardAo3Script(ScrollRestoreScriptGenerated.script), null)
+                webView.evaluateJavaScript(guardAo3Script(pageScript ?: Ao3TrackingScript.script), null)
+                if (pageScript == null) {
+                    webView.evaluateJavaScript(guardAo3Script(ScrollRestoreScriptGenerated.script), null)
+                }
             }
 
             override fun webView(webView: WKWebView, didStartProvisionalNavigation: WKNavigation?) {
@@ -112,7 +115,7 @@ actual fun Ao3WebView(
                     addScriptMessageHandler(messageHandler, "ao3Handler")
 
                     val script = WKUserScript(
-                        source = guardAo3Script(Ao3TrackingScript.script),
+                        source = guardAo3Script(pageScript ?: Ao3TrackingScript.script),
                         injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentEnd,
                         forMainFrameOnly = true
                     )
@@ -129,6 +132,14 @@ actual fun Ao3WebView(
             }.also { webViewRef = it }
         },
         modifier = modifier,
+        onRelease = { webView ->
+            if (pageScript != null) {
+                webView.stopLoading()
+                webView.navigationDelegate = null
+                webView.configuration.userContentController.removeScriptMessageHandlerForName("ao3Handler")
+                webView.configuration.userContentController.removeAllUserScripts()
+            }
+        },
         update = { webView ->
             val currentUrl = webView.URL?.absoluteString
             if (currentUrl != url && isTrustedAo3Url(url)) {

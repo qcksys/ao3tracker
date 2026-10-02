@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.data.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class User(
@@ -125,7 +126,7 @@ data class AuthenticatorSelection(
 
 @Serializable
 data class PasskeyVerifyRequest(
-    val response: String,
+    val response: JsonObject,
     val name: String? = null
 )
 

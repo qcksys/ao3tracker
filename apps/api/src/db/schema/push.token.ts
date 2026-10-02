@@ -1,5 +1,9 @@
+import {
+  type NotificationPreferences,
+  notificationPreferencesSchema,
+} from "@qcksys/ao3tracker-core/notifications";
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { datetime, index, mysqlTable, primaryKey, varchar } from "drizzle-orm/mysql-core";
+import { datetime, index, json, mysqlTable, primaryKey, varchar } from "drizzle-orm/mysql-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, timestampCols } from "~/db/helpers/schema";
@@ -12,6 +16,7 @@ export const tPushToken = mysqlTable(
     token: varchar({ length: 512 }).notNull(),
     platform: varchar({ length: 16 }).notNull().default("android"),
     lastValidatedAt: datetime().notNull(),
+    notificationPreferences: json().$type<NotificationPreferences>(),
     ...timestampCols,
   },
   (table) => {
@@ -35,6 +40,16 @@ export const tPushTokenTimestampExclude = [
 export type TPushTokenS = InferSelectModel<typeof tPushToken>;
 export type TPushTokenI = OmitTimestampCols<InferInsertModel<typeof tPushToken>>;
 
-export const sPushTokenS = createSelectSchema(tPushToken);
-export const sPushTokenI = omitTimestampCols(createInsertSchema(tPushToken));
-export const sPushTokenU = omitTimestampCols(createUpdateSchema(tPushToken));
+export const sPushTokenS = createSelectSchema(tPushToken, {
+  notificationPreferences: notificationPreferencesSchema.nullable(),
+});
+export const sPushTokenI = omitTimestampCols(
+  createInsertSchema(tPushToken, {
+    notificationPreferences: notificationPreferencesSchema.nullable().optional(),
+  }),
+);
+export const sPushTokenU = omitTimestampCols(
+  createUpdateSchema(tPushToken, {
+    notificationPreferences: notificationPreferencesSchema.nullable().optional(),
+  }),
+);

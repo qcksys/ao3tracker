@@ -1,13 +1,14 @@
 import type { ExecutedQuery } from "@planetscale/database";
 import { getTableColumns } from "drizzle-orm";
 import type { MySqlTable } from "drizzle-orm/mysql-core";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 import {
   batchProcessChapters,
   batchProcessWorks,
   getServerLastUpdated,
   getTrackedWorksForSync,
+  migrateSingleChapterTracking,
 } from "~/db/queries/track";
 import { batchUpsertFavouriteTags, getFavouriteTagsSince } from "~/db/queries/user-favourite-tag";
 import { batchUpsertSavedSearches, getSavedSearchesSince } from "~/db/queries/user-saved-search";
@@ -114,6 +115,119 @@ describe("sync mutation cursors", () => {
       expect(query).not.toContain("is null");
       expect(params).toContain("reader");
     }
+  });
+});
+
+describe("single-chapter identity migration", () => {
+  it("copies a reset through atomic LWW and retains the original identity as a tombstone", async () => {
+    const { db, execute } = database();
+    execute.mockResolvedValueOnce(
+      result([
+        row(tTrackChapter, {
+          userId: "reader",
+          workId: 1,
+          chapterId: 0,
+          lastReadAt: event,
+          readProgress: 0,
+          markedCompleteAt: null,
+        }),
+      ]),
+    );
+    expect(await migrateSingleChapterTracking(db, 1, 11)).toBe(1);
+    const [lookup, copy, retirement] = execute.mock.calls;
+    expect(lookup[0]).not.toContain("`rowDeletedAt` is null");
+    expect(copy[0]).toContain("on duplicate key update");
+    expect(copy[0]).not.toContain("GREATEST");
+    expect(copy[1]).toEqual(["reader", 1, 11, null, 0, null, "2026-09-30 10:00:00.200"]);
+    expect(retirement[0]).toContain("update `ao3track__track_chapter`");
+    expect(retirement[0]).toContain("`ao3track__track_chapter`.`lastReadAt` = ?");
+    expect(retirement[1]).toEqual([
+      "2026-09-30 10:00:00.200",
+      "2026-09-30 10:00:00.200",
+      "reader",
+      1,
+      0,
+      "2026-09-30 10:00:00.200",
+    ]);
+    expect(execute.mock.calls.every(([query]) => !query.startsWith("delete"))).toBe(true);
+  });
+
+  it("migrates deletions received before the work was known to have multiple chapters", async () => {
+    const { db, execute } = database();
+    execute.mockResolvedValueOnce(
+      result([
+        row(tTrackChapter, {
+          userId: "reader",
+          workId: 1,
+          chapterId: 0,
+          lastReadAt: event,
+          readProgress: 0,
+          markedCompleteAt: null,
+          rowDeletedAt: event,
+        }),
+      ]),
+    );
+    await migrateSingleChapterTracking(db, 1, 11);
+    expect(execute.mock.calls[1][1]).toEqual([
+      "reader",
+      1,
+      11,
+      null,
+      0,
+      "2026-09-30 10:00:00.200",
+      "2026-09-30 10:00:00.200",
+    ]);
+  });
+
+  it.each([false, true])(
+    "maps legacy chapter0 uploads, including newer offline deletion=%s",
+    async (deleted) => {
+      const { db, execute } = database();
+      execute.mockResolvedValueOnce(result([[1, 11]]));
+      expect(
+        await batchProcessChapters(db, "reader", [
+          { workId: 1, chapterId: 0, lastReadAt: event, readProgress: 0, deleted },
+        ]),
+      ).toEqual([{ workId: 1, chapterId: 0, status: "ignored" }]);
+      const [, canonical, retirement] = execute.mock.calls;
+      expect(canonical[1]).toEqual([
+        "reader",
+        1,
+        11,
+        null,
+        0,
+        deleted ? "2026-09-30 10:00:00.200" : null,
+        "2026-09-30 10:00:00.200",
+      ]);
+      expect(canonical[0]).toContain(
+        "`rowDeletedAt` = IF(VALUES(`ao3track__track_chapter`.`lastReadAt`) > `ao3track__track_chapter`.`lastReadAt`",
+      );
+      expect(retirement[0]).toContain(
+        "`rowDeletedAt` = IF(VALUES(`ao3track__track_chapter`.`lastReadAt`) >= `ao3track__track_chapter`.`lastReadAt`",
+      );
+      expect(retirement[1]).toEqual([
+        "reader",
+        1,
+        0,
+        null,
+        0,
+        "2026-09-30 10:00:00.200",
+        "2026-09-30 10:00:00.200",
+      ]);
+    },
+  );
+
+  it("does not treat returned retirement tombstones as newer canonical deletions", async () => {
+    const { db, execute } = database();
+    execute.mockResolvedValueOnce(result([[1, 11]]));
+    await batchProcessChapters(db, "reader", [
+      { workId: 1, chapterId: 0, lastReadAt: event, deleted: true },
+    ]);
+    const canonical = execute.mock.calls[1][0];
+    expect(canonical).toContain(
+      "VALUES(`ao3track__track_chapter`.`lastReadAt`) > `ao3track__track_chapter`.`lastReadAt`",
+    );
+    expect(canonical).not.toContain(">=");
   });
 });
 

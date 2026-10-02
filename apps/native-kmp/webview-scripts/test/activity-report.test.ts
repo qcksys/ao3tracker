@@ -44,6 +44,7 @@ it("replays fresh work data and unchanged progress without adding scroll listene
     "workInfo",
     "workTags",
     "workChapterIndex",
+    "browsingReady",
   ]);
   postMessage.mockClear();
 
@@ -105,6 +106,23 @@ it("replays a fresh chapter index without scroll tracking", async () => {
   expect(scrollListeners).toHaveLength(0);
 });
 
+it("suggests applied filters when requesting a saved search from the native host", async () => {
+  document.body.innerHTML =
+    '<div id="main"><h2 class="heading">41 - 60 of 123 Works</h2><form id="work-filters"></form><li id="work_123"><h4 class="heading">Current page title</h4></li></div>';
+  window.history.replaceState({}, "", "/tags/Fluff/works?work_search[complete]=T&page=3");
+  const postMessage = vi.fn<(message: string) => void>();
+  window.AndroidBridge = { postMessage };
+  await import("~/ao3-tracking");
+  postMessage.mockClear();
+  required(document.querySelector<HTMLButtonElement>(".ao3-tracker-save-search")).click();
+  expect(postMessage).toHaveBeenCalledOnce();
+  expect(JSON.parse(required(postMessage.mock.calls[0])[0])).toEqual({
+    type: "saveSearch",
+    url: window.location.href,
+    name: "Tag: Fluff · Complete works only",
+  });
+});
+
 it("does not repeat list badges or save-search injection", async () => {
   document.body.innerHTML =
     '<div id="main"><h2 class="heading">Search</h2><form id="work-filters"></form><li id="work_123"></li></div>';
@@ -113,7 +131,10 @@ it("does not repeat list badges or save-search injection", async () => {
   window.AndroidBridge = { postMessage };
   await import("~/ao3-tracking");
   const tracker = required(window.__ao3Tracker);
-  expect(postMessage.mock.calls.map(([raw]) => JSON.parse(raw).type)).toEqual(["listWorks"]);
+  expect(postMessage.mock.calls.map(([raw]) => JSON.parse(raw).type)).toEqual([
+    "browsingReady",
+    "listWorks",
+  ]);
   expect(document.querySelectorAll("button.ao3-tracker-save-search")).toHaveLength(1);
   const html = document.body.innerHTML;
   postMessage.mockClear();
@@ -123,4 +144,34 @@ it("does not repeat list badges or save-search injection", async () => {
   expect(postMessage).not.toHaveBeenCalled();
   expect(document.body.innerHTML).toBe(html);
   expect(scrollListeners).toHaveLength(0);
+});
+
+it("applies native language preferences to links and search forms and handles disabling", async () => {
+  const href = vi
+    .spyOn(window.location, "href", "get")
+    .mockReturnValue("https://archiveofourown.org/works/search");
+  document.body.innerHTML =
+    '<form action="/works/search"><input name="work_search[query]" value="hello"></form>';
+  const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+  const { applyBrowsingState } = await import("~/ao3-tracking");
+  const preferences = {
+    hiddenTags: [],
+    hiddenWorkIds: [],
+    savedSearchUrls: [],
+    languageFilterEnabled: true,
+    searchLanguage: "en",
+  };
+  applyBrowsingState(JSON.stringify(preferences));
+  expect(replace).not.toHaveBeenCalled();
+  const form = required(document.querySelector("form"));
+  form.dispatchEvent(new Event("submit", { bubbles: true }));
+  expect(new FormData(form).getAll("work_search[language_id]")).toEqual(["en"]);
+  applyBrowsingState(JSON.stringify({ ...preferences, languageFilterEnabled: false }));
+  form.dispatchEvent(new Event("submit", { bubbles: true }));
+  expect(new FormData(form).has("work_search[language_id]")).toBe(false);
+  href.mockReturnValue("https://archiveofourown.org/tags/Fluff/works?page=2");
+  applyBrowsingState(JSON.stringify(preferences));
+  expect(
+    new URL(required(replace.mock.calls.at(-1))[0]).searchParams.get("work_search[language_id]"),
+  ).toBe("en");
 });

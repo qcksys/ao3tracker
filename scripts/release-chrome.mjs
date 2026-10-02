@@ -26,15 +26,33 @@ export function extensionIdFromKey(key) {
 }
 
 export function verifyRelease({ manifest, apiConfig, env }) {
+  const channel = env.RELEASE_CHANNEL || "production";
+  if (channel !== "production" && channel !== "beta") {
+    throw new Error("RELEASE_CHANNEL must be production or beta.");
+  }
+  if (
+    channel === "beta" &&
+    (manifest.name !== "AO3 Tracker Beta" ||
+      manifest.host_permissions?.length !== 2 ||
+      !manifest.host_permissions.includes("https://archiveofourown.org/*") ||
+      !manifest.host_permissions.includes("https://dev.ao3tracker.com/*"))
+  ) {
+    throw new Error(
+      "Beta builds must be labelled AO3 Tracker Beta and allow only AO3 and the dev API.",
+    );
+  }
   if (env.CHROME_BUILD_ONLY === "true") return null;
   if (env.CHROME_BUILD_ONLY && env.CHROME_BUILD_ONLY !== "false") {
     throw new Error("CHROME_BUILD_ONLY must be true or false.");
   }
   const extensionId = env.CHROME_EXTENSION_ID;
   const publisherId = env.CHROME_PUBLISHER_ID;
+  if (channel === "beta" && extensionId === "hjonebiohecalkggemeneaaohafldkkl") {
+    throw new Error("Beta releases must use a separate Chrome Web Store item.");
+  }
   if (!/^[a-p]{32}$/.test(extensionId ?? "") || !/^[A-Za-z0-9_-]+$/.test(publisherId ?? "")) {
     throw new Error(
-      "Set CHROME_EXTENSION_ID and CHROME_PUBLISHER_ID in the chrome-web-store environment. " +
+      "Set the channel's Chrome item ID and CHROME_PUBLISHER_ID in GitHub variables. " +
         "For a new listing, run with build_only=true and upload the ZIP in the Developer Dashboard first.",
     );
   }
@@ -42,12 +60,12 @@ export function verifyRelease({ manifest, apiConfig, env }) {
   if (manifestId !== extensionId) {
     throw new Error(
       `Manifest key produces ${manifestId}, but the store item is ${extensionId}. ` +
-        "Copy the store item's Package > View public key into wxt.config.ts, then update and deploy " +
-        "the matching dev/prod API ALLOWED_ORIGINS before uploading. The development ID is not a store item ID.",
+        "Use the store item's Package > View public key in CHROME_BETA_PUBLIC_KEY (beta) or wxt.config.ts (production), " +
+        "then deploy the matching API origin before uploading.",
     );
   }
   const origin = `chrome-extension://${extensionId}`;
-  for (const environment of ["dev", "prod"]) {
+  for (const environment of channel === "beta" ? [] : ["dev", "prod"]) {
     const allowedOrigins = apiConfig.env?.[environment]?.vars?.ALLOWED_ORIGINS;
     if (
       !allowedOrigins
@@ -61,11 +79,26 @@ export function verifyRelease({ manifest, apiConfig, env }) {
       );
     }
   }
-  return { extensionId, publisherId };
+  return { extensionId, publisherId, channel };
 }
 
-export function createDraftUpload({ release, zip, credentials, env }) {
-  if (!release) throw new Error("Draft upload is disabled in build-only mode.");
+export async function verifyBetaApiOrigin(release, request = fetch) {
+  if (release?.channel !== "beta") return;
+  const origin = `chrome-extension://${release.extensionId}`;
+  const response = await request("https://dev.ao3tracker.com/auth/get-session", {
+    method: "OPTIONS",
+    headers: { Origin: origin, "Access-Control-Request-Method": "GET" },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!response.ok || response.headers.get("access-control-allow-origin") !== origin) {
+    throw new Error(
+      "Deploy the dev API with CHROME_BETA_EXTENSION_ID before uploading the beta extension.",
+    );
+  }
+}
+
+export function createChromeUpload({ release, zip, credentials, env }) {
+  if (!release) throw new Error("Store upload is disabled in build-only mode.");
   if (
     credentials?.type !== "service_account" ||
     typeof credentials.client_email !== "string" ||
@@ -95,7 +128,7 @@ export function createDraftUpload({ release, zip, credentials, env }) {
       "--chrome-zip",
       zip,
       "--chrome-skip-submit-review",
-      "true",
+      release.channel === "beta" ? "false" : "true",
       "--chrome-cancel-pending",
       "false",
       "--chrome-skip-review",
@@ -113,11 +146,16 @@ export async function releaseChrome(command, { env = process.env, run = spawnSyn
   if (command !== "verify" && command !== "upload") {
     throw new Error("Usage: node scripts/release-chrome.mjs verify|upload");
   }
+  const suffix = env.RELEASE_CHANNEL === "beta" ? "-beta" : "";
   const manifest = JSON.parse(
-    await readFile(resolve(extensionDirectory, ".output/chrome-mv3/manifest.json"), "utf8"),
+    await readFile(
+      resolve(extensionDirectory, `.output/chrome-mv3${suffix}/manifest.json`),
+      "utf8",
+    ),
   );
   const apiConfig = JSON.parse(await readFile(resolve(root, "apps/api/wrangler.json"), "utf8"));
   const release = verifyRelease({ manifest, apiConfig, env });
+  await verifyBetaApiOrigin(release);
   if (command === "verify") {
     console.log(
       release
@@ -126,9 +164,11 @@ export async function releaseChrome(command, { env = process.env, run = spawnSyn
     );
     return;
   }
-  if (!release) throw new Error("Draft upload is disabled in build-only mode.");
+  if (!release) throw new Error("Store upload is disabled in build-only mode.");
   const outputDirectory = resolve(extensionDirectory, ".output");
-  const zips = (await readdir(outputDirectory)).filter((name) => name.endsWith("-chrome.zip"));
+  const zips = (await readdir(outputDirectory)).filter((name) =>
+    name.endsWith(`-chrome${suffix}.zip`),
+  );
   if (zips.length !== 1)
     throw new Error("Expected exactly one Chrome ZIP in .output; rebuild in a clean checkout.");
   if (!env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -142,7 +182,7 @@ export async function releaseChrome(command, { env = process.env, run = spawnSyn
   } catch {
     throw new Error("Unable to read the Google service-account credentials file.");
   }
-  const upload = createDraftUpload({
+  const upload = createChromeUpload({
     release,
     zip: resolve(outputDirectory, zips[0]),
     credentials,
@@ -155,7 +195,7 @@ export async function releaseChrome(command, { env = process.env, run = spawnSyn
   });
   if (result.error || result.status !== 0) {
     throw new Error(
-      "Chrome draft upload failed. Check the WXT result and store dashboard before retrying.",
+      "Chrome upload failed. Check the WXT result and store dashboard before retrying.",
     );
   }
 }

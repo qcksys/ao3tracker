@@ -24,6 +24,7 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.Tab
 import cafe.adriel.voyager.navigator.tab.TabNavigator
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import org.koin.compose.koinInject
 
 class MainScreen : Screen {
@@ -35,9 +36,18 @@ class MainScreen : Screen {
         TabNavigator(TrackTab) {
             val tabNavigator = LocalTabNavigator.current
             val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
+            LaunchedEffect(tabNavigator.current.key) {
+                val screen = when (tabNavigator.current) {
+                    ReadTab -> "read"
+                    TrackTab -> "works"
+                    SearchesTab -> "searches"
+                    else -> "settings"
+                }
+                Diagnostics.capture("screen_viewed", "screen" to screen)
+            }
 
             // Switch to the Read tab whenever an external trigger (notification,
-            // Track tab click) sets a pending navigation. ReadScreen then consumes
+            // Works or Searches tab click) sets a pending navigation. ReadScreen then consumes
             // the URL on its own LaunchedEffect.
             LaunchedEffect(pendingNavigation) {
                 if (pendingNavigation != null && tabNavigator.current.key != ReadTab.key) {
@@ -47,14 +57,7 @@ class MainScreen : Screen {
 
             Scaffold(
                 bottomBar = {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ) {
-                        TabNavigationItem(ReadTab, isWebViewLoading)
-                        TabNavigationItem(TrackTab, false)
-                        TabNavigationItem(SettingsTab, false)
-                    }
+                    AppNavigationBar(isWebViewLoading)
                 }
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(PaddingValues(bottom = paddingValues.calculateBottomPadding()))) {
@@ -62,6 +65,19 @@ class MainScreen : Screen {
                 }
             }
         }
+    }
+}
+
+@Composable
+internal fun AppNavigationBar(isWebViewLoading: Boolean) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        TabNavigationItem(ReadTab, isWebViewLoading)
+        TabNavigationItem(TrackTab, false)
+        TabNavigationItem(SearchesTab, false)
+        TabNavigationItem(SettingsTab, false)
     }
 }
 

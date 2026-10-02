@@ -1,5 +1,8 @@
 package com.qcksys.ao3tracker.data.settings
 
+import com.qcksys.ao3tracker.data.push.NotificationPreferences
+import com.qcksys.ao3tracker.util.JsonConfig
+import com.qcksys.ao3tracker.setSentryDiagnosticDataEnabled
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,13 +29,19 @@ enum class ApiEnvironment(
     )
 }
 
+expect fun defaultApiEnvironment(): ApiEnvironment
+
+data class DiagnosticSession(val generation: Long, val enabled: Boolean, val apiBaseUrl: String)
+
 class AppSettings(
-    private val settingsStorage: SettingsStorage?
+    private val settingsStorage: SettingsStorage?,
+    defaultEnvironment: ApiEnvironment = defaultApiEnvironment(),
+    val canSelectApiEnvironment: Boolean = supportsApiEnvironmentSelection()
 ) {
     private val _apiEnvironment = MutableStateFlow(
-        settingsStorage?.getApiEnvironment()?.let { name ->
+        settingsStorage?.getApiEnvironment()?.takeIf { canSelectApiEnvironment }?.let { name ->
             ApiEnvironment.entries.find { it.name == name }
-        } ?: ApiEnvironment.PRODUCTION
+        } ?: defaultEnvironment
     )
     val apiEnvironment: StateFlow<ApiEnvironment> = _apiEnvironment.asStateFlow()
 
@@ -44,12 +53,82 @@ class AppSettings(
 
     private val _incognitoModeEnabled = MutableStateFlow(settingsStorage?.isIncognitoModeEnabled() ?: false)
     val incognitoModeEnabled: StateFlow<Boolean> = _incognitoModeEnabled.asStateFlow()
+    private val _diagnosticDataEnabled = MutableStateFlow(settingsStorage?.isDiagnosticDataEnabled() ?: true)
+    val diagnosticDataEnabled: StateFlow<Boolean> = _diagnosticDataEnabled.asStateFlow()
+    private val _diagnosticSession = MutableStateFlow(
+        DiagnosticSession(0, _diagnosticDataEnabled.value && !_incognitoModeEnabled.value, _apiEnvironment.value.apiBaseUrl)
+    )
+    val diagnosticSession: StateFlow<DiagnosticSession> = _diagnosticSession.asStateFlow()
+
+    private fun updateDiagnosticSession() {
+        _diagnosticSession.value = DiagnosticSession(
+            _diagnosticSession.value.generation + 1,
+            _diagnosticDataEnabled.value && !_incognitoModeEnabled.value,
+            _apiEnvironment.value.apiBaseUrl
+        )
+    }
+
+    fun setDiagnosticDataEnabled(enabled: Boolean) {
+        if (_diagnosticDataEnabled.value == enabled) return
+        _diagnosticDataEnabled.value = enabled
+        updateDiagnosticSession()
+        settingsStorage?.setDiagnosticDataEnabled(enabled)
+        setSentryDiagnosticDataEnabled(enabled)
+    }
+
+    fun captureDiagnosticSession(): DiagnosticSession? = _diagnosticSession.value.takeIf { it.enabled }
+    private val _notificationPreferences = MutableStateFlow(
+        settingsStorage?.getNotificationPreferences()?.let {
+            JsonConfig.json.decodeFromString<NotificationPreferences>(it)
+        } ?: NotificationPreferences()
+    )
+    val notificationPreferences: StateFlow<NotificationPreferences> = _notificationPreferences.asStateFlow()
+
+    fun setNotificationPreferences(preferences: NotificationPreferences) {
+        settingsStorage?.setNotificationPreferences(JsonConfig.json.encodeToString(preferences))
+        _notificationPreferences.value = preferences
+    }
     private val trackingGeneration = MutableStateFlow(0L)
+
+    private val _browsingPreferences = MutableStateFlow(
+        settingsStorage?.getBrowsingPreferences()?.let {
+            JsonConfig.json.decodeFromString<BrowsingPreferences>(it)
+        } ?: BrowsingPreferences()
+    )
+    val browsingPreferences: StateFlow<BrowsingPreferences> = _browsingPreferences.asStateFlow()
+
+    private fun setBrowsingPreferences(preferences: BrowsingPreferences) {
+        settingsStorage?.setBrowsingPreferences(JsonConfig.json.encodeToString(preferences))
+        _browsingPreferences.value = preferences
+    }
+
+    fun setHiddenTags(text: String) {
+        val tags = text.split(',', '\n').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+        setBrowsingPreferences(_browsingPreferences.value.copy(hiddenTags = tags))
+    }
+
+    fun setMaxFandoms(maxFandoms: Int?) {
+        require(maxFandoms == null || maxFandoms > 0) { "Enter a positive whole number or leave blank." }
+        setBrowsingPreferences(_browsingPreferences.value.copy(maxFandoms = maxFandoms))
+    }
+
+    fun setSearchLanguage(language: String, enabled: Boolean) {
+        require(Ao3Languages.options.any { it.first == language }) { "Unknown AO3 language" }
+        setBrowsingPreferences(_browsingPreferences.value.copy(searchLanguage = language, languageFilterEnabled = enabled))
+    }
+
+    fun setWorkHidden(workId: Long, hidden: Boolean) {
+        if (workId <= 0) return
+        val ids = _browsingPreferences.value.hiddenWorkIds.toMutableSet()
+        if (hidden) ids.add(workId) else ids.remove(workId)
+        setBrowsingPreferences(_browsingPreferences.value.copy(hiddenWorkIds = ids.toList()))
+    }
 
     fun setIncognitoModeEnabled(enabled: Boolean) {
         if (_incognitoModeEnabled.value == enabled) return
         trackingGeneration.value++
         _incognitoModeEnabled.value = enabled
+        updateDiagnosticSession()
         settingsStorage?.setIncognitoModeEnabled(enabled)
     }
 
@@ -59,8 +138,11 @@ class AppSettings(
         !_incognitoModeEnabled.value && session == trackingGeneration.value
 
     fun setApiEnvironment(environment: ApiEnvironment) {
-        _apiEnvironment.value = environment
-        settingsStorage?.setApiEnvironment(environment.name)
+        if (canSelectApiEnvironment) {
+            _apiEnvironment.value = environment
+            updateDiagnosticSession()
+            settingsStorage?.setApiEnvironment(environment.name)
+        }
     }
 
     fun setDevModeEnabled(enabled: Boolean) {

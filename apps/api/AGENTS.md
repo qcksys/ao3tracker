@@ -11,7 +11,7 @@ Hono framework, Drizzle ORM, and Better Auth for authentication.
 
 ```bash
 # Development
-vp run dev                    # Start local dev server with wrangler
+vp run dev                    # Start local dev server with 1Password secrets
 vp run types:cf               # Generate Cloudflare bindings types (CloudflareBindings interface)
 vp run types:tsc              # Run TypeScript type check (tsc --noEmit)
 vp run proxy                  # Start cloudflared tunnel for local dev
@@ -42,17 +42,25 @@ vp run biome:ci               # CI linting check (used in GitHub Actions)
 - Cloudflare Workers with Node.js compatibility mode
 - PlanetScale MySQL database via `@planetscale/database`
 - Environments: `local`, `dev`, `prod` (configured in `wrangler.json`)
-- Production deployments use the root reusable [API workflow](../../.github/workflows/deploy-api.yml), called with the exact commit SHA that passed CI. Development deployments remain manual.
+- Production deployments use the root reusable [API workflow](../../.github/workflows/deploy-api.yml), called with the exact commit SHA that passed CI. Successful push CI on current `dev` runs [Release dev](../../.github/workflows/deploy-dev-api.yml): deploy the development Worker, check `/ping`, then release the Android Dev app and Chrome Beta extension. See [development deployment setup](../../docs/store-releases.md#api-development) for secrets and activation.
 
 ### Production deployment readiness
 
-The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a read-only `DATABASE_URL` pointing to the same production database used by the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and Worker runtime secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_ID`, `GOOGLE_SECRET`, `FCM_SERVICE_ACCOUNT`) separately. Wrangler preserves existing Worker secrets; the GitHub database credential is only used for readiness checks and is not uploaded.
+The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a `DATABASE_URL` with migration permissions pointing to the same production database used by the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and Worker runtime secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_ID`, `GOOGLE_SECRET`, `FCM_SERVICE_ACCOUNT`) separately. Wrangler preserves existing Worker secrets; the GitHub database credential is used for migrations and readiness checks and is not uploaded.
 
 The workflow rejects a source SHA that is no longer current `main`, including reruns of failed deployment jobs. After deployment it checks the public `/ping` response. This smoke test checks routing and Worker startup; it does not identify the deployed revision or test authenticated database operations.
 
-Before building/deploying, `node scripts/check-api-migrations.mjs` from the repository root reads `ao3track__migrations` and database column metadata. Every checked-in migration must have the same UTC timestamp (to the second) and SQL SHA-256 in the ledger; RC ledgers must also match the migration folder name. Legacy ledgers retain millisecond timestamps and are accepted without alteration. Missing, edited, duplicate, or unknown entries stop deployment. Both LF and CRLF versions of the checked-in SQL are accepted because Drizzle hashes raw bytes and historical migrations may have run on Windows. No other content differences are accepted. The gate also verifies that the latest snapshot's columns exist and that temporal column types retain the required precision. It does not validate all indexes, defaults, or existing data.
+After downloading the built API artifact and checking the source is still current, the protected deployment job runs `vp node apps/api/scripts/migrate.mjs` from the repository root. Drizzle applies pending migrations from that source commit and records them in `ao3track__migrations`. Development uses the same sequence with `DEV_DATABASE_URL`; it never falls back to production credentials. Migration failures stop API deployment and dependent store releases.
 
-Apply reviewed schema changes separately through PlanetScale's schema-change process, including migrations `20260930095035_sync-mutation-cursors` and `20260930103837_auth-two-factor-lockout` before deploying this code. Historical SQL is not an automatic bootstrap script: DDL is not transactionally rolled back, and an existing database may have been changed outside Drizzle. If the ledger is absent or differs, inspect the live schema and reconcile its history only after confirming which changes are already applied. The deployment gate never runs migration SQL, writes ledger rows, or skips a mismatch. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
+Next, `vp node scripts/check-api-migrations.mjs` reads the ledger and database column metadata without changing them. Every checked-in migration must have the same UTC timestamp (to the second) and SQL SHA-256 in the ledger; RC ledgers must also match the migration folder name. Legacy timestamps retain their milliseconds. Missing, edited, duplicate, or unknown entries stop deployment. Both LF and CRLF versions of the checked-in SQL are accepted because Drizzle hashes raw bytes and historical migrations may have run on Windows. No other content differences are accepted. The gate also verifies that the latest snapshot's columns exist and that temporal column types retain the required precision. It does not validate all indexes, defaults, or existing data.
+
+Review pending SQL before merging: migrations run before the new Worker is deployed and must remain compatible with the currently deployed code. DDL is not transactionally rolled back. If a migration fails or the database was changed outside Drizzle, inspect the live schema and reconcile its history only after confirming which changes are already applied; CI does not baseline history or skip mismatches. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
+
+### Native diagnostics
+
+`POST /ingest` is public and runs before auth/database middleware. It accepts only the strict `@qcksys/ao3tracker-core/diagnostics` schema, caps bodies at 2 KiB, and uses `DIAGNOSTICS_RATE_LIMITER` (120 requests per minute per IP). It constructs a PostHog Capture API request without forwarding client headers, credentials, IPs or arbitrary properties. Do not turn it into a general-purpose proxy or add reading data to the schema.
+
+`POSTHOG_PROJECT_TOKEN` is an encrypted Worker secret, provisioned separately for each environment; never put it in source or the native app. `POSTHOG_REGION=eu` selects EU ingestion. QckSys projects are `ao3tracker-dev` (291114) for `ao3tracker-api-dev`, and `ao3tracker` (69100) for `ao3tracker-api-prod`. Missing tokens disable forwarding. Local tests use inert tokens and mock fetch. For local live checks, supply a development token through the existing secret-loading mechanism. Native clients select `/ingest` on their current API origin and carry a random in-memory session ID; the Worker supplies the environment and disables person profiles and GeoIP. Deploy the Worker before releasing the native client; see [native diagnostics](../native-kmp/AGENTS.md#diagnostics).
 
 ### Framework Stack
 
@@ -61,7 +69,7 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 - **Better Auth** - Authentication with email/password, Google OAuth, passkeys, and 2FA
 - **Zod** - Schema validation
 - **Scalar** - OpenAPI documentation UI (`@scalar/hono-api-reference`)
-- **Vitest** - Testing framework with `@cloudflare/vitest-plugin`, using the aligned Vite+ runtime
+- **Vitest** - Testing framework with `@cloudflare/vitest-plugin`, using a separate Vitest 4 runner
 
 ### Code Structure
 
@@ -105,10 +113,12 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 **Notification System** (`src/lib/notification-service.ts`, `src/db/queries/notification.ts`):
 
 - Creates notification records when works are updated (new chapters, completion, deletion, restriction)
-- Queues notifications for delivery via Cloudflare Queue (`NOTIFICATION_QUEUE`)
+- New notification rows set `dispatchPending` before attempting Cloudflare Queue (`NOTIFICATION_QUEUE`) handoff. Clear it only after the queue accepts the batch; cron retries pending rows every five minutes even when work metadata has no further changes. Apply `20261002000754_notification-dispatch-outbox` before deploying the API; its false default keeps historical notifications out of the retry queue. Queue handoff remains at least once if acknowledgement persistence fails.
 - User batches fan out into one queued delivery per `(userId, deviceId)`. Failed device deliveries retry with the queue's retry budget and dead-letter queue; successful devices are acknowledged independently. An FCM `UNREGISTERED` response invalidates the token and is acknowledged. Queue delivery remains at least once.
+- Android delivery uses channel `ao3_work_updates`, click action `com.qcksys.ao3tracker.OPEN_WORK`, and a string `workId` data field. Keep the native manifest and notification navigation parser aligned with these values.
 - Only notifies users who have `subscribed = true` for the work (default is `true`)
-- Notification types: `new_chapters`, `work_completed`, `work_restricted`, `work_deleted`
+- Notification types: `new_chapters`, `work_completed`, `work_restricted`, `work_deleted`. Device preferences use the shared `@qcksys/ao3tracker-core/notifications` schema: `enabled` plus one boolean per type, all defaulting to true.
+- `POST /api/push/token` accepts optional `notificationPreferences` and echoes accepted preferences in its response. Omission preserves existing device settings; a null database value means all alerts enabled. Delivery checks current preferences for the selected device on every attempt, including retries. History remains available regardless of delivery preferences. Apply `20261001231352_device-notification-preferences` before deploying the API and release the API before the native client.
 
 **Work Backup System**:
 
@@ -216,7 +226,7 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 ### Configuration Files
 
 - `wrangler.json` - Cloudflare Workers config with env-specific settings
-- `.dev.vars` - Local environment secrets (not committed)
+- `.env.schema` - Tracked Varlock schema with one 1Password reference to a Secure Note containing the local dotenv text; see [setup](README.md#local-secrets-in-1password). Package scripts use `varlock run`; keep plaintext values in 1Password and declare new keys in the schema. Remove legacy `.dev.vars` files after verifying their secrets in 1Password, since Wrangler gives those files precedence over injected values. Keep `secrets.required` synchronized across Wrangler environments so generated types retain the secret bindings; deployments validate the names against existing Cloudflare secrets.
 - `drizzle.config.ts` - Drizzle Kit config (reads from env vars via `src/env.ts`)
 - `better-auth.config.ts` - Better Auth configuration
 - `vitest.config.ts` - Vitest configuration with Cloudflare Workers pool
@@ -225,7 +235,7 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 
 - Test files in `test/` directory
 - Uses `@cloudflare/vitest-plugin` for Workers-compatible testing with local Miniflare options; tests do not load deployment bindings or secrets
-- Keep Vite+ and its Vite core aligned at `0.3.3` with Vitest `4.1.11`; the Workers test plugin supports Vitest 4. The workspace catalog owns these compatibility pins.
+- Vite+ 1.0 builds the API, but `@cloudflare/vitest-plugin` requires Vitest 4. Keep API tests and `vitest.config.ts` importing `vitest`/`vitest/config`, and run them through the package's `test` script. Keep the API's runner pin separate from Vite+'s Vitest 5 until the Cloudflare plugin supports Vitest 5.
 - Fixtures in `test/*.fixtures.ts`
 - Coverage includes AO3 parsing, sync conflict/cursor regressions, notification retries, partial backups, and auth origins
 
@@ -233,13 +243,17 @@ Apply reviewed schema changes separately through PlanetScale's schema-change pro
 
 Drizzle ORM and Kit are pinned together at `1.0.0-rc.4`. Keep `@planetscale/database` on 1.x: driver 2.x removes the parameterized `execute` API the RC adapter still requires. `test/db-client.test.ts` and `test/backup-queries.test.ts` exercise the real adapter with mocked HTTP responses; root migration tests exercise the real migrator. The `db:migrate` script uses the checked-in migration folders and `ao3track__migrations` ledger, with credential-redacted error causes.
 
-The first manual RC migration run upgrades a legacy ledger by adding `name` and `applied_at`, backfilling names, and then applying pending SQL. This requires DDL and write access; production readiness credentials remain read-only. Review pending SQL and PlanetScale schema-change requirements first. The repository format conversion does not alter application tables or run database SQL. `drizzle.config.ts` forces UTC to avoid RC.4's mixed local-year/UTC migration-name bug at New Year.
+The first RC migration run, in CI or via local `vp run db:migrate`, upgrades a legacy ledger by adding `name` and `applied_at`, backfilling names, and then applying pending SQL. Deployment database credentials require DDL and write access for this runner. The repository format conversion preserves historical SQL. `drizzle.config.ts` forces UTC to avoid RC.4's mixed local-year/UTC migration-name bug at New Year.
 
 ### Authentication dependency upgrades
 
 Better Auth and its passkey plugin use the same catalog version. Better Auth 1.7 requires `verified`, `failedVerificationCount`, and `lockedUntil` on the two-factor table. Apply migration `20260930103837_auth-two-factor-lockout/migration.sql` before deploying this upgrade; its verified default preserves existing enrollments. Auth-origin tests instantiate the real adapter and check that its declared schema remains compatible.
 
-### Extension authentication origins
+### Authentication origins
+
+Native passkeys send credential responses as JSON objects, retain the signed challenge cookie between options and verification, and use the selected API origin in the HTTP `Origin` header. Passkey assertion origins are verified against the API origin, configured allowed origins, and the Android certificate hashes in `src/lib/android-app.ts`. That module also supplies the Digital Asset Links fingerprints: production allows only the release certificate, while local/dev includes the configured debug certificate and dev package. Keep certificate changes synchronized in this shared module; never trust an origin supplied inside an assertion without validating it against the configured list.
+
+Dev builds append the exact `chrome-extension://<CHROME_BETA_EXTENSION_ID>` origin through the Cloudflare Vite plugin when that repository variable is configured. Production builds ignore it. The beta extension defaults to and permits only `https://dev.ao3tracker.com`; its release helper verifies the live dev API CORS response before uploading. Configure the beta item ID before running `Release dev`; do not allow arbitrary extension origins.
 
 Auth rate limiting uses database storage in every environment. Client IP detection trusts only Cloudflare's `CF-Connecting-IP` header; do not add caller-controlled forwarded headers. Origin tests use Better Auth's real memory limiter within each test fixture, while asserting the production configuration remains database-backed and enabled.
 
@@ -290,7 +304,7 @@ The sync uses LWW independently for each field group:
 This enables multi-device sync where toggling `favourite` on Device A won't be overwritten when Device B syncs reading
 progress. Server wins on timestamp tie. See `src/db/helpers/lww.ts` for the `resolveLWW()` helper.
 
-Chapter uploads accept optional `deleted` (default `false`). A chapter tombstone or restore uses `lastReadAt` as its mutation clock, and only a strictly newer mutation replaces persisted state. Accepted chapter deletions retain the existing `accepted` response status.
+Chapter uploads accept optional `deleted` (default `false`). A chapter tombstone or restore uses `lastReadAt` as its mutation clock, and only a strictly newer mutation replaces persisted state. Accepted chapter deletions retain the existing `accepted` response status. When a single-chapter work gains real chapter IDs, copy chapter zero to the first chapter under LWW and publish a zero tombstone with the original event timestamp. A later offline read or deletion of zero maps to the first chapter; replaying the migration tombstone cannot overwrite equal or newer canonical progress.
 
 All sync upserts enforce LWW in SQL at write time. Tombstones participate in work comparisons, including deletes arriving before their original insert. A newer reading event can restore a deleted work; older uploads cannot. MySQL evaluates assignments in order, and Drizzle uses schema column order: keep conflict-clock columns after fields that compare them. Post-write acknowledgements describe persisted field groups; an exact idempotent retry may return `accepted`.
 

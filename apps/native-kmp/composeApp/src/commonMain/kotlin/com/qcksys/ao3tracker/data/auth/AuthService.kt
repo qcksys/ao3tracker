@@ -16,6 +16,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -28,6 +29,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.jsonObject
 
 open class AuthService(
     private val appSettings: AppSettings
@@ -38,6 +40,9 @@ open class AuthService(
     private val client = HttpClient {
         install(ContentNegotiation) {
             json(JsonConfig.json)
+        }
+        install(HttpCookies) {
+            storage = PasskeyCookiesStorage()
         }
         defaultRequest {
             header(HttpHeaders.UserAgent, "ao3tracker")
@@ -146,7 +151,7 @@ open class AuthService(
     }
 
     // Passkey methods
-    suspend fun getPasskeyRegisterOptions(token: String): Result<PasskeyRegisterOptions> {
+    suspend fun getPasskeyRegisterOptions(token: String, baseUrl: String = this.baseUrl): Result<PasskeyRegisterOptions> {
         return try {
             val response: HttpResponse = client.get("$baseUrl/passkey/generate-register-options") {
                 header("Authorization", "Bearer $token")
@@ -164,12 +169,13 @@ open class AuthService(
         }
     }
 
-    suspend fun verifyPasskeyRegistration(token: String, credentialResponse: String, name: String? = null): Result<Unit> {
+    suspend fun verifyPasskeyRegistration(token: String, credentialResponse: String, name: String? = null, baseUrl: String = this.baseUrl): Result<Unit> {
         return try {
             val response: HttpResponse = client.post("$baseUrl/passkey/verify-registration") {
                 header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
-                setBody(PasskeyVerifyRequest(response = credentialResponse, name = name))
+                header(HttpHeaders.Origin, baseUrl.removeSuffix("/auth"))
+                setBody(PasskeyVerifyRequest(response = JsonConfig.json.parseToJsonElement(credentialResponse).jsonObject, name = name))
             }
 
             if (response.status.isSuccess()) {
@@ -183,7 +189,7 @@ open class AuthService(
         }
     }
 
-    suspend fun getPasskeyAuthenticateOptions(email: String? = null): Result<PasskeyAuthenticateOptions> {
+    suspend fun getPasskeyAuthenticateOptions(email: String? = null, baseUrl: String = this.baseUrl): Result<PasskeyAuthenticateOptions> {
         return try {
             val url = if (email != null) {
                 "$baseUrl/passkey/generate-authenticate-options?email=$email"
@@ -208,7 +214,8 @@ open class AuthService(
         return try {
             val response: HttpResponse = client.post("$baseUrl/passkey/verify-authentication") {
                 contentType(ContentType.Application.Json)
-                setBody(PasskeyVerifyRequest(response = credentialResponse))
+                header(HttpHeaders.Origin, baseUrl.removeSuffix("/auth"))
+                setBody(PasskeyVerifyRequest(response = JsonConfig.json.parseToJsonElement(credentialResponse).jsonObject))
             }
 
             if (response.status.isSuccess()) {

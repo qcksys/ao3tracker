@@ -1,6 +1,5 @@
 package com.qcksys.ao3tracker.data
 
-import androidx.room.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import com.qcksys.ao3tracker.data.auth.SyncAuthentication
 import com.qcksys.ao3tracker.data.auth.AuthRepository
@@ -18,14 +17,13 @@ import java.nio.file.Path
 import kotlin.test.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 
 class NativeSyncRegressionTest {
     @Test
-    fun `account switches archive pending data and restore account cursors`() = runTest {
+    fun `account switches preserve pending data and restore account cursors`() = runTest {
         fixture { f ->
             f.accounts.edit {
                 f.db.workDao().upsertWork(work(1).copy(rowDeletedAt = 50))
@@ -60,6 +58,72 @@ class NativeSyncRegressionTest {
             assertTrue(f.remote.sent.isEmpty())
             f.accounts.activate(AccountDataStore.GUEST)
             assertNotNull(f.db.workDao().getWorkById(9))
+        }
+    }
+
+    @Test
+    fun `guest import uploads old reading data on the next incremental sync`() = runTest {
+        fixture { f ->
+            f.accounts.activate(AccountDataStore.GUEST)
+            f.accounts.edit {
+                f.db.workDao().upsertWork(work(1))
+                f.db.chapterDao().upsertChapter(chapter())
+                f.db.savedSearchDao().upsert(search("guest").copy(pendingSync = false))
+                f.db.favouriteTagDao().upsert(FavouriteTagEntity(4, "Fluff", true, 100, false))
+            }
+            f.accounts.activate("production:a")
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, 1_000) }
+            f.accounts.importGuest("production:a") { true }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val sent = f.remote.sent.single()
+            assertEquals(listOf(1L), sent.works.map { it.workId })
+            assertEquals(listOf(2L), sent.chapters.map { it.chapterId })
+            assertEquals(1, sent.favouriteTags?.size)
+            assertEquals(1, sent.savedSearches?.size)
+            assertFalse(f.db.savedSearchDao().getOne("guest")!!.pendingSync)
+            val importedAt = f.db.workDao().getWorkById(1)!!.rowUpdatedAt
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, importedAt) }
+            f.remote.sent.clear()
+            // Incremental sync includes the cursor boundary to preserve same-millisecond edits.
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val replay = f.remote.sent.single()
+            assertEquals(sent.works, replay.works)
+            assertEquals(sent.chapters, replay.chapters)
+            assertTrue(replay.favouriteTags.isNullOrEmpty())
+            assertTrue(replay.savedSearches.isNullOrEmpty())
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, importedAt + 1) }
+            f.remote.sent.clear()
+            assertTrue(f.accounts.importGuest("production:a") { true }.isEmpty)
+            assertEquals(importedAt, f.db.workDao().getWorkById(1)!!.rowUpdatedAt)
+            assertEquals(importedAt, f.db.chapterDao().getChapterById(2, 1)!!.rowUpdatedAt)
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertTrue(f.remote.sent.isEmpty())
+        }
+    }
+
+    @Test
+    fun `signing out and changing accounts preserves each library and guest import is explicit`() = runTest {
+        fixture { f ->
+            val settings = AppSettings(null)
+            val tokens = MemoryTokens()
+            val service = FakeAuthService(settings)
+            val auth = AuthRepository(service, tokens, f.accounts, settings)
+            try {
+                auth.initialize()
+                f.accounts.edit { f.db.workDao().upsertWork(work(9)) }
+                auth.signIn("a", "password")
+                assertTrue(f.db.workDao().getAllWorkIds().isEmpty())
+                assertEquals(1, auth.importGuestData("PRODUCTION:a").works)
+                f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+                auth.signOut()
+                assertEquals(listOf(9L), f.db.workDao().getAllWorkIds())
+                auth.signIn("b", "password")
+                assertTrue(f.db.workDao().getAllWorkIds().isEmpty())
+                assertFailsWith<IllegalStateException> { auth.importGuestData("PRODUCTION:a") }
+                auth.signOut()
+                auth.signIn("a", "password")
+                assertEquals(setOf(1L, 9L), f.db.workDao().getAllWorkIds().toSet())
+            } finally { service.getClient().close() }
         }
     }
 
@@ -126,6 +190,86 @@ class NativeSyncRegressionTest {
             assertEquals("New name", f.db.savedSearchDao().getOne("a")?.name)
             assertTrue(f.db.savedSearchDao().getOne("a")!!.pendingSync)
             assertTrue(f.db.favouriteTagDao().getOne(4, "Fluff")!!.pendingSync)
+        }
+    }
+
+    @Test
+    fun `large saved collections sync in independent extras-only batches`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                f.db.favouriteTagDao().upsertAll((1..501).map { FavouriteTagEntity(4, "Tag $it", true, 100, true) })
+                f.db.savedSearchDao().upsertAll((1..1001).map { search("search-$it") })
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(listOf(500, 1, 0), f.remote.sent.map { it.favouriteTags.orEmpty().size })
+            assertEquals(listOf(500, 500, 1), f.remote.sent.map { it.savedSearches.orEmpty().size })
+            assertTrue(f.remote.sent.all { it.works.isEmpty() && it.chapters.isEmpty() })
+            assertEquals((1..501).map { "Tag $it" }.toSet(), f.remote.sent.flatMap { it.favouriteTags.orEmpty() }.map { it.tag }.toSet())
+            assertEquals((1..1001).map { "search-$it" }.toSet(), f.remote.sent.flatMap { it.savedSearches.orEmpty() }.map { it.id }.toSet())
+            assertTrue(f.db.favouriteTagDao().getPendingSync().isEmpty())
+            assertTrue(f.db.savedSearchDao().getPendingSync().isEmpty())
+        }
+    }
+
+    @Test
+    fun `large saved collections share work batches and flush their remaining rows`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                for (id in 1L..51L) {
+                    f.db.workDao().upsertWork(work(id))
+                    f.db.chapterDao().upsertChapter(chapter().copy(workId = id, chapterId = id + 100))
+                }
+                f.db.favouriteTagDao().upsertAll((1..1001).map { FavouriteTagEntity(4, "Tag $it", true, 100, true) })
+                f.db.savedSearchDao().upsertAll((1..501).map { search("search-$it") })
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(listOf(50, 1, 0), f.remote.sent.map { it.works.size })
+            assertEquals(listOf(50, 1, 0), f.remote.sent.map { it.chapters.size })
+            assertEquals(listOf(500, 500, 1), f.remote.sent.map { it.favouriteTags.orEmpty().size })
+            assertEquals(listOf(500, 1, 0), f.remote.sent.map { it.savedSearches.orEmpty().size })
+            for (request in f.remote.sent) {
+                assertEquals(request.works.map { it.workId }.toSet(), request.chapters.map { it.workId }.toSet())
+            }
+            assertEquals((1L..51L).toSet(), f.remote.sent.flatMap { it.works }.map { it.workId }.toSet())
+            assertTrue(f.db.favouriteTagDao().getPendingSync().isEmpty())
+            assertTrue(f.db.savedSearchDao().getPendingSync().isEmpty())
+        }
+    }
+
+    @Test
+    fun `a failed later batch retries all saved rows and preserves newer edits`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                f.db.favouriteTagDao().upsertAll((1..501).map { FavouriteTagEntity(4, "Tag $it", true, 100, true) })
+                f.db.savedSearchDao().upsertAll((1..501).map { search("search-$it") })
+            }
+            f.remote.onSend = {
+                if (f.remote.sent.size == 2) Result.failure(Exception("Offline"))
+                else Result.success(accepted())
+            }
+            assertIs<SyncResult.Error>(f.sync.sync())
+            assertEquals(2, f.remote.sent.size)
+            assertEquals(501, f.db.favouriteTagDao().getPendingSync().size)
+            assertEquals(501, f.db.savedSearchDao().getPendingSync().size)
+            assertNull(f.accounts.active.value?.remoteCursor)
+
+            val sentSearch = f.remote.sent.first().savedSearches!!.first()
+            val sentFavourite = f.remote.sent.first().favouriteTags!!.first()
+            f.remote.sent.clear()
+            f.remote.onSend = {
+                if (f.remote.sent.size == 2) {
+                    f.searches.rename(sentSearch.id, "Newer local name")
+                    f.favourites.toggleFavourite(TagType.FANDOM, sentFavourite.tag)
+                }
+                Result.success(accepted())
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(501, f.remote.sent.sumOf { it.savedSearches.orEmpty().size })
+            assertEquals(501, f.remote.sent.sumOf { it.favouriteTags.orEmpty().size })
+            assertEquals(sentSearch.id, f.db.savedSearchDao().getPendingSync().single().id)
+            assertEquals("Newer local name", f.db.savedSearchDao().getPendingSync().single().name)
+            assertEquals(sentFavourite.tag, f.db.favouriteTagDao().getPendingSync().single().tag)
+            assertFalse(f.db.favouriteTagDao().getPendingSync().single().favourited)
         }
     }
 
@@ -308,6 +452,104 @@ class NativeSyncRegressionTest {
     }
 
     @Test
+    fun `deleting a work uploads a tombstone and removes it from another device`() = runTest {
+        fixture { source ->
+            fixture { destination ->
+                for (f in listOf(source, destination)) {
+                    f.accounts.edit {
+                        f.db.workDao().upsertWork(work(1))
+                        f.db.chapterDao().upsertChapter(chapter())
+                    }
+                    f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, 1_000) }
+                }
+                source.works.deleteWork(1)
+                assertNull(source.db.workDao().getWorkById(1))
+                source.remote.onFetch = { Result.success(response(works = listOf(SyncWorkResponse(1, FIRST)))) }
+
+                assertIs<SyncResult.Success>(source.sync.sync())
+                val deletion = source.remote.sent.single().works.single()
+                assertTrue(deletion.deleted)
+                assertNull(source.db.workDao().getWorkById(1))
+
+                destination.remote.onFetch = { Result.success(response(
+                    works = listOf(SyncWorkResponse(1, deletion.lastReadAt, deleted = deletion.deleted)),
+                    chapters = listOf(SyncChapterResponse(1, 2, FIRST, readProgress = 1f))
+                )) }
+                assertIs<SyncResult.Success>(destination.sync.sync())
+                assertNull(destination.db.workDao().getWorkById(1))
+                assertTrue(destination.remote.sent.single().works.single().deleted)
+                assertTrue(destination.works.getWorkBadges(listOf(1)).isEmpty())
+
+                assertIs<SyncResult.Success>(destination.sync.sync(forceFull = true))
+                assertNull(destination.db.workDao().getWorkById(1))
+            }
+        }
+    }
+
+    @Test
+    fun `deleting a work with a future reading timestamp survives the next pull`() = runTest {
+        fixture { f ->
+            val future = "2099-01-01T00:00:00Z"
+            f.remote.onFetch = { Result.success(response(works = listOf(SyncWorkResponse(1, future)))) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val lastRead = f.db.workDao().getWorkById(1)!!.lastRead!!
+            f.remote.sent.clear()
+
+            f.works.deleteWork(1)
+            assertIs<SyncResult.Success>(f.sync.sync())
+
+            assertNull(f.db.workDao().getWorkById(1))
+            assertTrue(f.db.workDao().getWorkByIdIncludingDeleted(1)!!.lastRead!! > lastRead)
+            assertTrue(f.remote.sent.single().works.single().deleted)
+        }
+    }
+
+    @Test
+    fun `failed deletion upload retains the tombstone and retries without advancing cursors`() = runTest {
+        fixture { f ->
+            f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, 1_000) }
+            f.works.deleteWork(1)
+            f.remote.onFetch = { Result.success(response(marker = SECOND, works = listOf(SyncWorkResponse(1, FIRST)))) }
+            f.remote.onSend = { Result.failure(Exception("Offline")) }
+
+            assertIs<SyncResult.Error>(f.sync.sync())
+            assertNull(f.db.workDao().getWorkById(1))
+            assertEquals(FIRST, f.accounts.active.value?.remoteCursor)
+            assertEquals(1_000L, f.accounts.active.value?.localCursor)
+            val failedDeletion = f.remote.sent.single().works.single()
+            assertTrue(failedDeletion.deleted)
+
+            f.remote.onSend = { Result.success(accepted()) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(failedDeletion, f.remote.sent.last().works.single())
+            assertNull(f.db.workDao().getWorkById(1))
+        }
+    }
+
+    @Test
+    fun `deleting a work during upload remains pending for the next sync`() = runTest {
+        fixture { f ->
+            f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+            f.remote.onSend = {
+                f.works.deleteWork(1)
+                Result.success(accepted())
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val oldUpload = f.remote.sent.single().works.single()
+            assertFalse(oldUpload.deleted)
+            assertNull(f.db.workDao().getWorkById(1))
+
+            f.remote.onFetch = { Result.success(response(works = listOf(SyncWorkResponse(1, oldUpload.lastReadAt)))) }
+            f.remote.onSend = { Result.success(accepted()) }
+            f.remote.sent.clear()
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertTrue(f.remote.sent.single().works.single().deleted)
+            assertNull(f.db.workDao().getWorkById(1))
+        }
+    }
+
+    @Test
     fun `an older server tombstone cannot delete a newer local restore`() = runTest {
         fixture { f ->
             f.accounts.edit { f.db.workDao().upsertWork(work(1).copy(lastRead = 2_000_000_000_000)) }
@@ -388,7 +630,7 @@ class NativeSyncRegressionTest {
     @Test
     fun `changing environment rejects the old endpoint sign in result`() = runTest {
         fixture { f ->
-            val settings = AppSettings(null)
+            val settings = AppSettings(null, canSelectApiEnvironment = true)
             val tokens = MemoryTokens()
             val service = FakeAuthService(settings)
             val auth = AuthRepository(service, tokens, f.accounts, settings)
@@ -458,46 +700,40 @@ class NativeSyncRegressionTest {
             connection.execSQL("PRAGMA user_version = 6")
             connection.execSQL("INSERT INTO works(id,isPrivate,subscribed,favourite,lastRead,rowCreatedAt,rowUpdatedAt) VALUES (1,0,0,0,100,100,100)")
         }
-        val db = Room.databaseBuilder<Ao3Database>(file.toString())
-            .setDriver(BundledSQLiteDriver()).setQueryCoroutineContext(Dispatchers.IO)
-            .addMigrations(MIGRATION_6_7).build()
+        val accounts = createTestAccounts(directory)
         try {
-            val accounts = AccountDataStore(db)
             assertNull(accounts.initialize().remoteCursor)
             accounts.activate("PRODUCTION:a", claimLegacy = true)
-            assertNotNull(db.workDao().getWorkById(1))
+            assertNotNull(accounts.database.workDao().getWorkById(1))
             assertNull(accounts.active.value?.remoteCursor)
         } finally {
-            db.close()
+            accounts.close()
             Files.walk(directory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
         }
     }
 
     private suspend fun fixture(block: suspend (Fixture) -> Unit) {
         val directory = Files.createTempDirectory("ao3tracker-test-")
-        val db = Room.databaseBuilder<Ao3Database>(directory.resolve("test.db").toString())
-            .setDriver(BundledSQLiteDriver())
-            .setQueryCoroutineContext(Dispatchers.IO)
-            .build()
+        val accounts = createTestAccounts(directory)
         try {
-            val f = Fixture(db)
+            val f = Fixture(accounts)
             f.accounts.initialize()
             f.accounts.activate("production:a")
             block(f)
         } finally {
-            db.close()
+            accounts.close()
             Files.walk(directory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
         }
     }
 
-    private class Fixture(val db: Ao3Database) {
-        val accounts = AccountDataStore(db)
+    private class Fixture(val accounts: AccountDataStore) {
+        val db get() = accounts.database
         val auth = FakeAuth()
         val remote = FakeRemote()
-        val works = Ao3Repository(db, accounts)
-        val favourites = FavouriteTagRepository(db.favouriteTagDao(), accounts)
-        val searches = SavedSearchRepository(db.savedSearchDao(), accounts)
-        val sync = SyncRepository(remote, db, auth, favourites, searches, accounts)
+        val works = Ao3Repository(accounts)
+        val favourites = FavouriteTagRepository(accounts)
+        val searches = SavedSearchRepository(accounts)
+        val sync = SyncRepository(remote, auth, favourites, searches, accounts)
     }
 
     private class FakeAuth : SyncAuthentication {

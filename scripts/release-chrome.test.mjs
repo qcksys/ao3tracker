@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
-import { createDraftUpload, extensionIdFromKey, verifyRelease } from "./release-chrome.mjs";
+import {
+  createChromeUpload,
+  extensionIdFromKey,
+  verifyBetaApiOrigin,
+  verifyRelease,
+} from "./release-chrome.mjs";
 
 const key =
   "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwoFnrwaltyQEw7hZV6gFzRSwoRKf+VM6adpYolUqVHbVTFigHouyfHOh9GklK4bMIWHBluh5mxmpVnKoaettN+eCytERoTZ4FnGcEVQzJmY778jf6kw5e9ZivP+T5c1+5NzB1sPABr4HQ4qbAOXg1lipUfi0I/ccvfVgoTaCoy62tUrNwRnnkQYqnQvGGb+0VmozPAvq/kX4sMkVbqU98Uai8V1sogXkH8tJwhGrixs7L9atPZkyvV43EbQ3vqEBrL/NY/R61TI6/HxQ0TOWaqOjI39yarRLnFm4JgsAgb56BRtCSR4KSd3ZUjpmp+5nlWToWuW8CqeV80BuMm3CUwIDAQAB";
@@ -31,11 +36,12 @@ test("release requires real store IDs and a matching manifest key", () => {
   assert.throws(
     () =>
       verifyRelease({ manifest, apiConfig, env: { ...env, CHROME_EXTENSION_ID: "a".repeat(32) } }),
-    /development ID is not a store item ID/,
+    /Manifest key produces .* but the store item is/,
   );
   assert.deepEqual(verifyRelease({ manifest, apiConfig, env }), {
     extensionId,
     publisherId: "publisher-123",
+    channel: "production",
   });
 });
 
@@ -47,14 +53,14 @@ test("release requires exact dev and prod auth origins, never a wildcard", () =>
   }
 });
 
-test("draft invocation uses v2 and never submits, cancels review, or sends secrets in arguments", () => {
+test("v2 uploads submit only beta, never cancel reviews, and keep secrets out of arguments", () => {
   const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
   const credentials = {
     type: "service_account",
     client_email: "chrome@example.iam.gserviceaccount.com",
     private_key: privateKey.export({ format: "pem", type: "pkcs8" }),
   };
-  const upload = createDraftUpload({
+  const upload = createChromeUpload({
     release: verifyRelease({ manifest, apiConfig, env }),
     zip: "release-chrome.zip",
     credentials,
@@ -70,12 +76,103 @@ test("draft invocation uses v2 and never submits, cancels review, or sends secre
   assert.equal(upload.env.FIREFOX_ZIP, undefined);
   assert.equal(upload.env.CHROME_SKIP_SUBMIT_REVIEW, undefined);
   assert.equal(upload.env.PATH, "bin");
+  const betaUpload = createChromeUpload({
+    release: { extensionId: "a".repeat(32), publisherId: "publisher-123", channel: "beta" },
+    zip: "release-chrome-beta.zip",
+    credentials,
+    env,
+  });
+  assert.equal(
+    betaUpload.args[betaUpload.args.indexOf("--chrome-skip-submit-review") + 1],
+    "false",
+  );
+  assert.equal(betaUpload.args[betaUpload.args.indexOf("--chrome-cancel-pending") + 1], "false");
 });
 
 test("upload refuses build-only mode and invalid service-account credentials", () => {
-  assert.throws(() => createDraftUpload({ release: null }), /build-only/);
+  assert.throws(() => createChromeUpload({ release: null }), /build-only/);
   assert.throws(
-    () => createDraftUpload({ release: { extensionId }, credentials: {} }),
+    () => createChromeUpload({ release: { extensionId }, credentials: {} }),
     /service-account key/,
   );
+});
+
+test("beta releases require a separate identity and dev-only manifest", () => {
+  const { publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const betaKey = publicKey.export({ format: "der", type: "spki" }).toString("base64");
+  const betaId = extensionIdFromKey(betaKey);
+  const betaManifest = {
+    key: betaKey,
+    name: "AO3 Tracker Beta",
+    host_permissions: ["https://archiveofourown.org/*", "https://dev.ao3tracker.com/*"],
+  };
+  const betaEnv = { ...env, RELEASE_CHANNEL: "beta", CHROME_EXTENSION_ID: betaId };
+  assert.deepEqual(verifyRelease({ manifest: betaManifest, apiConfig: {}, env: betaEnv }), {
+    extensionId: betaId,
+    publisherId: env.CHROME_PUBLISHER_ID,
+    channel: "beta",
+  });
+  assert.throws(
+    () =>
+      verifyRelease({
+        manifest: betaManifest,
+        apiConfig,
+        env: { ...betaEnv, CHROME_EXTENSION_ID: extensionId },
+      }),
+    /separate/,
+  );
+  assert.throws(
+    () =>
+      verifyRelease({
+        manifest: {
+          ...betaManifest,
+          host_permissions: [...betaManifest.host_permissions, "https://ao3tracker.com/*"],
+        },
+        apiConfig,
+        env: betaEnv,
+      }),
+    /only AO3 and the dev API/,
+  );
+  assert.throws(
+    () => verifyRelease({ manifest, apiConfig, env: { ...env, RELEASE_CHANNEL: "invalid" } }),
+    /RELEASE_CHANNEL/,
+  );
+  assert.equal(
+    verifyRelease({
+      manifest: { ...betaManifest, key: undefined },
+      apiConfig: {},
+      env: { RELEASE_CHANNEL: "beta", CHROME_BUILD_ONLY: "true" },
+    }),
+    null,
+  );
+});
+
+test("beta upload requires the deployed dev API to accept its exact origin", async () => {
+  const betaRelease = { channel: "beta", extensionId: "a".repeat(32) };
+  const betaOrigin = `chrome-extension://${betaRelease.extensionId}`;
+  await verifyBetaApiOrigin(betaRelease, async (url, options) => {
+    assert.equal(url, "https://dev.ao3tracker.com/auth/get-session");
+    assert.equal(options.method, "OPTIONS");
+    assert.equal(options.headers.Origin, betaOrigin);
+    return new Response(null, {
+      status: 204,
+      headers: { "access-control-allow-origin": betaOrigin },
+    });
+  });
+  for (const allowedOrigin of ["*", origin, ""]) {
+    await assert.rejects(
+      verifyBetaApiOrigin(
+        betaRelease,
+        async () =>
+          new Response(null, {
+            status: 204,
+            headers: { "access-control-allow-origin": allowedOrigin },
+          }),
+      ),
+      /Deploy the dev API/,
+    );
+  }
+  await verifyBetaApiOrigin(null, () => {
+    throw new Error("Build-only must not contact the API");
+  });
 });
