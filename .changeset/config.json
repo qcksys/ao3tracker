@@ -5,7 +5,7 @@
   "format": false,
   "privatePackages": {
     "version": true,
-    "tag": false
+    "tag": true
   },
   "fixed": [],
   "linked": [],

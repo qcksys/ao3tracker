@@ -9,26 +9,37 @@ async function workflow(name) {
   );
 }
 
-test("Changesets maintains a main-only version PR without publishing packages or deploying", async () => {
+test("Changesets creates version PRs or new tags only after successful main CI", async () => {
   const config = await workflow("changesets");
-  assert.deepEqual(config.on.push.branches, ["main"]);
-  assert.ok(Object.hasOwn(config.on, "workflow_dispatch"));
+  assert.deepEqual(Object.keys(config.on), ["workflow_call"]);
+  assert.equal(config.on.workflow_call.outputs.tagged.value, "${{ jobs.version.outputs.tagged }}");
   assert.equal(config.concurrency.group, "changesets-main");
   assert.equal(config.concurrency["cancel-in-progress"], false);
   const job = config.jobs.version;
-  assert.equal(job.if, "github.ref == 'refs/heads/main'");
+  assert.equal(job.if, "github.event_name == 'push' && github.ref == 'refs/heads/main'");
   assert.deepEqual(job.permissions, { contents: "write", "pull-requests": "write" });
   const checkout = job.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "main");
+  assert.equal(checkout.with.ref, "${{ github.sha }}");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(checkout.with["fetch-depth"], 0);
   const action = job.steps.find((step) => step.uses?.startsWith("changesets/action@"));
   assert.match(action.uses, /@[a-f0-9]{40}$/);
   assert.equal(action.with["pr-base-branch"], "main");
   assert.equal(action.with["version-script"], "vp run version-packages");
-  assert.equal(action.with["publish-script"], undefined);
+  assert.equal(action.with["publish-script"], "vp exec changeset git-tag");
   assert.equal(action.with["create-github-releases"], false);
-  assert.equal(action.with["push-git-tags"], false);
+  assert.equal(action.with["push-git-tags"], true);
+  const guard = job.steps.find((step) => step.run === "vp node scripts/release-main.mjs");
+  assert.ok(job.steps.indexOf(guard) < job.steps.indexOf(action));
+  assert.equal(action.if, `steps.${guard.id}.outputs.eligible == 'true'`);
+  const tags = job.steps.find((step) => step.id === "tags");
+  assert.equal(tags.if, `steps.${action.id}.outputs.published == 'true'`);
+  assert.equal(tags.env.TAGGED_PACKAGES, `\${{ steps.${action.id}.outputs.published-packages }}`);
+  assert.match(tags.run, /gh api.*git\/ref\/tags/);
+  assert.match(tags.run, /"\$sha" != "\$GITHUB_SHA"/);
+  assert.match(tags.run, /exit 1/);
+  assert.match(tags.run, /tagged=true/);
+  assert.equal(job.outputs.tagged, "${{ steps.tags.outputs.tagged }}");
   const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
   assert.match(pkg.scripts["version-packages"], /vp exec changeset version/);
   assert.match(pkg.scripts["version-packages"], /vp install --lockfile-only --ignore-scripts/);
@@ -38,7 +49,24 @@ test("Changesets maintains a main-only version PR without publishing packages or
   );
   assert.equal(changesets.baseBranch, "main");
   assert.equal(changesets.format, false);
+  assert.deepEqual(changesets.privatePackages, { version: true, tag: true });
   assert.doesNotMatch(JSON.stringify(config), /deploy-api|release-android|release-chrome/);
+});
+
+test("production runs once per new Changesets tag batch and requires all CI checks", async () => {
+  const ci = await workflow("ci");
+  const tags = ci.jobs.changesets;
+  assert.deepEqual(tags.needs, ["workspace", "android"]);
+  assert.equal(tags.if, "github.event_name == 'push' && github.ref == 'refs/heads/main'");
+  assert.deepEqual(tags.permissions, { contents: "write", "pull-requests": "write" });
+  assert.equal(tags.uses, "./.github/workflows/changesets.yml");
+  const release = ci.jobs["release-main"];
+  assert.equal(release.needs, "changesets");
+  assert.equal(release.if, "needs.changesets.outputs.tagged == 'true'");
+  assert.equal(release.uses, "./.github/workflows/release-main.yml");
+  assert.equal(release.with.source_ref, "${{ github.sha }}");
+  assert.equal(release.secrets, "inherit");
+  assert.deepEqual(Object.keys((await workflow("release-main")).on), ["workflow_call"]);
 });
 
 test("both store channels and build-only runs save notes from the exact release source", async () => {
@@ -77,27 +105,16 @@ for (const [branch, entry, protectedWorkflow, releaseGroup] of [
   test(`${branch}: superseded preparation can be canceled without canceling an active release`, async () => {
     const config = await workflow(entry);
     assert.equal(config.concurrency, undefined);
-    if (branch === "main") {
-      assert.deepEqual(config.on.workflow_run.branches, [branch]);
-    } else {
-      assert.ok(config.on.workflow_call);
-      assert.equal(config.on.workflow_run, undefined);
-      assert.equal(config.on.workflow_call.inputs.source_ref.required, true);
-    }
+    assert.ok(config.on.workflow_call);
+    assert.equal(config.on.workflow_run, undefined);
+    assert.equal(config.on.workflow_call.inputs.source_ref.required, true);
     const { prepare, deploy } = config.jobs;
     assert.equal(prepare.concurrency, undefined);
     assert.equal(prepare.uses, "./.github/workflows/prepare-release.yml");
     assert.equal(prepare.with.branch, branch);
-    if (branch === "main") {
-      assert.match(prepare.if, /conclusion == 'success'/);
-      assert.match(prepare.if, /event == 'push'/);
-      assert.ok(prepare.if.includes(`head_branch == '${branch}'`));
-      assert.match(prepare.if, /head_repository.id == github.repository_id/);
-    } else {
-      assert.match(prepare.if, /github.event_name == 'push'/);
-      assert.match(prepare.if, /github.ref == 'refs\/heads\/dev'/);
-      assert.match(prepare.if, /inputs.source_ref == github.sha/);
-    }
+    assert.match(prepare.if, /github.event_name == 'push'/);
+    assert.ok(prepare.if.includes(`github.ref == 'refs/heads/${branch}'`));
+    assert.match(prepare.if, /inputs.source_ref == github.sha/);
     assert.equal(deploy.needs, "prepare");
     assert.equal(deploy.if, "needs.prepare.outputs.eligible == 'true'");
     assert.deepEqual(deploy.concurrency, {

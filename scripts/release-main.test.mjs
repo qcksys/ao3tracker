@@ -1,8 +1,34 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertCurrentSource, isCurrentDevPush, isCurrentSuccessfulRun } from "./release-main.mjs";
+import {
+  assertCurrentSource,
+  isCurrentDevPush,
+  isCurrentMainPush,
+  isCurrentSuccessfulRun,
+} from "./release-main.mjs";
 
 const sha = "a".repeat(40);
+
+test("main CI push eligibility requires the current same-repository main commit", () => {
+  const push = { ref: "refs/heads/main", after: sha, repository: { id: 123 }, deleted: false };
+  assert.equal(isCurrentMainPush(push, sha, 123), true);
+  assert.equal(isCurrentMainPush(push, "b".repeat(40), 123), false);
+  assert.equal(isCurrentMainPush(push, sha, 456), false);
+  assert.equal(isCurrentMainPush(push, sha, NaN), false);
+  for (const override of [
+    { ref: "refs/heads/dev" },
+    { ref: "refs/tags/@qcksys/ao3tracker-api@1.0.0" },
+    { ref: "refs/pull/11/merge" },
+    { deleted: true },
+    { repository: undefined },
+    { after: "main" },
+    { after: undefined },
+  ]) {
+    assert.equal(isCurrentMainPush({ ...push, ...override }, sha, 123), false);
+  }
+  assert.equal(isCurrentMainPush(event(), sha, 123), false);
+});
+
 test("dev CI push eligibility requires the current same-repository dev commit", () => {
   const push = { ref: "refs/heads/dev", after: sha, repository: { id: 123 }, deleted: false };
   assert.equal(isCurrentDevPush(push, sha, 123), true);
