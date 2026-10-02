@@ -28,13 +28,16 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -94,6 +97,8 @@ import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
+import com.qcksys.ao3tracker.ui.components.WorkMetadata
+import com.qcksys.ao3tracker.ui.components.formatWorkTimestamp
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.SettingsTab
 import com.qcksys.ao3tracker.ui.screens.workdetail.WorkDetailScreen
@@ -536,19 +541,20 @@ internal fun WorkCard(
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
+            Text(
+                text = if (work.isPrivate && work.title == null) "Private work" else work.title ?: "Unknown Work",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = if (work.isPrivate && work.title == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (work.isPrivate && work.title == null) "Private work" else work.title ?: "Unknown Work",
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        color = if (work.isPrivate && work.title == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                    )
                     if (!(work.isPrivate && work.author == null)) {
                         Text(
                             text = "by ${work.author ?: "Anonymous"}",
@@ -617,28 +623,31 @@ internal fun WorkCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            FlowRow(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Chapters: ${work.chapterProgress}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                WorkMetadata(
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                    value = work.chapterProgress,
+                    description = "Chapters: ${work.chapterProgress}",
+                    modifier = Modifier.weight(1f)
                 )
                 work.lastUpdated?.let { lastUpdatedTimestamp ->
-                    Text(
-                        text = "Updated: ${formatWorkTimestamp(lastUpdatedTimestamp)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    WorkMetadata(
+                        icon = Icons.Default.Update,
+                        value = formatWorkTimestamp(lastUpdatedTimestamp, compact = true),
+                        description = "Updated: ${formatWorkTimestamp(lastUpdatedTimestamp)}",
+                        modifier = Modifier.weight(1f)
                     )
                 }
                 work.lastRead?.let { lastReadTimestamp ->
-                    Text(
-                        text = "Read: ${formatWorkTimestamp(lastReadTimestamp)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    WorkMetadata(
+                        icon = Icons.Default.History,
+                        value = formatWorkTimestamp(lastReadTimestamp, compact = true),
+                        description = "Read: ${formatWorkTimestamp(lastReadTimestamp)}",
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -1174,26 +1183,6 @@ private fun ReadingStatusFilterSection(
 
 private fun Int.formatWithCommas(): String {
     return this.toString().reversed().chunked(3).joinToString(",").reversed()
-}
-
-@OptIn(kotlin.time.ExperimentalTime::class)
-internal fun formatWorkTimestamp(
-    timestamp: Long,
-    now: Long = kotlin.time.Clock.System.now().toEpochMilliseconds()
-): String {
-    val diff = now - timestamp
-    val minutes = diff / (1000 * 60)
-    val hours = minutes / 60
-    val days = hours / 24
-
-    return when {
-        minutes < 1 -> "Just now"
-        minutes < 60 -> "$minutes min ago"
-        hours == 1L -> "1 hour ago"
-        hours < 24 -> "$hours hours ago"
-        days == 1L -> "1 day ago"
-        else -> "$days days ago"
-    }
 }
 
 @OptIn(kotlin.time.ExperimentalTime::class)
