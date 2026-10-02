@@ -113,5 +113,5 @@ val appModule = module {
 
     // TrackScreenModel as singleton to preserve filter state
     single { TrackScreenModel(get(), get(), get(), get()) }
-    singleOf(::SearchesScreenModel)
+    single { SearchesScreenModel(get(), get(), get(), get()) }
 }

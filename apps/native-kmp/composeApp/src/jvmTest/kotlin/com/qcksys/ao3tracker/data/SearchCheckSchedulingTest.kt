@@ -19,6 +19,9 @@ import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.sync.SyncCoordinator
+import com.qcksys.ao3tracker.di.appModule
+import org.koin.core.KoinApplication
+import org.koin.dsl.module
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +33,16 @@ import kotlin.time.Clock
 
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class SearchCheckSchedulingTest {
+    @Test
+    fun `opening Searches resolves the app screen model and starts automatic checks`() = runTest {
+        fixture(useAppModule = true) { model, searches, _, _, _ ->
+            val search = searches.save("Stories", "https://archiveofourown.org/works")
+            model.checkAll(automatic = true)
+            runCurrent()
+            assertEquals(search.id, assertNotNull(model.runningCheck.value).request.search.id)
+        }
+    }
+
     @Test
     fun `rate limiting stops check all and also blocks manual checks until Retry-After expires`() = runTest {
         fixture { model, searches, _, _, setTime ->
@@ -98,6 +111,7 @@ class SearchCheckSchedulingTest {
     }
 
     private suspend fun TestScope.fixture(
+        useAppModule: Boolean = false,
         block: suspend (SearchesScreenModel, SavedSearchRepository, SearchCheckRepository, AccountDataStore, (Long) -> Unit) -> Unit
     ) {
         val dispatcher = StandardTestDispatcher(testScheduler)
@@ -105,6 +119,7 @@ class SearchCheckSchedulingTest {
         val directory = Files.createTempDirectory("ao3tracker-search-scheduling-")
         val accounts = createTestAccounts(directory, dispatcher)
         val holder = "search-test:${directory.fileName}"
+        val application = KoinApplication.init()
         try {
             accounts.initialize()
             accounts.activate(AccountDataStore.GUEST)
@@ -124,14 +139,23 @@ class SearchCheckSchedulingTest {
             val coordinator = SyncCoordinator(repository, auth, accounts, signOut = { error("Search checks must not sign out") }, scope = backgroundScope)
             val sync = SyncTriggers(coordinator)
             var now = Clock.System.now().toEpochMilliseconds()
+            application.modules(appModule, module {
+                single { searches }
+                single { checks }
+                single { sync }
+                single { AppSettings(null) }
+            })
             val model = ScreenModelStore.getOrPut(holder, null) {
-                SearchesScreenModel(searches, sync, checks, AppSettings(null), { now })
+                if (useAppModule) application.koin.get<SearchesScreenModel>()
+                else SearchesScreenModel(searches, sync, checks, AppSettings(null), { now })
             }
+            if (useAppModule) assertSame(model, application.koin.get<SearchesScreenModel>())
             block(model, searches, checks, accounts) { now += it }
             model.cancelChecks()
         } finally {
             ScreenModelStore.onDisposeNavigator(holder)
             runCurrent()
+            application.close()
             accounts.close()
             Dispatchers.resetMain()
             Files.walk(directory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }

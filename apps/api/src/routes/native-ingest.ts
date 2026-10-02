@@ -124,7 +124,7 @@ nativeIngestRouter.on("POST", ["/batch", "/batch/"], async (c) => {
   try {
     const response = await fetch(`https://${region}.i.posthog.com/batch/`, {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -149,7 +149,7 @@ nativeIngestRouter.get("/array/:token/config", async (c) => {
   try {
     const response = await fetch(
       `https://${region}-assets.i.posthog.com/array/${encodeURIComponent(c.env.POSTHOG_PROJECT_TOKEN)}/config`,
-      { redirect: "error", signal: AbortSignal.timeout(10000) },
+      { redirect: "manual", signal: AbortSignal.timeout(10000) },
     );
     if (!response.ok) {
       await response.body?.cancel();
