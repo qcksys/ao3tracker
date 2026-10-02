@@ -121,7 +121,7 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
         chapterId,
         lastReadAt: nextReadAt(existing?.lastReadAt),
         markedCompleteAt: existing?.markedCompleteAt ?? null,
-        readProgress: progress,
+        readProgress: Math.max(existing?.readProgress ?? 0, progress),
         pendingSync: true,
       };
       await saveChapter(chapters);

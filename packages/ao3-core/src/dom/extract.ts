@@ -249,8 +249,17 @@ export function findListWorkIds(doc: Document): number[] {
   return ids;
 }
 
+export function findNextChapterButton(doc: Document): HTMLAnchorElement | null {
+  return (
+    Array.from(doc.querySelectorAll<HTMLAnchorElement>("#feedback > .actions a[href]")).find(
+      (link) => /^Next Chapter\b/.test(normalizeWhitespace(link.textContent) ?? ""),
+    ) ?? null
+  );
+}
+
 /**
- * Compute the scroll percentage within the `#chapters` element, measured at the
+ * Compute reading progress, completing a chapter when its bottom Next Chapter
+ * button is visible. Otherwise measure within `#chapters` at the
  * bottom of the viewport (so 100% means the reader has scrolled the bottom of
  * the chapters block into view). Returns null if the element isn't on the page
  * or has zero height (e.g. still loading).
@@ -258,6 +267,20 @@ export function findListWorkIds(doc: Document): number[] {
 export function computeChapterScrollPercentage(doc: Document, win: Window): number | null {
   const element = doc.getElementById("chapters");
   if (!element) return null;
+
+  const next = findNextChapterButton(doc);
+  if (next && !["hidden", "collapse"].includes(win.getComputedStyle(next).visibility)) {
+    const bounds = next.getBoundingClientRect();
+    if (
+      bounds.width > 0 &&
+      bounds.height > 0 &&
+      bounds.top < win.innerHeight &&
+      bounds.bottom > 0 &&
+      bounds.left < win.innerWidth &&
+      bounds.right > 0
+    )
+      return 100;
+  }
 
   const rect = element.getBoundingClientRect();
   const viewportTop = win.scrollY ?? 0;

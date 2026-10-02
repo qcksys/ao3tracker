@@ -656,7 +656,19 @@ it("replaces tags only for returned works, including empty tag sets", async () =
   ]);
 });
 
-it("uses the extracted chapter ID on a work URL and accepts older URL-only events", async () => {
+it("keeps a completed chapter fully read after scrolling back up", async () => {
+  for (const scrollPercentage of [100, 40]) {
+    await ingestPageEvent({
+      type: "scrollProgress",
+      url: "https://archiveofourown.org/works/123/chapters/456",
+      chapterId: "456",
+      scrollPercentage,
+    });
+  }
+  expect((await trackedChaptersItem.getValue())["123:456"]?.readProgress).toBe(1);
+});
+
+it("accepts extracted chapter IDs on work URLs and older URL-only events", async () => {
   await ingestPageEvent({
     type: "scrollProgress",
     url: "https://archiveofourown.org/works/123",

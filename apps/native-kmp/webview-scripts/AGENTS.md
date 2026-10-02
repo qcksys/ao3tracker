@@ -47,6 +47,8 @@ Vite refuses multi-entry IIFE bundles in library config mode (see [vitejs/vite#1
 - [test/ao3-tracking.test.ts](./test/ao3-tracking.test.ts) — drives the shared `@qcksys/ao3tracker-core/dom` helpers against real AO3 fixture HTML; exercises the JSON-bridge wrapper for `applyListBadges`.
 - [test/fixtures.ts](./test/fixtures.ts) — real AO3 HTML fixture (XCOM: The Advent Directive) used by the test above.
 
+Tracking uses the shared `observeChapterProgress` helper to report on load, scroll, resize, and bottom Next Chapter button visibility changes. A partially visible bottom button reports 100%; the top navigation link does not.
+
 After `vp run build`, the Gradle `generateWebviewScriptKotlin` task reads `dist/*.min.js` and emits Kotlin string constants under `apps/native-kmp/composeApp/build/generated/kotlin/webview/`.
 
 ## Conventions

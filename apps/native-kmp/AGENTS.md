@@ -133,7 +133,7 @@ Sync uploads batch at most 50 works, 500 favourite tags and 500 saved searches p
 The app embeds AO3 in a WebView and injects JavaScript to:
 
 - Extract work metadata, chapters, and tags
-- Track scroll progress
+- Track scroll progress through shared `observeChapterProgress` on load, scroll, resize, and bottom Next Chapter button visibility changes. Any visible part of that bottom button reports 100%; the top navigation link does not. Automatic progress retains the highest recorded value.
 - Communicate via `WebViewMessage` JSON protocol
 - Render per-work tracker badges on AO3 list pages (round-trip: see "List-page badges" below)
 
