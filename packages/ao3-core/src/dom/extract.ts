@@ -5,6 +5,11 @@ import type {
   WorkInfoMessage,
   WorkTagsMessage,
 } from "../schemas/messages";
+import {
+  normalizeWorkSummary,
+  WORK_SUMMARY_BLOCK_ELEMENTS,
+  WORK_SUMMARY_SELECTOR,
+} from "../work-summary";
 import { classifyAo3Url, normalizeWhitespace } from "./utils";
 
 /**
@@ -49,6 +54,13 @@ export function getWorkInfo(doc: Document, location: Location): WorkInfoMessage 
   const lastUpdated =
     text(".work.meta.group .stats dd.status") ?? text(".work.meta.group .stats dd.published");
 
+  const summary = doc.querySelector(WORK_SUMMARY_SELECTOR);
+  const summaryCopy = summary ? doc.importNode(summary, true) : null;
+  for (const block of summaryCopy?.querySelectorAll(WORK_SUMMARY_BLOCK_ELEMENTS) ?? []) {
+    block.before(" ");
+    block.after(" ");
+  }
+
   return {
     type: "workInfo",
     url: location.href,
@@ -60,7 +72,7 @@ export function getWorkInfo(doc: Document, location: Location): WorkInfoMessage 
     totalChapters: text(".work.meta.group .stats dd.chapters"),
     authorUrl: attr("#workskin .byline.heading a", "href"),
     authorName: text("#workskin .byline.heading a"),
-    summary: text("div.summary blockquote p"),
+    summary: normalizeWorkSummary(summaryCopy?.textContent),
     wordCount: numericText(".work.meta.group .stats dd.words"),
     language: text(".work.meta.group dd.language"),
     kudos: numericText(".work.meta.group .stats dd.kudos"),

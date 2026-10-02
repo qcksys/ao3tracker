@@ -3,6 +3,11 @@
  * Parses work metadata, tags, and chapter index from AO3 HTML pages.
  */
 
+import {
+  normalizeWorkSummary,
+  WORK_SUMMARY_BLOCK_ELEMENTS,
+  WORK_SUMMARY_SELECTOR,
+} from "@qcksys/ao3tracker-core/work-summary";
 import { z } from "zod";
 import { AO3_BASE_URL, AO3_USER_AGENT } from "~/const";
 
@@ -106,7 +111,6 @@ interface ParserState {
   chapters: ChapterDropdownInfo[];
   // Temporary state for tracking context
   currentTagType: string | null;
-  inSummaryBlockquote: boolean;
   inByline: boolean;
   inBylineAnchor: boolean;
   inTitle: boolean;
@@ -164,7 +168,6 @@ function createInitialState(): ParserState {
     },
     chapters: [],
     currentTagType: null,
-    inSummaryBlockquote: false,
     inByline: false,
     inBylineAnchor: false,
     inTitle: false,
@@ -207,6 +210,7 @@ function hasClasses(element: Element, ...classes: string[]): boolean {
 export async function parseWorkPage(html: string): Promise<ParsedWork> {
   const startTime = performance.now();
   const state = createInitialState();
+  let summaryText = "";
 
   const rewriter = new HTMLRewriter()
     // Work title: #workskin h2.title.heading
@@ -282,25 +286,26 @@ export async function parseWorkPage(html: string): Promise<ParsedWork> {
         }
       },
     })
-    // Summary: .work.meta.group .summary blockquote
-    .on("div.summary blockquote p", {
-      element() {
-        state.inSummaryBlockquote = true;
-      },
+    .on(WORK_SUMMARY_SELECTOR, {
       text(text) {
-        if (state.inSummaryBlockquote) {
-          const content = text.text.trim();
-          if (content) {
-            state.workInfo.summary = state.workInfo.summary
-              ? `${state.workInfo.summary} ${content}`
-              : content;
-          }
-          if (text.lastInTextNode) {
-            state.inSummaryBlockquote = false;
-          }
-        }
+        summaryText += text.text;
       },
     })
+    .on(
+      WORK_SUMMARY_BLOCK_ELEMENTS.split(", ")
+        .map((tag) => `${WORK_SUMMARY_SELECTOR} ${tag}`)
+        .join(", "),
+      {
+        element(element) {
+          summaryText += " ";
+          if (element.tagName !== "br" && element.tagName !== "hr") {
+            element.onEndTag(() => {
+              summaryText += " ";
+            });
+          }
+        },
+      },
+    )
     // Language: .work.meta.group dd.language
     .on("dl.work.meta.group dd.language", {
       text(text) {
@@ -551,6 +556,8 @@ export async function parseWorkPage(html: string): Promise<ParsedWork> {
   // Create a Response from the HTML string and transform it
   const response = new Response(html);
   await rewriter.transform(response).text();
+
+  state.workInfo.summary = normalizeWorkSummary(summaryText);
 
   console.log({
     message: "Parsed work page",

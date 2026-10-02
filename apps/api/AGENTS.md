@@ -100,6 +100,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 - Uses Cloudflare's `HTMLRewriter` for streaming HTML parsing
 - `parseWorkPage()` - Extracts work metadata and tags from work pages
+- Work summaries use `@qcksys/ao3tracker-core/work-summary` to match client extraction: retain all work-summary text up to 2,048 Unicode code points after whitespace normalization, excluding chapter summaries. Accumulate every HTMLRewriter text chunk; `lastInTextNode` does not mark the end of a summary.
 - `parseChapterIndex()` - Extracts chapter list from navigate pages
 - `fetchAndParseWork()` / `fetchAndParseChapterIndex()` - Fetch and parse helpers
 
