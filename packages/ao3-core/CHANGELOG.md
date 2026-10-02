@@ -1,5 +1,31 @@
 # @qcksys/ao3tracker-core
 
+## 0.2.0
+
+### Minor Changes
+
+- 7964092: Add an "Update saved search to match" option when saving an AO3 search. Choose an existing saved search to replace its filters while keeping its name, or save a new search. Updates sync across devices.
+
+  Show saved-search names across the full width, with the first five tags and a count of additional tags underneath. Move actions below the content to keep names readable in both clients.
+
+- fe279ed: Keep hidden work titles clickable and move hidden-work management into a separate searchable screen. Show excluded tags as removable chips.
+
+  Add an optional setting to collapse caught-up and finished works in AO3 lists, with the reason shown and new chapters kept visible. Calculate reading percentages and chapter progress bars using published chapters rather than planned totals.
+
+- 9ffbe51: Reduce saved-search checks to recent updates and retain activity counts until the search is opened. Fix a crash when opening the Searches tab.
+
+  Start with a small baseline, cap routine checks at ten pages, resume partial results on the next refresh, and pause checks when AO3 limits requests. Offer an explicit full scan for older changes.
+
+### Patch Changes
+
+- Mark chapters 100% read as soon as the bottom Next Chapter button is visible, including short chapters that fit on screen without scrolling. Preserve completed progress when scrolling back up.
+
+  Open the next chapter from the start when the last-read chapter is finished. Apply the same reading position to Works links, notification taps, and native notification history, while preserving progress when no next chapter is available.
+
+  Preserve cleared chapter read status when reopening the native reader by restoring the scroll position before tracking progress and avoiding automatic completion of the previously open chapter. Remove the chapter delete action from Work Details.
+
+- 8e9d240: Store the full work summary up to 2,048 characters, including all paragraphs and text around inline formatting. Exclude chapter summaries from the work summary.
+
 ## 0.1.0
 
 ### Minor Changes
