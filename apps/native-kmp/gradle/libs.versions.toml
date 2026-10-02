@@ -38,6 +38,7 @@ google-services = "4.5.0"
 kotlinx-coroutines-test = "1.11.0"
 mockk = "1.14.11"
 turbine = "1.2.1"
+robolectric = "4.17"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -102,6 +103,7 @@ napier = { module = "io.github.aakira:napier", version.ref = "napier" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines-test" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
