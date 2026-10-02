@@ -163,7 +163,7 @@ interface TagDao {
     @Query("SELECT * FROM tags WHERE workId = :workId")
     suspend fun getTagsByWorkOnce(workId: Long): List<TagEntity>
 
-    @Query("SELECT * FROM tags WHERE workId IN (:workIds)")
+    @Query("SELECT * FROM tags WHERE workId IN (:workIds) ORDER BY rowid")
     suspend fun getTagsByWorkIds(workIds: List<Long>): List<TagEntity>
 
     @Query("SELECT * FROM tags WHERE workId = :workId AND typeId = :typeId")
