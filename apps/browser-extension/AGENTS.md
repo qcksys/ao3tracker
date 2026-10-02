@@ -86,13 +86,13 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 
 ### Popup routes (HashRouter)
 
-| Path                  | Component           | Notes                                                                                                       |
-| --------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `/`                   | `Tracker`           | Default. Shows current work + sync controls when signed in, otherwise prompts sign-in.                      |
-| `/searches`           | `Searches`          | Saved AO3 filter URLs — open in a new tab, rename, delete. Saved via the on-page "Save this search" button. |
-| `/lists`              | `Lists`             | Favourite-tag chips grouped by type.                                                                        |
-| `/settings`           | `Settings`          | Account controls, expandable Search preferences, Notifications and Advanced (API environment) sections.     |
-| `/login`, `/register` | `Login`, `Register` | react-hook-form + zod, talks to Better Auth via the sync client.                                            |
+| Path                  | Component           | Notes                                                                                                                  |
+| --------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `/`                   | `Tracker`           | Default. Shows current work + sync controls when signed in, otherwise prompts sign-in.                                 |
+| `/searches`           | `Searches`          | Saved AO3 filter URLs — open in a new tab, copy link, rename, delete. Saved via the on-page "Save this search" button. |
+| `/lists`              | `Lists`             | Favourite-tag chips grouped by type.                                                                                   |
+| `/settings`           | `Settings`          | Account controls, expandable Search preferences, Notifications and Advanced (API environment) sections.                |
+| `/login`, `/register` | `Login`, `Register` | react-hook-form + zod, talks to Better Auth via the sync client.                                                       |
 
 ### Sync flow
 
@@ -106,6 +106,8 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 **Search preferences**: Settings edits device-local `browsingPreferencesItem` (`hiddenWorkIds`, `hiddenTags`, `languageFilterEnabled`, `searchLanguage`), outside account sync. Background mutations use `withLocalState`; message schemas derive from the shared browsing schemas. `@qcksys/ao3tracker-core/dom` adds tag defaults to AO3 work/bookmark GET searches while preserving explicit exclusions, and collapses hidden works with an Unhide action. Tag and work lists start empty and remain when accounts change. Language filtering starts disabled with English selected; when enabled, it replaces language filters in work/bookmark URLs and GET forms, including saved searches. The popup uses the shared `/languages` catalog.
 
 ## Conventions
+
+- **Copy saved-search links**: Write the full stored URL with `navigator.clipboard.writeText` directly from the popup button click, preserving user activation. Confirm only after the write succeeds, and show a retryable error on failure. Copying leaves saved-search state unchanged.
 
 - **Browser API**: use `browser.*` (WXT's cross-browser shim) inside extension code, not `chrome.*` directly — keeps Firefox builds working.
 - **Storage**: prefer `@wxt-dev/storage`'s typed `storage.defineItem(...)` pattern over raw `chrome.storage` calls. All storage records are declared in [lib/storage.ts](lib/storage.ts).
