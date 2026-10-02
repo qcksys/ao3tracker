@@ -84,6 +84,7 @@ import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import com.qcksys.ao3tracker.data.settings.defaultApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
+import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
@@ -1450,7 +1451,7 @@ private fun NotificationHistoryModal(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(notifications, key = { it.id }) { notification ->
-                                NotificationItemCard(notification = notification)
+                                NotificationItemCard(notification = notification, onDismiss = onDismiss)
                             }
                             if (isLoadingMore) {
                                 item {
@@ -1484,8 +1485,12 @@ private fun NotificationHistoryModal(
  * Individual notification item card.
  */
 @Composable
-private fun NotificationItemCard(notification: NotificationItem) {
+internal fun NotificationItemCard(notification: NotificationItem, onDismiss: () -> Unit) {
     Card(
+        onClick = {
+            onDismiss()
+            NavigationState.navigateToRead("https://archiveofourown.org/works/${notification.workId}")
+        },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
