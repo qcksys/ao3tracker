@@ -161,6 +161,10 @@ When the WebView loads an AO3 list page (anything with `<li id="work_{id}">` blu
 
 The status string set MUST stay in sync between `WorkBadgePayload` (Kotlin) and `WorkBadgeData` (TypeScript, defined in [`packages/ao3-core/src/badges.ts`](../../packages/ao3-core/src/badges.ts)) — any new status needs an entry in `formatBadge`'s `switch` and a clause in `buildBadgePayload`. The same status set is consumed by the browser extension's content script.
 
+### Reader link actions
+
+Android link long-presses open a Material 3 action sheet using the app theme. `ReaderLink` classifies trusted AO3 work/tag URLs and decodes AO3 tag escapes. Copy and Open in browser retain the complete URL; linked images resolve their anchor with `requestFocusNodeHref`. Text selection and editable-field menus remain native. `ReadScreenModel.handleLinkAction` adds works without navigating or creating chapter progress, or updates the existing device-local hidden tags/works. Explicit actions work in incognito. Adding an existing work preserves its metadata and progress; restoring a deleted work advances its sync reading clock. Account-generation checks guard queued tracking actions.
+
 ### Favourite tag filters
 
 Long-pressing a tag chip in the filter sheet pins it to the top of its section. State lives in [FavouriteTagRepository](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/repository/FavouriteTagRepository.kt) on top of a Room table (`FavouriteTagEntity` in [Entities.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/database/Entities.kt)). The UI consumes `observeFavourites(): Flow<Set<String>>` where each entry is `"${tagType.id}\t$tag"` (tab-separated, matches the historical format).

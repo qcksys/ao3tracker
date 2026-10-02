@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.ui.screens.read
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
@@ -15,6 +16,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +45,11 @@ fun ReadScreen() {
     val currentUrl by screenModel.currentUrl.collectAsState()
     val scrollProgress by screenModel.scrollProgress.collectAsState()
     val tabNavigator = LocalTabNavigator.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(screenModel) {
+        screenModel.linkActionMessage.collect { snackbarHostState.showSnackbar(it) }
+    }
 
     // Handle pending navigation from other tabs
     val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
@@ -108,26 +116,30 @@ fun ReadScreen() {
             )
         }
 
-        Ao3WebView(
-            url = currentUrl,
-            modifier = Modifier.fillMaxSize(),
-            onNavigationStateChange = { back, forward ->
-                screenModel.updateNavigationState(back, forward)
-            },
-            onUrlChange = { url ->
-                screenModel.updateCurrentUrl(url)
-            },
-            onMessage = { message ->
-                screenModel.handleWebViewMessage(message)
-            },
-            onLoadingStateChange = { isLoading ->
-                screenModel.updateLoadingState(isLoading)
-            },
-            onBackAtRoot = {
-                tabNavigator.current = TrackTab
-            },
-            jsInjectionFlow = screenModel.jsInjectionFlow
-        )
+        Box(Modifier.weight(1f)) {
+            Ao3WebView(
+                url = currentUrl,
+                modifier = Modifier.fillMaxSize(),
+                onNavigationStateChange = { back, forward ->
+                    screenModel.updateNavigationState(back, forward)
+                },
+                onUrlChange = { url ->
+                    screenModel.updateCurrentUrl(url)
+                },
+                onMessage = { message ->
+                    screenModel.handleWebViewMessage(message)
+                },
+                onLoadingStateChange = { isLoading ->
+                    screenModel.updateLoadingState(isLoading)
+                },
+                onBackAtRoot = {
+                    tabNavigator.current = TrackTab
+                },
+                jsInjectionFlow = screenModel.jsInjectionFlow,
+                onLinkAction = screenModel::handleLinkAction
+            )
+            SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
+        }
     }
 }
 
