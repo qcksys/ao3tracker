@@ -149,7 +149,11 @@ TypeScript source is in `webview-scripts/src/`. The script imports its DOM extra
 
 `DiagnosticsClient` sends allowlisted usage events and warning/error counts through the selected API origin's `POST /ingest`. The WebView uses the native bridge (`diagnostic` messages), never a direct PostHog request. The shared wire schema lives in `@qcksys/ao3tracker-core/diagnostics`; use a type-only import in WebView scripts to avoid bundling Zod. See the [Worker contract](../api/AGENTS.md#native-diagnostics) before changing events or configuration.
 
-Settings → Privacy → Send diagnostic data defaults on and persists through `SettingsStorage`. It controls both PostHog and Sentry, including startup initialization. Incognito additionally suppresses PostHog. Consent/environment changes invalidate queued events, cancel pending sends and rotate the anonymous session ID. The bounded queue is memory-only with no retries or disk persistence. Never include work IDs, reading content, URLs, search terms, account identity or raw log/error text in PostHog events. Sentry remains responsible for crash details. Session replay, autocapture, Sentry automatic sessions and failed-request capture are disabled.
+Settings → Privacy → Send diagnostic data defaults on and persists through `SettingsStorage`. It controls usage and crash collection; incognito pauses both. Usage events remain allowlisted, anonymous, and memory-only; consent/environment changes discard their queue and rotate their session ID. Keep reading content, work IDs, URLs, search terms, account identity, and raw errors out of usage events.
+
+`PostHogCrashReporter` initializes the official KMP SDK before the UI when diagnostics are enabled. It autocaptures unhandled exceptions and sends handled test errors through `captureException`. Its host is the selected API origin plus `/ingest/native`; environment-specific placeholder tokens isolate SDK queues, and the Worker substitutes its own project token. Crash reports contain stack traces, exception messages, platform and release metadata. The SDK persists a bounded queue to disk and retries after failures/restarts. Previously collected reports may still be delivered after opting out; disabled startup does not initialize the SDK. Do not describe opt-out as deleting queued or already received reports. Session replay, screen/deep-link/lifecycle autocapture, and person profiles are disabled.
+
+Keep exception autocapture enabled in both PostHog projects. Preserve the proxy's retryable failures and remote-config route; acknowledging an upstream failure loses queued reports. Android releases embed a mapping ID and upload matching R8 mappings with the PostHog Gradle plugin. See [release credentials](../../docs/store-releases.md#google-play) and [native setup](README.md#crash-reporting) before changing SDK or symbol-upload configuration.
 
 Native sends `window.__ao3Tracker.setDiagnosticsEnabled(boolean)` after `browsingReady` and whenever consent changes. WebView collection starts disabled; preserve its controller across reinjection and keep the native consent check authoritative. Regression tests cover opt-out, restart persistence, environment changes, incognito, bridge filtering and repeated injection.
 
@@ -215,7 +219,7 @@ Named AO3 filter/search URLs the user pinned, synced across devices via the per-
 - Kotlinx Serialization (JSON)
 - Napier (logging)
 - Coil (image loading)
-- Sentry (error tracking)
+- PostHog KMP (error tracking)
 
 Dependency versions are pinned in `gradle/libs.versions.toml`. Keep AGP on 8.13.2 and Gradle on 8.14.5 while Android and shared KMP code use one module. Compose 1.11.1, Lifecycle 2.10.0, Coil 3.5.0, and Ktor 3.5.2 are compatible upgrades for this build: newer releases require Android API 37 or AGP 9.1, whose KMP migration needs a separate Android app module. Do not bypass their AAR compatibility checks. Firebase Messaging uses its supported main module; the discontinued `firebase-messaging-ktx` artifact must not be restored.
 

@@ -1,6 +1,8 @@
 package com.qcksys.ao3tracker
 
 import android.app.Application
+import com.posthog.kmp.PostHogContext
+import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import com.qcksys.ao3tracker.data.push.initializePushTokenStorage
 import com.qcksys.ao3tracker.data.settings.initializeSettingsStorage
 import com.qcksys.ao3tracker.push.Ao3FirebaseMessagingService
@@ -15,12 +17,7 @@ class Ao3TrackerApplication : Application() {
         initializeSettingsStorage(this)
         Ao3FirebaseMessagingService.createNotificationChannel(this)
 
-        // Initialize Sentry error tracking (before other init to catch early errors)
-        initializeSentry(
-            dsn = SentryConfig.dsn,
-            isDebug = SentryConfig.isDebug,
-            environment = if (BuildConfig.DEBUG || BuildConfig.API_ENVIRONMENT == "DEV") "development" else "production"
-        )
+        PostHogCrashReporter.initialize(PostHogContext(this))
 
         // Initialize Napier logging
         if (BuildConfig.DEBUG) {

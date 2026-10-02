@@ -80,12 +80,18 @@ export const PrivacyPage: FC = () => (
             automatically capture page content or clicks.
           </p>
           <p class="mt-4">
-            Sentry separately receives crash reports, which can include stack traces, exception
-            messages and device information. Diagnostic data is enabled by default. You can disable
-            both PostHog events and Sentry collection on this device under Settings → Privacy → Send
-            diagnostic data. The choice is saved across restarts. Incognito mode also pauses PostHog
-            events. Unsent PostHog events are kept only in memory and discarded when you opt out or
-            close the app; opting out does not delete reports already received by either provider.
+            Crash reports also go through AO3 Tracker's service to PostHog in the EU. They include
+            stack traces, exception messages, device information and app versions, using an
+            anonymous device identifier. A bounded local disk queue retains crash reports for retry
+            after network failures or app restarts.
+          </p>
+          <p class="mt-4">
+            Diagnostic data is enabled by default. Settings → Privacy → Send diagnostic data
+            controls new usage and crash collection on this device, and the choice is saved across
+            restarts. Incognito mode also pauses new collection. Usage events are kept only in
+            memory and discarded when you opt out or close the app. Crash reports collected before
+            opting out may still be delivered; opting out does not delete reports already received
+            by PostHog.
           </p>
         </section>
         <section>

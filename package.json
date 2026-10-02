@@ -13,6 +13,7 @@
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@changesets/get-release-plan": "catalog:",
+    "@posthog/cli": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "yaml": "catalog:"

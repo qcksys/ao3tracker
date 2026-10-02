@@ -92,7 +92,7 @@ import com.qcksys.ao3tracker.data.push.NotificationPreferences
 import com.qcksys.ao3tracker.data.push.NotificationType
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.util.shareText
-import io.sentry.kotlin.multiplatform.Sentry
+import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -346,7 +346,7 @@ fun SettingsScreen() {
                         )
                     }
                     Text(
-                        "Help improve AO3 Tracker with app and reader feature usage, error counts, and Sentry crash reports. " +
+                        "Help improve AO3 Tracker with app and reader feature usage, error counts, and PostHog crash reports. " +
                             "Usage events contain no reading content, work IDs, search terms, or account details. " +
                             "Turning this off stops new diagnostic collection on this device."
                     )
@@ -1098,7 +1098,7 @@ internal fun DeveloperSection(
                         try {
                             throw RuntimeException("Test error from AO3 Tracker dev menu")
                         } catch (e: Exception) {
-                            Sentry.captureException(e)
+                            PostHogCrashReporter.captureException(e)
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -1109,7 +1109,7 @@ internal fun DeveloperSection(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Send Test Error to Sentry")
+                    Text("Send Test Error to PostHog")
                 }
             }
         }

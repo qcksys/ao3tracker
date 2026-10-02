@@ -6,6 +6,25 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C25A4B650CFF4C44A6210AD1 /* KotlinMultiplatformLinkedPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 13D9312F207B4A2091DB3AAA /* KotlinMultiplatformLinkedPackage */; };
+/* End PBXBuildFile section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		F54EC89DAA054A04A621DCAB /* XCLocalSwiftPackageReference "KotlinMultiplatformLinkedPackage" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = KotlinMultiplatformLinkedPackage;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		13D9312F207B4A2091DB3AAA /* KotlinMultiplatformLinkedPackage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F54EC89DAA054A04A621DCAB /* XCLocalSwiftPackageReference "KotlinMultiplatformLinkedPackage" */;
+			productName = KotlinMultiplatformLinkedPackage;
+		};
+/* End XCSwiftPackageProductDependency section */
+
 /* Begin PBXFileReference section */
 		75C6252F1FDC0B74E1BEA45B /* Ao3tracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ao3tracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -41,6 +60,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C25A4B650CFF4C44A6210AD1 /* KotlinMultiplatformLinkedPackage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -85,6 +105,7 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				13D9312F207B4A2091DB3AAA /* KotlinMultiplatformLinkedPackage */,
 			);
 			productName = iosApp;
 			productReference = 75C6252F1FDC0B74E1BEA45B /* Ao3tracker.app */;
@@ -114,6 +135,9 @@
 			);
 			mainGroup = 1BDD5DD304EDC704CC06CAEA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F54EC89DAA054A04A621DCAB /* XCLocalSwiftPackageReference "KotlinMultiplatformLinkedPackage" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9AE0088621D92CAC2272057E /* Products */;
 			projectDirPath = "";
