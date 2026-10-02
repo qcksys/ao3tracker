@@ -107,6 +107,8 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 
 ## Conventions
 
+- **Saved-search layout**: names use the full row width, followed by up to five tag labels and a `+N more` count, with actions underneath. `savedSearchTags` from the shared core decodes tags from the stored URL, marks exclusions, deduplicates labels, and uses explicit type/ID labels when the URL lacks a tag name. Keep extraction aligned with native `SavedSearchTags.kt`; this display does not modify or fetch saved searches.
+
 - **Copy saved-search links**: Write the full stored URL with `navigator.clipboard.writeText` directly from the popup button click, preserving user activation. Confirm only after the write succeeds, and show a retryable error on failure. Copying leaves saved-search state unchanged.
 
 - **Browser API**: use `browser.*` (WXT's cross-browser shim) inside extension code, not `chrome.*` directly — keeps Firefox builds working.
