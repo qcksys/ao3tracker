@@ -57,6 +57,48 @@ import kotlinx.serialization.json.Json
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
     @Test
+    fun `opening a chapter from work details preserves a cleared previous chapter`() = runTest {
+        fixture { f ->
+            f.post(info())
+            advanceUntilIdle()
+            f.post(scroll(100))
+            advanceUntilIdle()
+            f.repository.markChapterAsUnread(11, 1)
+            val cleared = assertNotNull(f.db.chapterDao().getChapterById(11, 1))
+
+            f.model.navigateToReadingPosition(ReadNavigation(url(22), 0f))
+            f.post(info(22))
+            advanceUntilIdle()
+
+            assertEquals(cleared, f.db.chapterDao().getChapterById(11, 1))
+            f.post(info(33))
+            advanceUntilIdle()
+            assertNotNull(f.db.chapterDao().getChapterById(22, 1)?.markedCompleteAt)
+        }
+    }
+
+    @Test
+    fun `reopening a cleared chapter starts at zero and keeps its persisted unread state`() = runTest {
+        fixture { f ->
+            f.post(info())
+            f.post(scroll(100))
+            advanceUntilIdle()
+            f.repository.markChapterAsUnread(11, 1)
+
+            f.model.navigateToReadingPosition(ReadNavigation(url(), 0f))
+            assertTrue(f.model.currentUrl.value.startsWith("${url()}?scrollTo=0&"))
+            f.post(info())
+            f.post(scroll(0))
+            advanceUntilIdle()
+
+            val reopened = assertNotNull(Ao3Repository(f.accounts).getWorkByIdOnce(1)).chapterList.single()
+            assertEquals(0f, reopened.readProgress)
+            assertFalse(reopened.isComplete)
+            assertNull(f.db.workDao().getWorkById(1)?.markedCompleteAt)
+        }
+    }
+
+    @Test
     fun `work navigation uses latest stored completion and starts the next chapter without editing progress`() = runTest {
         fixture { f ->
             f.seedTrackedWork()
