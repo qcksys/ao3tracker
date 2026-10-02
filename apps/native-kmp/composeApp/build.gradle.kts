@@ -1,5 +1,6 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import groovy.json.JsonSlurper
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -50,6 +51,25 @@ val generateAppBuildInfo by tasks.registering {
 val workspaceRoot = rootProject.file("../..")
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val vpCommand = if (isWindows) listOf("cmd", "/c", "vp") else listOf("vp")
+
+
+val generateAo3Languages by tasks.registering {
+    val sourceFile = workspaceRoot.resolve("packages/ao3-core/src/languages.json")
+    val outputFile = generatedKotlinDir.get().file("Ao3Languages.kt").asFile
+    inputs.file(sourceFile)
+    outputs.file(outputFile)
+    doLast {
+        val languages = JsonSlurper().parse(sourceFile) as List<*>
+        fun literal(value: Any?): String = groovy.json.JsonOutput.toJson(value)
+            .replace("$", "\\$")
+        val entries = languages.joinToString(",\n") { entry ->
+            val language = entry as Map<*, *>
+            "        ${literal(language["code"])} to ${literal(language["label"])}"
+        }
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText("package com.qcksys.ao3tracker.data.settings\n\ninternal object Ao3Languages {\n    val options = listOf(\n$entries\n    )\n}\n")
+    }
+}
 
 // Install at the workspace root to resolve the shared package links.
 val vpInstall by tasks.registering(Exec::class) {
@@ -141,6 +161,7 @@ tasks.matching {
 }.configureEach {
     dependsOn(generateWebviewScriptKotlin)
     dependsOn(generateAppBuildInfo)
+    dependsOn(generateAo3Languages)
 }
 
 kotlin {

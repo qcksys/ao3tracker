@@ -22,7 +22,12 @@ vi.mock("~popup/lib/state", () => ({
     state: {
       apiBaseUrl: "https://ao3tracker.com",
       notificationPreferences: mocks.preferences,
-      browsingPreferences: { hiddenTags: ["Angst"], hiddenWorkIds: [123] },
+      browsingPreferences: {
+        hiddenTags: ["Angst"],
+        hiddenWorkIds: [123],
+        languageFilterEnabled: false,
+        searchLanguage: "en",
+      },
     },
     dispatch: mocks.dispatch,
   }),
@@ -77,6 +82,38 @@ afterEach(async () => {
 });
 
 describe("settings sections", () => {
+  it("chooses and enables a language and retains the draft after a failed save", async () => {
+    await act(async () => button("Search preferences").click());
+    const select = container.querySelector<HTMLSelectElement>("#search-language")!;
+    expect(select.value).toBe("en");
+    expect(select.options.length).toBeGreaterThan(100);
+    expect(button("Filter searches by language").getAttribute("aria-checked")).toBe("false");
+    await act(async () => {
+      select.value = "fr";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => button("Filter searches by language").click());
+    await act(async () => button("Search preferences").click());
+    await act(async () => button("Search preferences").click());
+    expect(select.value).toBe("fr");
+    mocks.dispatch.mockResolvedValueOnce({ ok: false, error: "Save failed" });
+    await act(async () => button("Save language filter").click());
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      kind: "setSearchLanguage",
+      searchLanguage: "fr",
+      languageFilterEnabled: true,
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Save failed");
+    expect(select.value).toBe("fr");
+    await act(async () => button("Filter searches by language").click());
+    await act(async () => button("Save language filter").click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({
+      kind: "setSearchLanguage",
+      searchLanguage: "fr",
+      languageFilterEnabled: false,
+    });
+  });
+
   it("keeps account actions visible and expands sections independently", async () => {
     expect(button("Sign out").closest("[hidden]")).toBeNull();
     expect(button("Notifications").getAttribute("aria-expanded")).toBe("false");

@@ -1,8 +1,16 @@
 import { z } from "zod";
+import languages from "../languages.json";
+
+const languageCodes = new Set(languages.map(({ code }) => code));
 
 export const browsingPreferencesSchema = z.object({
   hiddenWorkIds: z.array(z.number().int().positive()),
   hiddenTags: z.array(z.string().trim().min(1)),
+  languageFilterEnabled: z.boolean().default(false),
+  searchLanguage: z
+    .string()
+    .refine((code) => languageCodes.has(code), "Unknown AO3 language")
+    .default("en"),
 });
 export type BrowsingPreferences = z.infer<typeof browsingPreferencesSchema>;
 

@@ -11,8 +11,10 @@ import {
   publishScrollPercentage,
   applyHiddenWorks,
   installDefaultSearchTags,
+  installSearchLanguage,
   updateSavedSearchButton,
   withDefaultHiddenTags,
+  withSearchLanguage,
 } from "@qcksys/ao3tracker-core/dom";
 import { applyListBadges } from "@qcksys/ao3tracker-core/badges";
 import type { BrowsingState, WebViewMessage } from "@qcksys/ao3tracker-core/schemas";
@@ -29,10 +31,20 @@ export default defineContentScript({
     const send = async (msg: ContentToBackground) =>
       backgroundToContentResponseSchema.parse(await browser.runtime.sendMessage(msg));
 
-    let browsingState: BrowsingState = { hiddenTags: [], hiddenWorkIds: [], savedSearchUrls: [] };
+    let browsingState: BrowsingState = {
+      hiddenTags: [],
+      hiddenWorkIds: [],
+      savedSearchUrls: [],
+      languageFilterEnabled: false,
+      searchLanguage: "en",
+    };
     const applyBrowsingState = (state: BrowsingState): void => {
       browsingState = state;
-      const filteredUrl = withDefaultHiddenTags(window.location.href, state.hiddenTags);
+      const language = state.languageFilterEnabled ? state.searchLanguage : null;
+      const filteredUrl = withSearchLanguage(
+        withDefaultHiddenTags(window.location.href, state.hiddenTags),
+        language,
+      );
       if (filteredUrl !== window.location.href) {
         window.location.replace(filteredUrl);
         return;
@@ -42,6 +54,7 @@ export default defineContentScript({
         window.location.href,
         state.savedSearchUrls,
         state.hiddenTags,
+        language,
       );
       applyHiddenWorks(document, state.hiddenWorkIds, (workId, hidden) => {
         void send({ kind: "setWorkHidden", workId, hidden })
@@ -58,6 +71,11 @@ export default defineContentScript({
     };
     ctx.onInvalidated(
       installDefaultSearchTags(document, window.location, () => browsingState.hiddenTags),
+    );
+    ctx.onInvalidated(
+      installSearchLanguage(document, window.location, () =>
+        browsingState.languageFilterEnabled ? browsingState.searchLanguage : null,
+      ),
     );
 
     const postPageEvent = (payload: WebViewMessage): void => {

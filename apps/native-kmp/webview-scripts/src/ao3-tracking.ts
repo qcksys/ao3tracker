@@ -22,10 +22,12 @@ import {
   getWorkTagInfo,
   injectSaveSearchButton,
   installDefaultSearchTags,
+  installSearchLanguage,
   publishScrollPercentage,
   suggestSavedSearchName,
   updateSavedSearchButton,
   withDefaultHiddenTags,
+  withSearchLanguage,
 } from "@qcksys/ao3tracker-core/dom";
 import type {
   BrowsingReadyMessage,
@@ -73,11 +75,21 @@ function updateScrollAndPost(): void {
   if (message) postMessage(JSON.stringify(message));
 }
 
-let browsingState: BrowsingState = { hiddenWorkIds: [], hiddenTags: [], savedSearchUrls: [] };
+let browsingState: BrowsingState = {
+  hiddenWorkIds: [],
+  hiddenTags: [],
+  savedSearchUrls: [],
+  languageFilterEnabled: false,
+  searchLanguage: "en",
+};
 
 export function applyBrowsingState(payloadJson: string): void {
   browsingState = JSON.parse(payloadJson) as BrowsingState;
-  const filteredUrl = withDefaultHiddenTags(window.location.href, browsingState.hiddenTags);
+  const language = browsingState.languageFilterEnabled ? browsingState.searchLanguage : null;
+  const filteredUrl = withSearchLanguage(
+    withDefaultHiddenTags(window.location.href, browsingState.hiddenTags),
+    language,
+  );
   if (filteredUrl !== window.location.href) {
     window.location.replace(filteredUrl);
     return;
@@ -87,6 +99,7 @@ export function applyBrowsingState(payloadJson: string): void {
     window.location.href,
     browsingState.savedSearchUrls,
     browsingState.hiddenTags,
+    language,
   );
   applyHiddenWorks(document, browsingState.hiddenWorkIds, (workId, hidden) => {
     postMessage(
@@ -166,6 +179,9 @@ function init(): void {
   });
 
   installDefaultSearchTags(document, window.location, () => browsingState.hiddenTags);
+  installSearchLanguage(document, window.location, () =>
+    browsingState.languageFilterEnabled ? browsingState.searchLanguage : null,
+  );
   postMessage(
     JSON.stringify({
       type: "browsingReady",

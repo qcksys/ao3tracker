@@ -1,5 +1,9 @@
 import { normalizeHiddenTags } from "@qcksys/ao3tracker-core/dom";
-import type { BrowsingState } from "@qcksys/ao3tracker-core/schemas";
+import {
+  browsingPreferencesSchema,
+  type BrowsingPreferences,
+  type BrowsingState,
+} from "@qcksys/ao3tracker-core/schemas";
 import { browsingPreferencesItem, savedSearchesItem } from "./storage";
 
 export async function getBrowsingState(): Promise<BrowsingState> {
@@ -8,7 +12,7 @@ export async function getBrowsingState(): Promise<BrowsingState> {
     savedSearchesItem.getValue(),
   ]);
   return {
-    ...preferences,
+    ...browsingPreferencesSchema.parse(preferences),
     savedSearchUrls: searches.filter((search) => !search.deleted).map((search) => search.url),
   };
 }
@@ -24,4 +28,13 @@ export async function setWorkHidden(workId: number, hidden: boolean): Promise<vo
 export async function setHiddenTags(tags: string[]): Promise<void> {
   const preferences = await browsingPreferencesItem.getValue();
   await browsingPreferencesItem.setValue({ ...preferences, hiddenTags: normalizeHiddenTags(tags) });
+}
+
+export async function setSearchLanguage(
+  settings: Pick<BrowsingPreferences, "languageFilterEnabled" | "searchLanguage">,
+): Promise<void> {
+  const preferences = await browsingPreferencesItem.getValue();
+  await browsingPreferencesItem.setValue(
+    browsingPreferencesSchema.parse({ ...preferences, ...settings }),
+  );
 }

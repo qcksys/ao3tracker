@@ -145,3 +145,33 @@ it("does not repeat list badges or save-search injection", async () => {
   expect(document.body.innerHTML).toBe(html);
   expect(scrollListeners).toHaveLength(0);
 });
+
+it("applies native language preferences to links and search forms and handles disabling", async () => {
+  const href = vi
+    .spyOn(window.location, "href", "get")
+    .mockReturnValue("https://archiveofourown.org/works/search");
+  document.body.innerHTML =
+    '<form action="/works/search"><input name="work_search[query]" value="hello"></form>';
+  const replace = vi.spyOn(window.location, "replace").mockImplementation(() => {});
+  const { applyBrowsingState } = await import("~/ao3-tracking");
+  const preferences = {
+    hiddenTags: [],
+    hiddenWorkIds: [],
+    savedSearchUrls: [],
+    languageFilterEnabled: true,
+    searchLanguage: "en",
+  };
+  applyBrowsingState(JSON.stringify(preferences));
+  expect(replace).not.toHaveBeenCalled();
+  const form = required(document.querySelector("form"));
+  form.dispatchEvent(new Event("submit", { bubbles: true }));
+  expect(new FormData(form).getAll("work_search[language_id]")).toEqual(["en"]);
+  applyBrowsingState(JSON.stringify({ ...preferences, languageFilterEnabled: false }));
+  form.dispatchEvent(new Event("submit", { bubbles: true }));
+  expect(new FormData(form).has("work_search[language_id]")).toBe(false);
+  href.mockReturnValue("https://archiveofourown.org/tags/Fluff/works?page=2");
+  applyBrowsingState(JSON.stringify(preferences));
+  expect(
+    new URL(required(replace.mock.calls.at(-1))[0]).searchParams.get("work_search[language_id]"),
+  ).toBe("en");
+});

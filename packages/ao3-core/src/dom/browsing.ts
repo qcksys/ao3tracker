@@ -39,10 +39,26 @@ export function withDefaultHiddenTags(href: string, hiddenTags: string[]): strin
   return url.href;
 }
 
-export function savedSearchKey(href: string, hiddenTags: string[] = []): string | null {
+export function withSearchLanguage(href: string, language: string | null = null): string {
+  if (!language) return href;
+  const url = new URL(href);
+  const namespace = searchNamespace(url);
+  if (!namespace || (url.pathname.endsWith("/search") && !url.search)) return href;
+  const key = `${namespace}[language_id]`;
+  const existing = url.searchParams.getAll(key);
+  if (existing.length === 1 && existing[0] === language) return href;
+  url.searchParams.set(key, language);
+  return url.href;
+}
+
+export function savedSearchKey(
+  href: string,
+  hiddenTags: string[] = [],
+  language: string | null = null,
+): string | null {
   let url: URL;
   try {
-    url = new URL(withDefaultHiddenTags(href, hiddenTags));
+    url = new URL(withSearchLanguage(withDefaultHiddenTags(href, hiddenTags), language));
   } catch {
     return null;
   }
@@ -71,11 +87,13 @@ export function updateSavedSearchButton(
   href: string,
   savedUrls: string[],
   hiddenTags: string[] = [],
+  language: string | null = null,
 ): void {
   const button = doc.querySelector<HTMLButtonElement>(".ao3-tracker-save-search");
   if (!button) return;
-  const key = savedSearchKey(href, hiddenTags);
-  const saved = key !== null && savedUrls.some((url) => savedSearchKey(url, hiddenTags) === key);
+  const key = savedSearchKey(href, hiddenTags, language);
+  const saved =
+    key !== null && savedUrls.some((url) => savedSearchKey(url, hiddenTags, language) === key);
   button.textContent = saved ? SAVED_SEARCH_LABEL : SAVE_SEARCH_LABEL;
   button.disabled = saved;
 }
@@ -105,6 +123,51 @@ export function installDefaultSearchTags(
   };
   doc.addEventListener("submit", onSubmit, true);
   return () => doc.removeEventListener("submit", onSubmit, true);
+}
+
+export function installSearchLanguage(
+  doc: Document,
+  location: Location,
+  getLanguage: () => string | null,
+): () => void {
+  const restorations = new Map<HTMLFormElement, () => void>();
+  const onSubmit = (event: Event): void => {
+    const form = event.target as HTMLFormElement;
+    if (form.tagName !== "FORM" || form.method.toLowerCase() !== "get") return;
+    restorations.get(form)?.();
+    restorations.delete(form);
+    const namespace = searchNamespace(
+      new URL(form.getAttribute("action") || location.href, location.href),
+    );
+    const language = getLanguage();
+    if (!namespace || !language) return;
+    const name = `${namespace}[language_id]`;
+    const fields = Array.from(
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        `input[name="${name}"], select[name="${name}"]`,
+      ),
+    );
+    // Submit exactly one language even when the page already has a language selector.
+    fields.forEach((field) => {
+      field.removeAttribute("name");
+    });
+    const input = doc.createElement("input");
+    input.type = "hidden";
+    input.name = name;
+    input.value = language;
+    form.appendChild(input);
+    restorations.set(form, () => {
+      input.remove();
+      fields.forEach((field) => {
+        field.name = name;
+      });
+    });
+  };
+  doc.addEventListener("submit", onSubmit, true);
+  return () => {
+    doc.removeEventListener("submit", onSubmit, true);
+    restorations.forEach((restore) => restore());
+  };
 }
 
 export function applyHiddenWorks(
