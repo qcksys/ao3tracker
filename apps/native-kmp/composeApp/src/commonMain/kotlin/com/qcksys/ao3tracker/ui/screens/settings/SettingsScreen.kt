@@ -84,6 +84,7 @@ import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import com.qcksys.ao3tracker.data.settings.defaultApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
+import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.push.NotificationItem
@@ -121,6 +122,7 @@ fun SettingsScreen() {
     val exportState by screenModel.exportState.collectAsState()
     val authState by authRepository.authState.collectAsState()
     val syncState by syncRepository.syncState.collectAsState()
+    var showSyncDebug by remember { mutableStateOf(false) }
     val devModeEnabled by appSettings.devModeEnabled.collectAsState()
     val apiEnvironment by appSettings.apiEnvironment.collectAsState()
     val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
@@ -133,6 +135,10 @@ fun SettingsScreen() {
     var isSyncingOut by remember { mutableStateOf(false) }
     var importOwner by remember(activeAccount?.owner) { mutableStateOf<String?>(null) }
     var isImportingGuest by remember { mutableStateOf(false) }
+
+    if (showSyncDebug) {
+        SyncDebugDialog(syncState = syncState, onDismiss = { showSyncDebug = false })
+    }
 
     importOwner?.let { owner ->
         AlertDialog(
@@ -430,9 +436,11 @@ fun SettingsScreen() {
                     }
 
                     Button(
-                        onClick = { syncRepository.forceFullSync() },
+                        onClick = {
+                            if (syncState.isSyncing) showSyncDebug = true else syncRepository.forceFullSync()
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = authState is AuthState.Authenticated && !syncState.isSyncing
+                        enabled = authState is AuthState.Authenticated
                     ) {
                         if (syncState.isSyncing) {
                             CircularProgressIndicator(
