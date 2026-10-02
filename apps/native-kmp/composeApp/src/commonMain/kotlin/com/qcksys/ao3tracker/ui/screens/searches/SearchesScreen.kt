@@ -1,10 +1,13 @@
 package com.qcksys.ao3tracker.ui.screens.searches
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +30,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -47,6 +51,7 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.database.SearchCheckEntity
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
@@ -179,87 +184,115 @@ internal fun SearchesScreenContent(
                         )
                     }
                     items(searches, key = { it.id }) { search ->
-                        Row(
+                        val tags = remember(search.url) { savedSearchTags(search.url) }
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { onOpen(search.url) }
                                 .padding(horizontal = 8.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = search.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = search.url,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                val check = checks[search.id]?.takeIf { it.url == search.url }
-                                Text(
-                                    text = when {
-                                        runningCheck?.request?.search?.id == search.id -> "${if (runningCheck.fullScan) "Full scan" else "Checking"} · ${runningCheck.pages} pages read"
-                                        check == null -> "Not checked on this device"
-                                        check.previousCheckedAt == null -> "Baseline saved on this device"
-                                        else -> "${check.newWorks} newly found · ${check.updatedWorks} updated works"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                check?.let {
-                                    val checked = Instant.fromEpochMilliseconds(it.checkedAt)
-                                        .toLocalDateTime(TimeZone.currentSystemDefault()).toString().replace('T', ' ').take(16)
-                                    Text("Checked $checked", style = MaterialTheme.typography.bodySmall)
-                                    if (it.partial) Text("Partial results · Refresh to continue from the next page.", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                text = search.name,
+                                modifier = Modifier.fillMaxWidth(),
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            if (tags.isNotEmpty()) {
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    tags.take(5).forEach { tag ->
+                                        Surface(
+                                            shape = MaterialTheme.shapes.extraSmall,
+                                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                        ) {
+                                            Text(
+                                                tag,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = 10.sp,
+                                                lineHeight = 14.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    if (tags.size > 5) {
+                                        Text(
+                                            "+${tags.size - 5} more",
+                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontSize = 10.sp,
+                                            lineHeight = 14.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
+                            }
+                            val check = checks[search.id]?.takeIf { it.url == search.url }
+                            Text(
+                                text = when {
+                                    runningCheck?.request?.search?.id == search.id -> "${if (runningCheck.fullScan) "Full scan" else "Checking"} · ${runningCheck.pages} pages read"
+                                    check == null -> "Not checked on this device"
+                                    check.previousCheckedAt == null -> "Baseline saved on this device"
+                                    else -> "${check.newWorks} newly found · ${check.updatedWorks} updated works"
+                                },
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            check?.let {
+                                val checked = Instant.fromEpochMilliseconds(it.checkedAt)
+                                    .toLocalDateTime(TimeZone.currentSystemDefault()).toString().replace('T', ' ').take(16)
+                                Text("Checked $checked", style = MaterialTheme.typography.bodySmall)
+                                if (it.partial) Text("Partial results · Refresh to continue from the next page.", style = MaterialTheme.typography.bodySmall)
+                            }
+                            errors[search.id]?.let { error ->
+                                Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(onClick = { scanning = search }, enabled = !isChecking) {
                                     Text("Full scan")
                                 }
-                                errors[search.id]?.let { error ->
-                                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                            IconButton(onClick = { onCheck(search.id) }, enabled = !isChecking) {
-                                if (runningCheck?.request?.search?.id == search.id) {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                                } else {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Check ${search.name}")
-                                }
-                            }
-                            IconButton(onClick = {
-                                scope.launch {
-                                    val message = try {
-                                        clipboard.setClipEntry(plainTextClipEntry(search.url))
-                                        "Link copied"
-                                    } catch (e: CancellationException) {
-                                        throw e
-                                    } catch (_: Exception) {
-                                        "Couldn't copy link. Try again."
+                                Spacer(modifier = Modifier.weight(1f))
+                                IconButton(onClick = { onCheck(search.id) }, enabled = !isChecking) {
+                                    if (runningCheck?.request?.search?.id == search.id) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Icon(Icons.Default.Refresh, contentDescription = "Check ${search.name}")
                                     }
-                                    snackbarHostState.currentSnackbarData?.dismiss()
-                                    snackbarHostState.showSnackbar(message)
                                 }
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy link for ${search.name}"
-                                )
-                            }
-                            IconButton(onClick = { renaming = search }) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Rename ${search.name}"
-                                )
-                            }
-                            IconButton(onClick = { onDelete(search.id) }) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Delete ${search.name}"
-                                )
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        val message = try {
+                                            clipboard.setClipEntry(plainTextClipEntry(search.url))
+                                            "Link copied"
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (_: Exception) {
+                                            "Couldn't copy link. Try again."
+                                        }
+                                        snackbarHostState.currentSnackbarData?.dismiss()
+                                        snackbarHostState.showSnackbar(message)
+                                    }
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy link for ${search.name}"
+                                    )
+                                }
+                                IconButton(onClick = { renaming = search }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Rename ${search.name}"
+                                    )
+                                }
+                                IconButton(onClick = { onDelete(search.id) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete ${search.name}"
+                                    )
+                                }
                             }
                         }
                     }

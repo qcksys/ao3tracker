@@ -114,3 +114,43 @@ describe("saved search copy link", () => {
     expect(mocks.dispatch).not.toHaveBeenCalled();
   });
 });
+
+describe("saved search tag previews", () => {
+  it.each([0, 4, 5, 7])(
+    "shows up to five of %i tags with only the remaining count",
+    async (count) => {
+      const search = mocks.searches[0]!;
+      const originalUrl = search.url;
+      const tags = [
+        "Fluff",
+        "Café",
+        "Slow Burn",
+        "Friendship",
+        "Happy Ending",
+        "Angst",
+        "Humour",
+      ].slice(0, count);
+      try {
+        search.url = `https://archiveofourown.org/works?${new URLSearchParams({ "work_search[other_tag_names]": tags.join(", ") })}`;
+        await act(async () => root.render(<Searches />));
+        const list = container.querySelector('[aria-label="Tags in Favourite stories"]');
+        if (count === 0) {
+          expect(list).toBeNull();
+        } else {
+          const expected = tags.slice(0, 5);
+          if (count > 5) expected.push(`+${count - 5} more`);
+          expect([...list!.querySelectorAll("li")].map((item) => item.textContent)).toEqual(
+            expected,
+          );
+        }
+        const open = [...container.querySelectorAll("button")].find(
+          (button) => button.textContent === search.name,
+        )!;
+        await act(async () => open.click());
+        expect(mocks.openTab).toHaveBeenCalledWith({ url: search.url });
+      } finally {
+        search.url = originalUrl;
+      }
+    },
+  );
+});
