@@ -134,10 +134,11 @@ test("CLI writes full artifacts, bounded Play notes and the Actions summary with
   await writeFile(changesetPath, changeset);
   const output = join(directory, "output");
   const summaryPath = join(directory, "summary.md");
+  const env = { ...process.env, GITHUB_STEP_SUMMARY: summaryPath };
   const result = spawnSync(
     process.execPath,
     [fileURLToPath(new URL("release-notes.mjs", import.meta.url)), packageDirectory, output],
-    { cwd: directory, encoding: "utf8", env: { ...process.env, GITHUB_STEP_SUMMARY: summaryPath } },
+    { cwd: directory, encoding: "utf8", env },
   );
   assert.equal(result.status, 0, result.stderr);
   const markdown = await readFile(join(output, "release-notes.md"), "utf8");
@@ -179,10 +180,11 @@ test("CLI writes full artifacts, bounded Play notes and the Actions summary with
   const versioned = spawnSync(
     process.execPath,
     [fileURLToPath(new URL("release-notes.mjs", import.meta.url)), packageDirectory, output],
-    { cwd: directory, encoding: "utf8" },
+    { cwd: directory, encoding: "utf8", env },
   );
   assert.equal(versioned.status, 0, versioned.stderr);
   assert.ok(versioned.stdout.includes(summary.trim()));
   assert.match(versioned.stdout, /0\.2\.1/);
   assert.doesNotMatch(versioned.stdout, /Pending changes|Future changes|Old changes/);
+  assert.equal(await readFile(summaryPath, "utf8"), `${markdown}\n${versioned.stdout}\n`);
 });
