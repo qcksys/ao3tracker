@@ -39,7 +39,7 @@ const ao3Client = ky.create({
   retry: {
     limit: 3,
     methods: ["get"],
-    statusCodes: [429, 500, 502, 503, 504],
+    statusCodes: [429, 500, 502, 503, 504, 525],
     backoffLimit: 30000,
     delay: (attemptCount) => 5000 * 2 ** (attemptCount - 1), // 5s, 10s, 20s
   },
@@ -82,8 +82,7 @@ export async function fetchWorkHtml(workId: number): Promise<string> {
   } catch (error) {
     const requestTimeMs = Math.round(performance.now() - startTime);
     if (error instanceof HTTPError && error.response.status === 404) {
-      // Cancel the response body to prevent deadlock in Workers
-      await error.response.body?.cancel();
+      if (!error.response.bodyUsed) await error.response.body?.cancel();
       console.log({
         message: "Work not found (404)",
         workId,
@@ -129,8 +128,7 @@ export async function fetchChapterIndexHtml(workId: number): Promise<string> {
   } catch (error) {
     const requestTimeMs = Math.round(performance.now() - startTime);
     if (error instanceof HTTPError && error.response.status === 404) {
-      // Cancel the response body to prevent deadlock in Workers
-      await error.response.body?.cancel();
+      if (!error.response.bodyUsed) await error.response.body?.cancel();
       console.log({
         message: "Work not found (404)",
         workId,
@@ -177,8 +175,7 @@ export async function fetchChapterHtml(workId: number, chapterId: number): Promi
   } catch (error) {
     const requestTimeMs = Math.round(performance.now() - startTime);
     if (error instanceof HTTPError && error.response.status === 404) {
-      // Cancel the response body to prevent deadlock in Workers
-      await error.response.body?.cancel();
+      if (!error.response.bodyUsed) await error.response.body?.cancel();
       console.log({
         message: "Work not found (404)",
         workId,
