@@ -1,5 +1,27 @@
 import type { ScrollProgressMessage } from "../schemas/messages";
-import { computeChapterScrollPercentage, extractChapterId } from "./extract";
+import { computeChapterScrollPercentage, extractChapterId, findNextChapterButton } from "./extract";
+
+export function observeChapterProgress(
+  doc: Document,
+  win: Window & typeof globalThis,
+  onProgress: (message: ScrollProgressMessage) => void,
+): () => void {
+  const report = (): void => {
+    const message = publishScrollPercentage(doc, win);
+    if (message) onProgress(message);
+  };
+  win.addEventListener("scroll", report, { passive: true });
+  win.addEventListener("resize", report);
+  const next = findNextChapterButton(doc);
+  const observer = next ? new win.IntersectionObserver(report) : null;
+  if (next) observer?.observe(next);
+  report();
+  return () => {
+    win.removeEventListener("scroll", report);
+    win.removeEventListener("resize", report);
+    observer?.disconnect();
+  };
+}
 
 /**
  * Returns the next scroll message to emit when the user scrolls, or null if
@@ -33,7 +55,7 @@ export function publishScrollPercentage(doc: Document, win: Window): ScrollProgr
  * Read the `scrollTo` query param, scroll to that percentage inside #chapters,
  * and clear the param. Returns true if the param was present, false otherwise.
  */
-export function consumeScrollToParam(doc: Document, win: Window): boolean {
+export function consumeScrollToParam(doc: Document, win: Window, onRestored?: () => void): boolean {
   const url = new URL(win.location.href);
   const scrollToParam = url.searchParams.get("scrollTo");
   if (!scrollToParam) return false;
@@ -47,12 +69,14 @@ export function consumeScrollToParam(doc: Document, win: Window): boolean {
 
   const performScroll = (): void => {
     const chaptersElement = doc.getElementById("chapters");
-    if (!chaptersElement) return;
-    const height = chaptersElement.getBoundingClientRect().height;
-    const viewportHeight = win.innerHeight ?? 0;
-    const targetBottom = chaptersElement.offsetTop + (height * scrollPercent) / 100;
-    const target = Math.max(0, targetBottom - viewportHeight);
-    win.scrollTo(0, target);
+    if (chaptersElement) {
+      const height = chaptersElement.getBoundingClientRect().height;
+      const viewportHeight = win.innerHeight ?? 0;
+      const targetBottom = chaptersElement.offsetTop + (height * scrollPercent) / 100;
+      const target = Math.max(0, targetBottom - viewportHeight);
+      win.scrollTo(0, target);
+    }
+    onRestored?.();
   };
 
   if (doc.readyState === "complete") {

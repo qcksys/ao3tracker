@@ -1,5 +1,7 @@
 package com.qcksys.ao3tracker.ui.screens.settings
 
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,10 +70,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -84,14 +92,15 @@ import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import com.qcksys.ao3tracker.data.settings.defaultApiEnvironment
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
+import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
-import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
 import com.qcksys.ao3tracker.data.push.NotificationType
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.util.shareText
-import io.sentry.kotlin.multiplatform.Sentry
+import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -109,18 +118,20 @@ import ao3tracker.composeapp.generated.resources.app_logo_beta
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    val navigator = LocalNavigator.currentOrThrow
     val accountData = koinInject<AccountDataStore>()
     val activeAccount by accountData.active.collectAsState()
     val repository = koinInject<Ao3Repository>()
     val authRepository = koinInject<AuthRepository>()
     val pushRepository = koinInject<com.qcksys.ao3tracker.data.push.PushRepository>()
-    val syncRepository = koinInject<SyncRepository>()
+    val syncCoordinator = koinInject<SyncCoordinator>()
     val appSettings = koinInject<AppSettings>()
     val screenModel = remember { SettingsScreenModel(repository) }
     val workCount by screenModel.workCount.collectAsState()
     val exportState by screenModel.exportState.collectAsState()
     val authState by authRepository.authState.collectAsState()
-    val syncState by syncRepository.syncState.collectAsState()
+    val syncState by syncCoordinator.syncState.collectAsState()
+    var showSyncDebug by remember { mutableStateOf(false) }
     val devModeEnabled by appSettings.devModeEnabled.collectAsState()
     val apiEnvironment by appSettings.apiEnvironment.collectAsState()
     val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
@@ -128,11 +139,15 @@ fun SettingsScreen() {
     val diagnosticDataEnabled by appSettings.diagnosticDataEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val lastSyncResult by syncRepository.lastSyncResult.collectAsState()
+    val lastSyncResult by syncCoordinator.lastSyncResult.collectAsState()
     var showDeleteConfirmDialog by remember(activeAccount?.owner) { mutableStateOf(false) }
-    var isSyncingOut by remember { mutableStateOf(false) }
+    val isSyncingOut by syncCoordinator.isSigningOut.collectAsState()
     var importOwner by remember(activeAccount?.owner) { mutableStateOf<String?>(null) }
     var isImportingGuest by remember { mutableStateOf(false) }
+
+    if (showSyncDebug) {
+        SyncDebugDialog(syncState = syncState, onDismiss = { showSyncDebug = false })
+    }
 
     importOwner?.let { owner ->
         AlertDialog(
@@ -169,14 +184,15 @@ fun SettingsScreen() {
 
     // Show sync result
     LaunchedEffect(lastSyncResult) {
-        lastSyncResult?.let { result ->
-            val message = when (result) {
+        lastSyncResult?.let { completion ->
+            val result = completion.result
+            val message = if (completion.signedOut) "Signed out and cleared local data" else when (result) {
                 is SyncResult.Success -> "Sync complete: ${result.worksFromServer} works, ${result.chaptersFromServer} chapters from server; ${result.worksToServer} works, ${result.chaptersToServer} chapters to server"
                 is SyncResult.Error -> "Sync failed: ${result.message}"
                 is SyncResult.NotAuthenticated -> "Please sign in to sync"
             }
             snackbarHostState.showSnackbar(message)
-            syncRepository.clearLastSyncResult()
+            syncCoordinator.clearLastSyncResult(completion)
         }
     }
 
@@ -258,30 +274,7 @@ fun SettingsScreen() {
                         authRepository.signOut()
                     }
                 },
-                onSignOutSyncAndClear = {
-                    scope.launch {
-                        isSyncingOut = true
-                        try {
-                            // 1. Full sync to server
-                            snackbarHostState.showSnackbar("Syncing data to server...")
-                            val result = syncRepository.sync(forceFull = true, clearOnSuccess = true)
-                            if (result !is SyncResult.Success) {
-                                snackbarHostState.showSnackbar(
-                                    (result as? SyncResult.Error)?.message ?: "Sign in before syncing and clearing data"
-                                )
-                                return@launch
-                            }
-                            // 3. Unregister push token and sign out
-                            pushRepository.unregisterToken()
-                            authRepository.signOut()
-                            snackbarHostState.showSnackbar("Signed out and cleared local data")
-                        } catch (e: Exception) {
-                            snackbarHostState.showSnackbar("Error: ${e.message}")
-                        } finally {
-                            isSyncingOut = false
-                        }
-                    }
-                },
+                onSignOutSyncAndClear = { syncCoordinator.requestSignOut() },
                 isSyncingOut = isSyncingOut || isImportingGuest,
                 onSignInWithSavedCredentials = {
                     scope.launch {
@@ -345,7 +338,7 @@ fun SettingsScreen() {
                 }
             }
 
-            BrowsingSettings(appSettings)
+            BrowsingSettings(appSettings, onOpenHiddenWorks = { navigator.push(HiddenWorksScreen()) })
 
             SettingsSection(
                 title = "Privacy",
@@ -362,7 +355,7 @@ fun SettingsScreen() {
                         )
                     }
                     Text(
-                        "Help improve AO3 Tracker with app and reader feature usage, error counts, and Sentry crash reports. " +
+                        "Help improve AO3 Tracker with app and reader feature usage, error counts, and PostHog crash reports. " +
                             "Usage events contain no reading content, work IDs, search terms, or account details. " +
                             "Turning this off stops new diagnostic collection on this device."
                     )
@@ -430,9 +423,11 @@ fun SettingsScreen() {
                     }
 
                     Button(
-                        onClick = { syncRepository.forceFullSync() },
+                        onClick = {
+                            if (syncState.isSyncing) showSyncDebug = true else syncCoordinator.requestSync(forceFull = true)
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = authState is AuthState.Authenticated && !syncState.isSyncing
+                        enabled = authState is AuthState.Authenticated
                     ) {
                         if (syncState.isSyncing) {
                             CircularProgressIndicator(
@@ -652,7 +647,19 @@ fun SettingsScreen() {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Contact: hello@ao3tracker.com",
+                        text = buildAnnotatedString {
+                            append("Contact: ")
+                            withLink(
+                                LinkAnnotation.Url(
+                                    url = "mailto:hello@ao3tracker.com",
+                                    styles = TextLinkStyles(
+                                        style = SpanStyle(textDecoration = TextDecoration.Underline)
+                                    )
+                                )
+                            ) {
+                                append("hello@ao3tracker.com")
+                            }
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -1112,7 +1119,7 @@ internal fun DeveloperSection(
                         try {
                             throw RuntimeException("Test error from AO3 Tracker dev menu")
                         } catch (e: Exception) {
-                            Sentry.captureException(e)
+                            PostHogCrashReporter.captureException(e)
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -1123,7 +1130,7 @@ internal fun DeveloperSection(
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.size(8.dp))
-                    Text("Send Test Error to Sentry")
+                    Text("Send Test Error to PostHog")
                 }
             }
         }
@@ -1515,7 +1522,7 @@ internal fun NotificationItemCard(notification: NotificationItem, onDismiss: () 
     Card(
         onClick = {
             onDismiss()
-            NavigationState.navigateToRead("https://archiveofourown.org/works/${notification.workId}")
+            NavigationState.navigateToWork(notification.workId.toLong())
         },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

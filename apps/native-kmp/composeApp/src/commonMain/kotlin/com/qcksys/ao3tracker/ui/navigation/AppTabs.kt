@@ -122,6 +122,13 @@ object SettingsTab : Tab {
 
     @Composable
     override fun Content() {
+        Navigator(SettingsScreenWrapper()) { navigator -> SlideTransition(navigator) }
+    }
+}
+
+private class SettingsScreenWrapper : Screen {
+    @Composable
+    override fun Content() {
         SettingsScreen()
     }
 }

@@ -23,6 +23,8 @@ import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import com.qcksys.ao3tracker.util.JsonConfig
 import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
+import com.qcksys.ao3tracker.ui.navigation.ReadNavigation
+import com.qcksys.ao3tracker.ui.navigation.readNavigation
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -53,9 +55,10 @@ class ReadScreenModel(
     val currentUrl: StateFlow<String> = _currentUrl.asStateFlow()
 
     // Set when the in-page "Save this search" button is tapped; the UI shows a
-    // naming dialog and clears this on confirm/cancel.
+    // save/update dialog and clears this on confirm/cancel.
     private val _pendingSaveSearch = MutableStateFlow<SaveSearchEvent?>(null)
     val pendingSaveSearch: StateFlow<SaveSearchEvent?> = _pendingSaveSearch.asStateFlow()
+    val savedSearches = savedSearchRepository.observeLive()
 
     private val _linkActionMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val linkActionMessage: SharedFlow<String> = _linkActionMessage.asSharedFlow()
@@ -100,7 +103,7 @@ class ReadScreenModel(
         }
         screenModelScope.launch {
             combine(appSettings.browsingPreferences, savedSearchRepository.observeLive()) { preferences, searches ->
-                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms)
+                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp)
             }.collect { state ->
                 browsingUrl?.let { emitBrowsingState(it, state) }
             }
@@ -249,7 +252,7 @@ class ReadScreenModel(
             }
             is WebViewMessage.SetWorkHidden -> {
                 if (!isTrustedAo3Url(message.event.url) || message.event.url != browsingUrl) return
-                appSettings.setWorkHidden(message.event.workId, message.event.hidden)
+                appSettings.setWorkHidden(message.event.workId, message.event.hidden, message.event.title ?: repository.getWorkByIdOnce(message.event.workId)?.title)
             }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
@@ -277,7 +280,7 @@ class ReadScreenModel(
                         "Added to tracked works"
                     }
                     is ReaderLinkAction.BlockWork -> {
-                        appSettings.setWorkHidden(action.workId, true)
+                        appSettings.setWorkHidden(action.workId, true, action.title ?: repository.getWorkByIdOnce(action.workId)?.title)
                         "Work added to blocklist"
                     }
                     is ReaderLinkAction.BlockTag -> {
@@ -306,7 +309,25 @@ class ReadScreenModel(
         }
     }
 
-    /** Dismiss the save-search naming dialog without saving. */
+    fun confirmUpdateSavedSearch(id: String, url: String) {
+        _pendingSaveSearch.value = null
+        if (!isTrustedAo3Url(url)) return
+        val accountGeneration = accountData.generation
+        screenModelScope.launch {
+            try {
+                savedSearchRepository.updateUrl(id, url) { accountData.generation == accountGeneration }
+                syncTriggers.notifySavedSearchChanged()
+                _linkActionMessage.emit("Saved search updated")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.e("Failed to update saved search", TAG, e)
+                _linkActionMessage.emit("Could not update this saved search. Please try again.")
+            }
+        }
+    }
+
+    /** Dismiss the save-search dialog without saving. */
     fun dismissSaveSearch() {
         _pendingSaveSearch.value = null
     }
@@ -336,7 +357,7 @@ class ReadScreenModel(
     private suspend fun refreshBrowsingState(url: String) {
         val preferences = appSettings.browsingPreferences.value
         val searches = savedSearchRepository.observeLive().first()
-        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms))
+        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp))
     }
 
     private suspend fun emitBrowsingState(url: String, state: BrowsingState) {
@@ -409,6 +430,20 @@ class ReadScreenModel(
     private fun extractChapterIdFromUrl(url: String): Long? {
         val regex = Regex("/chapters/(\\d+)")
         return regex.find(url)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    suspend fun navigateToReadingPosition(navigation: ReadNavigation) {
+        val generation = accountData.generation
+        val destination = navigation.workId?.let { repository.getWorkByIdOnce(it)?.readNavigation() } ?: navigation
+        if (accountData.generation != generation) return
+        pendingWorkInfo = null
+        pendingWorkTags = null
+        previousChapter = null
+        if (destination.scrollProgress == null) {
+            navigateToExternalUrl(destination.url)
+        } else {
+            navigateToUrlWithScroll(destination.url, destination.scrollProgress)
+        }
     }
 
     fun navigateToUrl(url: String) {

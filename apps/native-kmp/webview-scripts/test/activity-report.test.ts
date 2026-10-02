@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { chapterIndexHtml, workPageHtml } from "./fixtures";
 
 let scrollListeners: EventListenerOrEventListenerObject[];
+let resizeListeners: EventListenerOrEventListenerObject[];
 
 function required<T>(value: T | null | undefined): T {
   if (value === null || value === undefined) throw new Error("Expected a fixture value");
@@ -14,9 +15,11 @@ beforeEach(() => {
   delete window.__ao3Tracker;
   delete window.__ao3TrackerInitialized;
   scrollListeners = [];
+  resizeListeners = [];
   const addEventListener = window.addEventListener.bind(window);
   vi.spyOn(window, "addEventListener").mockImplementation((type, listener, options) => {
     if (type === "scroll") scrollListeners.push(listener);
+    if (type === "resize") resizeListeners.push(listener);
     addEventListener(type, listener, options);
   });
   vi.spyOn(document, "readyState", "get").mockReturnValue("complete");
@@ -24,8 +27,66 @@ beforeEach(() => {
 
 afterEach(() => {
   for (const listener of scrollListeners) window.removeEventListener("scroll", listener);
+  for (const listener of resizeListeners) window.removeEventListener("resize", listener);
   delete window.AndroidBridge;
+  vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+it("restores a cleared chapter to the start before reporting reading progress", async () => {
+  vi.useFakeTimers();
+  document.body.innerHTML = workPageHtml;
+  window.history.replaceState({}, "", "/works/10828137/chapters/24029673?scrollTo=0&_t=1#chapters");
+  const chapters = required(document.getElementById("chapters"));
+  const bounds = vi
+    .spyOn(chapters, "getBoundingClientRect")
+    .mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
+  vi.spyOn(chapters, "offsetTop", "get").mockReturnValue(window.innerHeight);
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {
+    bounds.mockReturnValue(new DOMRect(0, window.innerHeight, 100, window.innerHeight));
+    window.dispatchEvent(new Event("scroll"));
+  });
+  const postMessage = vi.fn<(message: string) => void>();
+  window.AndroidBridge = { postMessage };
+
+  await import("~/ao3-tracking");
+  window.dispatchEvent(new Event("resize"));
+  required(window.__ao3Tracker).reportReadingActivity();
+  expect(postMessage.mock.calls.map(([raw]) => JSON.parse(raw).type)).not.toContain(
+    "scrollProgress",
+  );
+
+  await vi.advanceTimersByTimeAsync(150);
+  expect(scrollTo).toHaveBeenCalledWith(0, 0);
+  expect(
+    postMessage.mock.calls
+      .map(([raw]) => JSON.parse(raw))
+      .filter((message) => message.type === "scrollProgress"),
+  ).toEqual([expect.objectContaining({ chapterId: "24029673", scrollPercentage: 0 })]);
+});
+
+it("marks a short chapter fully read on load when its bottom Next Chapter button is visible", async () => {
+  document.body.innerHTML = workPageHtml;
+  window.history.replaceState({}, "", "/works/10828137/chapters/24029673");
+  vi.spyOn(required(document.getElementById("chapters")), "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, 0, 100, window.innerHeight * 2),
+  );
+  const next = Array.from(document.querySelectorAll("#feedback > .actions a")).find((link) =>
+    link.textContent?.includes("Next Chapter"),
+  );
+  vi.spyOn(required(next), "getBoundingClientRect").mockReturnValue(
+    new DOMRect(0, window.innerHeight - 10, 100, 24),
+  );
+  const postMessage = vi.fn<(message: string) => void>();
+  window.AndroidBridge = { postMessage };
+  await import("~/ao3-tracking");
+  expect(postMessage.mock.calls.map(([raw]) => JSON.parse(raw))).toContainEqual(
+    expect.objectContaining({
+      type: "scrollProgress",
+      chapterId: "24029673",
+      scrollPercentage: 100,
+    }),
+  );
 });
 
 it("replays fresh work data and unchanged progress without adding scroll listeners", async () => {

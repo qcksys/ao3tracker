@@ -1,4 +1,10 @@
-import type { SyncTagMetadata, SyncWorkMetadata, WorkBadgeStatus } from "@qcksys/ao3tracker-core";
+import type {
+  SyncChapterMetadata,
+  SyncTagMetadata,
+  SyncWorkMetadata,
+  WorkBadgeStatus,
+} from "@qcksys/ao3tracker-core";
+import { workReadingUrl } from "./work-navigation";
 
 import type { TrackedChapter, TrackedWork } from "./storage";
 
@@ -9,6 +15,7 @@ import type { TrackedChapter, TrackedWork } from "./storage";
  */
 export interface WorksListRow {
   workId: number;
+  readingUrl: string;
   // tracker
   lastReadAt: string;
   markedCompleteAt: string | null;
@@ -79,15 +86,21 @@ export function deriveStatus(
   metadata: SyncWorkMetadata | undefined,
   chapters: TrackedChapter[],
 ): { status: WorkBadgeStatus; progressPercent: number } {
+  chapters = chapters.filter((chapter) => !chapter.deleted);
   const hasAnyProgress = chapters.some((c) => c.readProgress > 0);
+  const published = metadata?.currentChapters ?? chapters.length;
   const allComplete =
-    chapters.length > 0 && chapters.every((c) => c.readProgress >= COMPLETE_THRESHOLD);
-  const maxProgress = chapters.reduce((acc, c) => Math.max(acc, c.readProgress), 0);
-  const progressPercent = Math.round(maxProgress * 100);
+    published > 0 &&
+    chapters.filter((c) => c.markedCompleteAt !== null || c.readProgress >= COMPLETE_THRESHOLD)
+      .length >= published;
+  const progress = chapters.reduce((sum, c) => sum + Math.min(1, Math.max(0, c.readProgress)), 0);
+  const progressPercent =
+    published > 0 ? Math.min(100, Math.round((progress / published) * 100)) : 0;
 
   let status: WorkBadgeStatus = "not-started";
   if (work.private) status = "private";
-  else if (work.markedCompleteAt !== null) status = "finished";
+  else if (allComplete && metadata?.totalChapters != null && published >= metadata.totalChapters)
+    status = "finished";
   else if (
     metadata?.currentChapters != null &&
     chapters.length < metadata.currentChapters &&
@@ -104,6 +117,7 @@ export function buildWorksList(input: {
   works: Record<number, TrackedWork>;
   metadata: Record<number, SyncWorkMetadata>;
   chapters: Record<string, TrackedChapter>;
+  chapterMetadata: Record<number, SyncChapterMetadata[]>;
   tagMetadata: SyncTagMetadata[];
 }): WorksListRow[] {
   const tagsByWork = new Map<number, Set<string>>();
@@ -128,6 +142,7 @@ export function buildWorksList(input: {
     const { status, progressPercent } = deriveStatus(w, meta, workChapters);
     rows.push({
       workId: w.workId,
+      readingUrl: workReadingUrl(w.workId, workChapters, input.chapterMetadata[w.workId] ?? []),
       lastReadAt: w.lastReadAt,
       markedCompleteAt: w.markedCompleteAt,
       private: w.private,

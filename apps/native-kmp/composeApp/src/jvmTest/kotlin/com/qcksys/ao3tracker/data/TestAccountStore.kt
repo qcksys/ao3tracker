@@ -7,6 +7,7 @@ import com.qcksys.ao3tracker.data.database.Ao3Database
 import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
 import com.qcksys.ao3tracker.data.database.MIGRATION_8_9
+import com.qcksys.ao3tracker.data.database.MIGRATION_9_10
 import java.nio.file.Path
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +17,7 @@ internal fun createTestAccounts(directory: Path, context: CoroutineContext = Dis
         Room.databaseBuilder<Ao3Database>(directory.resolve(fileName).toString())
             .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(context)
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
             .build()
     }
     return AccountDataStore(openDatabase("test.db"), openDatabase)

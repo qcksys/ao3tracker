@@ -25,7 +25,7 @@ import {
   installCrossoverLimit,
   installDefaultSearchTags,
   installSearchLanguage,
-  publishScrollPercentage,
+  observeChapterProgress,
   suggestSavedSearchName,
   updateSavedSearchButton,
   withCrossoverLimit,
@@ -76,11 +76,6 @@ function postMessage(msg: string): void {
   }
 }
 
-function updateScrollAndPost(): void {
-  const message = publishScrollPercentage(document, window);
-  if (message) postMessage(JSON.stringify(message));
-}
-
 let diagnostics: ReturnType<typeof installDiagnostics> | undefined;
 if (typeof window !== "undefined") {
   window.__ao3TrackerDiagnostics ??= installDiagnostics(postMessage);
@@ -92,6 +87,8 @@ function setDiagnosticsEnabled(enabled: boolean): void {
 }
 
 let browsingState: BrowsingState = {
+  hideCaughtUp: false,
+  hiddenWorkTitles: {},
   hiddenWorkIds: [],
   hiddenTags: [],
   savedSearchUrls: [],
@@ -99,6 +96,8 @@ let browsingState: BrowsingState = {
   searchLanguage: "en",
   maxFandoms: null,
 };
+
+let badges: WorkBadgeData[] = [];
 
 export function applyBrowsingState(payloadJson: string): void {
   browsingState = JSON.parse(payloadJson) as BrowsingState;
@@ -122,17 +121,23 @@ export function applyBrowsingState(payloadJson: string): void {
     language,
     browsingState.maxFandoms,
   );
-  applyHiddenWorks(document, browsingState.hiddenWorkIds, (workId, hidden) => {
-    diagnostics?.capture({ event: "webview_action", action: hidden ? "hide_work" : "show_work" });
-    postMessage(
-      JSON.stringify({
-        type: "setWorkHidden",
-        url: window.location.href,
-        workId,
-        hidden,
-      } satisfies SetWorkHiddenMessage),
-    );
-  });
+  applyHiddenWorks(
+    document,
+    browsingState.hiddenWorkIds,
+    (workId, hidden, title) => {
+      diagnostics?.capture({ event: "webview_action", action: hidden ? "hide_work" : "show_work" });
+      postMessage(
+        JSON.stringify({
+          type: "setWorkHidden",
+          url: window.location.href,
+          workId,
+          hidden,
+          title,
+        } satisfies SetWorkHiddenMessage),
+      );
+    },
+    { hideCaughtUp: browsingState.hideCaughtUp, badges },
+  );
   applyFandomLimit(document, browsingState.maxFandoms);
 }
 
@@ -144,6 +149,8 @@ export function applyListBadges(payloadJson: string): void {
     return;
   }
   applyBadges(document, window, entries);
+  badges = entries;
+  applyBrowsingState(JSON.stringify(browsingState));
 }
 
 function reportPageMetadata(): void {
@@ -164,9 +171,11 @@ function reportPageMetadata(): void {
   }
 }
 
+let restoringScroll = false;
+
 export function reportReadingActivity(): void {
   reportPageMetadata();
-  if (!classifyAo3Url(window.location.href).isWork) return;
+  if (restoringScroll || !classifyAo3Url(window.location.href).isWork) return;
 
   const percentage = computeChapterScrollPercentage(document, window);
   if (percentage === null || Number.isNaN(percentage)) return;
@@ -185,12 +194,15 @@ export function reportReadingActivity(): void {
 }
 
 function init(): void {
-  if (classifyAo3Url(window.location.href).isWork) {
-    window.addEventListener("scroll", updateScrollAndPost);
-  }
   reportPageMetadata();
-
-  consumeScrollToParam(document, window);
+  const startProgressTracking = (): void => {
+    restoringScroll = false;
+    if (classifyAo3Url(window.location.href).isWork) {
+      observeChapterProgress(document, window, (message) => postMessage(JSON.stringify(message)));
+    }
+  };
+  restoringScroll = consumeScrollToParam(document, window, startProgressTracking);
+  if (!restoringScroll) startProgressTracking();
 
   injectSaveSearchButton(document, window.location, (url) => {
     diagnostics?.capture({ event: "webview_action", action: "save_search" });

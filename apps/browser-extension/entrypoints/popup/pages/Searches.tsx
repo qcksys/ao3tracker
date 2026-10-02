@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { savedSearchTags } from "@qcksys/ao3tracker-core/dom";
 import { CopyIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -70,54 +71,74 @@ export default function Searches() {
         <p className="text-muted-foreground text-xs">No saved searches yet.</p>
       ) : (
         <div className="flex flex-col gap-1 overflow-y-auto">
-          {searches.map((s) => (
-            <div
-              key={s.id}
-              className="bg-muted/50 flex items-center gap-1 rounded px-2 py-1 text-sm"
-            >
-              <button
-                type="button"
-                className="min-w-0 flex-1 truncate text-left hover:underline"
-                title={s.url}
-                onClick={() => {
-                  void browser.tabs.create({ url: s.url });
-                }}
-              >
-                {s.name}
-              </button>
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label={`Copy link for ${s.name}`}
-                title="Copy link"
-                onClick={async () => {
-                  setCopyResult(null);
-                  try {
-                    await navigator.clipboard.writeText(s.url);
-                    setCopyResult({ message: "Link copied", error: false });
-                  } catch {
-                    setCopyResult({ message: "Couldn't copy link. Try again.", error: true });
-                  }
-                }}
-              >
-                <CopyIcon />
-              </Button>
-              <RenameSearchDialog
-                currentName={s.name}
-                onRename={(name) => dispatch({ kind: "renameSavedSearch", id: s.id, name })}
-              />
-              <Button
-                size="icon-xs"
-                variant="ghost"
-                aria-label={`Delete ${s.name}`}
-                onClick={() => {
-                  void dispatch({ kind: "deleteSavedSearch", id: s.id });
-                }}
-              >
-                <Trash2Icon />
-              </Button>
-            </div>
-          ))}
+          {searches.map((s) => {
+            const tags = savedSearchTags(s.url);
+            return (
+              <div key={s.id} className="bg-muted/50 flex flex-col gap-1 rounded px-2 py-2 text-sm">
+                <button
+                  type="button"
+                  className="w-full text-left font-medium wrap-anywhere hover:underline"
+                  title={s.url}
+                  onClick={() => {
+                    void browser.tabs.create({ url: s.url });
+                  }}
+                >
+                  {s.name}
+                </button>
+                {tags.length > 0 && (
+                  <ul
+                    aria-label={`Tags in ${s.name}`}
+                    className="flex flex-wrap gap-1 text-[10px] leading-[14px]"
+                  >
+                    {tags.slice(0, 5).map((tag) => (
+                      <li
+                        key={tag}
+                        className="bg-background text-muted-foreground max-w-full rounded px-1 py-px wrap-anywhere"
+                      >
+                        {tag}
+                      </li>
+                    ))}
+                    {tags.length > 5 && (
+                      <li className="text-muted-foreground px-1 py-px">+{tags.length - 5} more</li>
+                    )}
+                  </ul>
+                )}
+                <div className="flex justify-end gap-1">
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Copy link for ${s.name}`}
+                    title="Copy link"
+                    onClick={async () => {
+                      setCopyResult(null);
+                      try {
+                        await navigator.clipboard.writeText(s.url);
+                        setCopyResult({ message: "Link copied", error: false });
+                      } catch {
+                        setCopyResult({ message: "Couldn't copy link. Try again.", error: true });
+                      }
+                    }}
+                  >
+                    <CopyIcon />
+                  </Button>
+                  <RenameSearchDialog
+                    currentName={s.name}
+                    onRename={(name) => dispatch({ kind: "renameSavedSearch", id: s.id, name })}
+                  />
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Delete ${s.name}`}
+                    onClick={() => {
+                      void dispatch({ kind: "deleteSavedSearch", id: s.id });
+                    }}
+                  >
+                    <Trash2Icon />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

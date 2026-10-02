@@ -1,7 +1,10 @@
 import type { WebViewMessage, WorkBadgeData } from "@qcksys/ao3tracker-core";
 import { classifyAo3Url } from "@qcksys/ao3tracker-core";
+import { workReadingUrl } from "./work-navigation";
+import { deriveStatus } from "./works-view";
 import {
   chapterKey,
+  chapterMetadataItem,
   type TrackedChapter,
   type TrackedWork,
   trackedChaptersItem,
@@ -119,7 +122,7 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
         chapterId,
         lastReadAt: nextReadAt(existing?.lastReadAt),
         markedCompleteAt: existing?.markedCompleteAt ?? null,
-        readProgress: progress,
+        readProgress: Math.max(existing?.readProgress ?? 0, progress),
         pendingSync: true,
       };
       await saveChapter(chapters);
@@ -132,12 +135,35 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
       await saveWork(works);
       return [workId];
     }
+    case "workChapterIndex": {
+      const metadata = await chapterMetadataItem.getValue();
+      metadata[workId] = message.chapters.flatMap((chapter, index) => {
+        const chapterId = chapter.chapterUrl?.match(/\/chapters\/(\d+)/)?.[1];
+        return chapterId
+          ? [{ id: Number(chapterId), workId, number: index + 1, title: null, dateUpdated: null }]
+          : [];
+      });
+      await chapterMetadataItem.setValue(metadata);
+      return [];
+    }
     default:
-      // workTags / workChapterIndex / listWorks don't update tracker state in
+      // workTags / listWorks don't update tracker state in
       // the extension today (the api refresh-works cron does the heavy lifting
       // on metadata). They could be wired into local metadata caches later.
       return [];
   }
+}
+
+export async function getWorkReadingUrl(workId: number): Promise<string> {
+  const [chapters, metadata] = await Promise.all([
+    trackedChaptersItem.getValue(),
+    chapterMetadataItem.getValue(),
+  ]);
+  return workReadingUrl(
+    workId,
+    Object.values(chapters).filter((chapter) => chapter.workId === workId),
+    metadata[workId] ?? [],
+  );
 }
 
 export async function setFavourite(workId: number, favourite: boolean): Promise<void> {
@@ -199,32 +225,18 @@ export async function buildBadgePayloads(workIds: number[]): Promise<WorkBadgeDa
 
       const meta = metadata[workId];
       const workChapters = Object.values(chapters).filter((c) => c.workId === workId);
-      const hasAnyProgress = workChapters.some((c) => c.readProgress > 0);
-      const allComplete =
-        workChapters.length > 0 && workChapters.every((c) => c.readProgress >= 0.95);
-      const maxProgress = workChapters.reduce((acc, c) => Math.max(acc, c.readProgress), 0);
-
-      let status: WorkBadgeData["status"] = "not-started";
-      if (w.private) status = "private";
-      else if (w.markedCompleteAt !== null) status = "finished";
-      else if (
-        meta &&
-        meta.currentChapters !== null &&
-        workChapters.length < meta.currentChapters &&
-        hasAnyProgress
-      )
-        status = "has-new-chapters";
-      else if (allComplete) status = "caught-up";
-      else if (hasAnyProgress) status = "in-progress";
+      const { status, progressPercent } = deriveStatus(w, meta, workChapters);
 
       return {
         id: workId,
         status,
-        progressPercent: Math.round(maxProgress * 100),
+        progressPercent,
+        currentChapters:
+          meta?.currentChapters ?? workChapters.filter((chapter) => !chapter.deleted).length,
         favourite: w.favourite,
       } satisfies WorkBadgeData;
     })
-    .filter((b): b is WorkBadgeData => b !== null);
+    .filter((b) => b !== null);
 }
 
 /**
@@ -251,7 +263,7 @@ export async function currentWorkSummary(): Promise<{
   if (!top) return null;
 
   const workChapters = Object.values(chapters)
-    .filter((c) => c.workId === top.workId)
+    .filter((c) => c.workId === top.workId && !c.deleted)
     .sort((a, b) => Date.parse(b.lastReadAt) - Date.parse(a.lastReadAt));
   const latestChapter = workChapters[0] ?? null;
 
@@ -260,7 +272,7 @@ export async function currentWorkSummary(): Promise<{
     title: metadata[top.workId]?.title ?? null,
     author: metadata[top.workId]?.author ?? null,
     chapterId: latestChapter?.chapterId ?? null,
-    progressPercent: Math.round((latestChapter?.readProgress ?? 0) * 100),
+    progressPercent: deriveStatus(top, metadata[top.workId], workChapters).progressPercent,
     lastReadAt: top.lastReadAt,
     favourite: top.favourite,
   };

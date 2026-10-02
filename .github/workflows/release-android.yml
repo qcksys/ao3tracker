@@ -157,8 +157,11 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_HOST: https://eu.posthog.com
+          POSTHOG_CLI_PROJECT_ID: ${{ inputs.channel == 'beta' && '291114' || '69100' }}
         run: |
-          for variable in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+          for variable in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD POSTHOG_CLI_API_KEY; do
             if [[ -z "${!variable}" ]]; then
               echo "::error::Missing required environment secret: $variable"
               exit 1
@@ -166,7 +169,8 @@ jobs:
           done
           umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-          bash apps/native-kmp/gradlew -p apps/native-kmp ":composeApp:$ANDROID_BUNDLE_TASK" -x :composeApp:vpInstall --no-configuration-cache --build-cache --no-daemon
+          vp exec posthog-cli --version
+          vp exec bash apps/native-kmp/gradlew -p apps/native-kmp ":composeApp:$ANDROID_BUNDLE_TASK" -x :composeApp:vpInstall --no-configuration-cache --build-cache --no-daemon
           test -s "apps/native-kmp/composeApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/composeApp-$ANDROID_BUILD_TYPE.aab"
           test -s "apps/native-kmp/composeApp/build/outputs/mapping/$ANDROID_BUILD_TYPE/mapping.txt"
           jarsigner -verify "apps/native-kmp/composeApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/composeApp-$ANDROID_BUILD_TYPE.aab" > "$RUNNER_TEMP/android-bundle-verification.txt"

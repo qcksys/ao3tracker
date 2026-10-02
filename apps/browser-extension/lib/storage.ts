@@ -1,6 +1,7 @@
 import type {
   FavouriteTagItem,
   SavedSearchItem,
+  SyncChapterMetadata,
   SyncTagMetadata,
   SyncWorkMetadata,
 } from "@qcksys/ao3tracker-core";
@@ -17,6 +18,8 @@ export const browsingPreferencesItem = storage.defineItem<BrowsingPreferences>(
   {
     fallback: {
       hiddenWorkIds: [],
+      hiddenWorkTitles: {},
+      hideCaughtUp: false,
       hiddenTags: [],
       languageFilterEnabled: false,
       searchLanguage: "en",
@@ -141,6 +144,11 @@ export const trackedChaptersItem = storage.defineItem<Record<string, TrackedChap
 
 export const workMetadataItem = storage.defineItem<Record<number, SyncWorkMetadata>>(
   "local:workMetadata",
+  { fallback: {} },
+);
+
+export const chapterMetadataItem = storage.defineItem<Record<number, SyncChapterMetadata[]>>(
+  "local:chapterMetadata",
   { fallback: {} },
 );
 

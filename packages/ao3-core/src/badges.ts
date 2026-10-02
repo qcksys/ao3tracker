@@ -18,6 +18,7 @@ export interface WorkBadgeData {
   status: WorkBadgeStatus;
   progressPercent: number;
   favourite: boolean;
+  currentChapters?: number | null;
 }
 
 export function formatBadge(data: WorkBadgeData): { label: string; color: string } {

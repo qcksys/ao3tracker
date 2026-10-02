@@ -23,6 +23,83 @@ import kotlinx.serialization.json.*
 
 class NativeSyncRegressionTest {
     @Test
+    fun `sync debug progress updates during paginated downloads and batched uploads`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                (1L..51L).forEach { f.db.workDao().upsertWork(work(it)) }
+                f.db.chapterDao().upsertChapter(chapter())
+                f.db.savedSearchDao().upsert(search("a"))
+                f.db.favouriteTagDao().upsert(FavouriteTagEntity(4, "Fluff", true, 100, true))
+            }
+            f.remote.onFetch = { cursor ->
+                val page = if (cursor == null) 1 else 2
+                assertTrue(f.sync.syncState.value.isSyncing)
+                assertEquals("Fetching server page $page...", f.sync.syncState.value.statusMessage)
+                if (page == 2) {
+                    assertTrue(f.sync.syncState.value.debugEntries.any { it.message.startsWith("Downloaded page 1:") })
+                }
+                Result.success(response(more = cursor == null, cursor = if (cursor == null) 1 else null))
+            }
+            f.remote.onSend = {
+                assertEquals("Sending batch ${f.remote.sent.size}...", f.sync.syncState.value.statusMessage)
+                Result.success(accepted())
+            }
+
+            assertIs<SyncResult.Success>(f.sync.sync(forceFull = true))
+            val state = f.sync.syncState.value
+            assertFalse(state.isSyncing)
+            assertNull(state.statusMessage)
+            assertNull(state.error)
+            assertEquals("Starting full sync", state.debugEntries.first().message)
+            val messages = state.debugEntries.map { it.message }
+            assertTrue(messages.contains("Uploading batch 1: 50 works, 1 chapters, 1 favourites, 1 saved searches"))
+            assertTrue(messages.contains("Uploading batch 2: 1 works, 0 chapters, 0 favourites, 0 saved searches"))
+            assertTrue(messages.contains("Upload batch 2 acknowledged"))
+            assertTrue(messages.last().startsWith("Sync completed:"))
+            state.debugEntries.forEach { kotlin.time.Instant.parse(it.timestamp) }
+        }
+    }
+
+    @Test
+    fun `failed uploads retain debug steps and a retry replaces the previous run`() = runTest {
+        fixture { f ->
+            f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+            f.remote.onSend = { Result.failure(SyncException("Server unavailable")) }
+            assertIs<SyncResult.Error>(f.sync.sync())
+            val failed = f.sync.syncState.value
+            assertFalse(failed.isSyncing)
+            assertEquals("Server unavailable", failed.error)
+            assertTrue(failed.debugEntries.any { it.message.startsWith("Uploading batch 1:") })
+            assertFalse(failed.debugEntries.any { it.message.contains("acknowledged") })
+            assertEquals("Sync failed", failed.debugEntries.last().message)
+
+            f.remote.onSend = { Result.success(accepted()) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val retried = f.sync.syncState.value
+            assertNull(retried.error)
+            assertEquals(1, retried.debugEntries.count { it.message.startsWith("Starting") })
+            assertFalse(retried.debugEntries.any { it.message == "Sync failed" })
+        }
+    }
+
+    @Test
+    fun `sync debug history is bounded during large downloads`() = runTest {
+        fixture { f ->
+            var page = 0
+            f.remote.onFetch = {
+                page++
+                Result.success(response(more = page < 60, cursor = page.toLong()))
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val entries = f.sync.syncState.value.debugEntries
+            assertEquals(100, entries.size)
+            assertTrue(entries.any { it.message.startsWith("Downloaded page 60:") })
+            assertFalse(entries.any { it.message.startsWith("Starting") })
+            assertTrue(entries.last().message.startsWith("Sync completed:"))
+        }
+    }
+
+    @Test
     fun `account switches preserve pending data and restore account cursors`() = runTest {
         fixture { f ->
             f.accounts.edit {

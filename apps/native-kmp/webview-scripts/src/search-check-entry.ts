@@ -10,6 +10,10 @@ declare global {
       hiddenWorkIds: number[];
       language: string | null;
       maxFandoms: number | null;
+      previousContext: string | null;
+      since: number | null;
+      fullScan: boolean;
+      resumeUrl: string | null;
     };
     __ao3SearchCheckStarted?: boolean;
   }
@@ -43,6 +47,7 @@ if (window.top === window && options && !window.__ao3SearchCheckStarted) {
       undefined,
       undefined,
       options.maxFandoms,
+      options,
     );
   }
 }

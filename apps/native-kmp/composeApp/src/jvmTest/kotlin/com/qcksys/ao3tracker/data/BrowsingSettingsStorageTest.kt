@@ -38,7 +38,7 @@ class BrowsingSettingsStorageTest {
     @Test
     fun bridgeAlwaysIncludesTheSelectedLanguageEvenWhenEnglish() {
         for (maxFandoms in listOf(null, 1, 3)) {
-            val payload = JsonConfig.json.encodeToString(BrowsingState(emptyList(), emptyList(), emptyList(), true, "en", maxFandoms))
+            val payload = JsonConfig.json.encodeToString(BrowsingState(emptyList(), emptyList(), emptyList(), true, "en", maxFandoms, false))
             val json = JsonConfig.json.parseToJsonElement(payload).jsonObject
             assertEquals("en", json.getValue("searchLanguage").jsonPrimitive.content)
             assertEquals("true", json.getValue("languageFilterEnabled").jsonPrimitive.content)
@@ -79,13 +79,15 @@ class BrowsingSettingsStorageTest {
             val settings = AppSettings(storage)
             assertEquals(BrowsingPreferences(), settings.browsingPreferences.value)
             settings.setHiddenTags(" Angst \nFluff, angst, ")
-            settings.setWorkHidden(123, true)
+            settings.setWorkHidden(123, true, "A hidden story")
+            settings.setHideCaughtUp(true)
             settings.setWorkHidden(123, true)
             settings.setWorkHidden(-1, true)
             val restarted = AppSettings(SettingsStorage())
-            assertEquals(BrowsingPreferences(listOf(123), listOf("Angst", "Fluff")), restarted.browsingPreferences.value)
+            assertEquals(BrowsingPreferences(listOf(123), listOf("Angst", "Fluff"), hiddenWorkTitles = mapOf(123L to "A hidden story"), hideCaughtUp = true), restarted.browsingPreferences.value)
             restarted.setWorkHidden(123, false)
             restarted.setHiddenTags("")
+            restarted.setHideCaughtUp(false)
             assertEquals(BrowsingPreferences(), AppSettings(SettingsStorage()).browsingPreferences.value)
         } finally {
             if (previous == null) Preferences.userNodeForPackage(SettingsStorage::class.java).remove("browsing_preferences")

@@ -8,7 +8,7 @@ import {
   getWorkTagInfo,
   suggestSavedSearchName,
   injectSaveSearchButton,
-  publishScrollPercentage,
+  observeChapterProgress,
   applyHiddenWorks,
   installDefaultSearchTags,
   installSearchLanguage,
@@ -19,10 +19,11 @@ import {
   withDefaultHiddenTags,
   withSearchLanguage,
 } from "@qcksys/ao3tracker-core/dom";
-import { applyListBadges } from "@qcksys/ao3tracker-core/badges";
+import { applyListBadges, type WorkBadgeData } from "@qcksys/ao3tracker-core/badges";
 import type { BrowsingState, WebViewMessage } from "@qcksys/ao3tracker-core/schemas";
 import { backgroundToContentResponseSchema, type ContentToBackground } from "@/lib/messaging";
 import { browsingPreferencesItem, savedSearchesItem } from "@/lib/storage";
+import { showSaveSearchDialog } from "@/lib/save-search-dialog";
 
 export default defineContentScript({
   matches: ["https://archiveofourown.org/*"],
@@ -35,6 +36,8 @@ export default defineContentScript({
       backgroundToContentResponseSchema.parse(await browser.runtime.sendMessage(msg));
 
     let browsingState: BrowsingState = {
+      hideCaughtUp: false,
+      hiddenWorkTitles: {},
       hiddenTags: [],
       hiddenWorkIds: [],
       savedSearchUrls: [],
@@ -42,6 +45,7 @@ export default defineContentScript({
       searchLanguage: "en",
       maxFandoms: null,
     };
+    let badges: WorkBadgeData[] = [];
     const applyBrowsingState = (state: BrowsingState): void => {
       browsingState = state;
       const language = state.languageFilterEnabled ? state.searchLanguage : null;
@@ -61,14 +65,19 @@ export default defineContentScript({
         language,
         state.maxFandoms,
       );
-      applyHiddenWorks(document, state.hiddenWorkIds, (workId, hidden) => {
-        void send({ kind: "setWorkHidden", workId, hidden })
-          .then((response) => {
-            if (response.kind === "browsingState") applyBrowsingState(response.state);
-            else if (response.kind === "error") throw new Error(response.message);
-          })
-          .catch(() => window.alert("Could not update hidden works. Please try again."));
-      });
+      applyHiddenWorks(
+        document,
+        state.hiddenWorkIds,
+        (workId, hidden, title) => {
+          void send({ kind: "setWorkHidden", workId, hidden, title })
+            .then((response) => {
+              if (response.kind === "browsingState") applyBrowsingState(response.state);
+              else if (response.kind === "error") throw new Error(response.message);
+            })
+            .catch(() => window.alert("Could not update hidden works. Please try again."));
+        },
+        { hideCaughtUp: state.hideCaughtUp, badges },
+      );
       applyFandomLimit(document, state.maxFandoms);
     };
     const refreshBrowsingState = async (): Promise<void> => {
@@ -94,20 +103,15 @@ export default defineContentScript({
       });
     };
 
-    const onScroll = (): void => {
-      const message = publishScrollPercentage(document, window);
-      if (message) postPageEvent(message);
-    };
-
     const { isWork, isChapterIndex } = classifyAo3Url(window.location.href);
 
     if (isWork) {
-      window.addEventListener("scroll", onScroll, { passive: true });
       postPageEvent(getWorkInfo(document, window.location));
       postPageEvent(getWorkTagInfo(document, window.location));
 
       const chapterSelect = getWorkChapterSelect(document, window.location);
       if (chapterSelect) postPageEvent(chapterSelect);
+      ctx.onInvalidated(observeChapterProgress(document, window, postPageEvent));
     }
 
     if (isChapterIndex) {
@@ -116,17 +120,26 @@ export default defineContentScript({
 
     consumeScrollToParam(document, window);
 
+    let dismissSaveSearch: (() => void) | undefined;
+    ctx.onInvalidated(() => dismissSaveSearch?.());
     injectSaveSearchButton(document, window.location, (url, button) => {
-      const name = window.prompt("Name this saved search:", suggestSavedSearchName(document, url));
-      if (!name || name.trim().length === 0) return;
       button.disabled = true;
-      void send({ kind: "saveSearch", name: name.trim().slice(0, 191), url })
-        .then(async (res) => {
-          if (res.kind === "ok") {
-            await refreshBrowsingState();
-          } else if (res.kind === "error") {
-            throw new Error(res.message);
-          }
+      void savedSearchesItem
+        .getValue()
+        .then((searches) => {
+          dismissSaveSearch?.();
+          dismissSaveSearch = showSaveSearchDialog(
+            document,
+            suggestSavedSearchName(document, url),
+            searches,
+            async (choice) => {
+              const res = await send({ ...choice, url });
+              if (res.kind === "error") throw new Error(res.message);
+              if (res.kind !== "ok") throw new Error("Could not save. Please try again.");
+              await refreshBrowsingState();
+            },
+          );
+          button.disabled = false;
         })
         .catch((err) => {
           button.disabled = false;
@@ -155,7 +168,9 @@ export default defineContentScript({
       try {
         const res = await send({ kind: "requestBadges", workIds: listWorkIds });
         if (res.kind === "badges") {
+          badges = res.entries;
           applyListBadges(document, window, res.entries);
+          applyBrowsingState(browsingState);
         }
       } catch (err) {
         console.warn("[ao3-tracker] badge fetch failed", err);

@@ -12,6 +12,7 @@ import {
   browsingStateSchema,
   notificationPreferencesSchema,
   setWorkHiddenSchema,
+  savedSearchItemSchema,
 } from "@qcksys/ao3tracker-core/schemas";
 
 /**
@@ -28,6 +29,10 @@ export const contentToBackgroundSchema = z.discriminatedUnion("kind", [
     kind: z.literal("saveSearch"),
     name: z.string().min(1).max(191),
     url: z.string().url().max(8192),
+  }),
+  savedSearchItemSchema.pick({ id: true, url: true }).extend({
+    kind: z.literal("updateSavedSearch"),
+    url: savedSearchItemSchema.shape.url.url(),
   }),
 ]);
 export type ContentToBackground = z.infer<typeof contentToBackgroundSchema>;
@@ -47,6 +52,10 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
  * picks up token changes via `authTokenItem.watch` and triggers sync.
  */
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("setHideCaughtUp"),
+    hideCaughtUp: browsingPreferencesSchema.shape.hideCaughtUp.removeDefault(),
+  }),
   setWorkHiddenSchema.pick({ workId: true }).extend({ kind: z.literal("unhideWork") }),
   browsingPreferencesSchema.pick({ hiddenTags: true }).extend({ kind: z.literal("setHiddenTags") }),
   z.object({

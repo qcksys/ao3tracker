@@ -36,6 +36,20 @@ export async function renameSavedSearch(id: string, name: string): Promise<Saved
   return row;
 }
 
+export async function updateSavedSearchUrl(id: string, url: string): Promise<SavedSearchItem> {
+  const current = await savedSearchesItem.getValue();
+  const existing = current.find((row) => row.id === id && !row.deleted);
+  if (!existing) throw new Error("This saved search no longer exists.");
+  const row = {
+    ...existing,
+    url,
+    updatedAt: nextUpdatedAt(existing.updatedAt),
+    pendingSync: true,
+  };
+  await savedSearchesItem.setValue(current.map((r) => (r.id === id ? row : r)));
+  return row;
+}
+
 /**
  * Delete a saved search. Tombstones the row (deleted=true) rather than removing
  * it, so the deletion syncs to other devices via LWW.

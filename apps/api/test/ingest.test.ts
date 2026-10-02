@@ -31,7 +31,10 @@ function request(body: unknown = payload, extra: Record<string, string> = {}) {
 
 beforeEach(() => {
   limit.mockResolvedValue({ success: true });
-  upstream.mockReset().mockResolvedValue(new Response("ok"));
+  upstream.mockReset().mockImplementation(async (input, init) => {
+    new Request(input, init);
+    return new Response("ok");
+  });
   vi.stubGlobal("fetch", upstream);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -130,7 +133,16 @@ describe("native diagnostic ingestion", () => {
       api_key: "production-test-token",
       properties: { environment: "prod" },
     });
-    expect(upstream.mock.calls[0]?.[1]?.redirect).toBe("error");
+    expect(upstream.mock.calls[0]?.[1]?.redirect).toBe("manual");
+  });
+
+  it.each([301, 302, 307, 308])("rejects upstream redirects (%s)", async (status) => {
+    upstream.mockImplementation(async (input, init) => {
+      expect(new Request(input, init).redirect).toBe("manual");
+      return new Response(null, { status, headers: { Location: "https://example.com" } });
+    });
+    expect((await request()).status).toBe(502);
+    expect(upstream).toHaveBeenCalledOnce();
   });
 
   it("returns a bounded failure when PostHog is unavailable", async () => {

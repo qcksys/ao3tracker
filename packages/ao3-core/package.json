@@ -11,6 +11,7 @@
     "./schemas": "./src/schemas/index.ts",
     "./notifications": "./src/schemas/notifications.ts",
     "./diagnostics": "./src/schemas/diagnostics.ts",
+    "./work-summary": "./src/work-summary.ts",
     "./languages": "./src/languages.json",
     "./dom": "./src/dom/index.ts",
     "./badges": "./src/badges.ts"

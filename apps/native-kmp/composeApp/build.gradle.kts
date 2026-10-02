@@ -14,8 +14,8 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
-    alias(libs.plugins.sentryKmp)
     alias(libs.plugins.googleServices)
+    alias(libs.plugins.posthog)
 }
 
 // WebView Scripts build configuration
@@ -220,6 +220,7 @@ kotlin {
             implementation(libs.firebase.messaging)
         }
         commonMain.dependencies {
+            implementation(libs.posthog.kmp)
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
@@ -329,8 +330,6 @@ android {
         buildConfigField("String", "API_ENVIRONMENT", "\"PRODUCTION\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
         buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
-        // Sentry DSN
-        buildConfigField("String", "SENTRY_DSN", "\"https://12e1b1b6f3402ab88188b7508dd5f65c@o4507101986291712.ingest.de.sentry.io/4510465375993936\"")
     }
 
     buildFeatures {
@@ -396,7 +395,12 @@ compose.desktop {
     application {
         mainClass = "com.qcksys.ao3tracker.MainKt"
 
+        buildTypes.release.proguard {
+            configurationFiles.from(project.file("compose-desktop.pro"))
+        }
+
         nativeDistributions {
+            modules("jdk.unsupported")
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.qcksys.ao3tracker"
             packageVersion = desktopVersion
@@ -409,4 +413,9 @@ compose.desktop {
 
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+tasks.withType<com.posthog.android.PostHogCliExecTask>().configureEach {
+    // Local and PR builds still embed mapping IDs, but only release jobs upload symbols.
+    onlyIf { providers.environmentVariable("POSTHOG_CLI_API_KEY").isPresent }
 }

@@ -15,13 +15,16 @@ vi.mock("@wxt-dev/storage", () => ({
 }));
 
 import { accountContextItem } from "../lib/account-state";
-import { pollAndDisplayNotifications } from "../lib/notifications";
+import { attachNotificationClickHandler, pollAndDisplayNotifications } from "../lib/notifications";
 import {
   authTokenItem,
   getNotificationPreferences,
   lastSeenNotificationIdItem,
   notificationPreferencesItem,
   notificationsEnabledItem,
+  notificationWorkIdsItem,
+  trackedChaptersItem,
+  chapterMetadataItem,
 } from "../lib/storage";
 import { popupToBackgroundSchema } from "../lib/messaging";
 
@@ -56,6 +59,45 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("device notification preferences", () => {
+  it("notification clicks use current completion to open the next chapter", async () => {
+    const listeners: ((id: string) => Promise<void>)[] = [];
+    const openTab = vi.fn();
+    vi.stubGlobal("browser", {
+      notifications: {
+        clear: vi.fn(),
+        onClicked: {
+          addListener: (listener: (id: string) => Promise<void>) => listeners.push(listener),
+        },
+      },
+      tabs: { create: openTab },
+    });
+    attachNotificationClickHandler();
+    await notificationWorkIdsItem.setValue({ "ao3-1": 123 });
+    await trackedChaptersItem.setValue({
+      "123:91": {
+        workId: 123,
+        chapterId: 91,
+        readProgress: 0.95,
+        markedCompleteAt: null,
+        lastReadAt: "2026-10-02T00:00:00Z",
+        pendingSync: false,
+      },
+    });
+    await chapterMetadataItem.setValue({
+      123: [
+        { id: 91, workId: 123, number: 1, title: null, dateUpdated: null },
+        { id: 42, workId: 123, number: 2, title: null, dateUpdated: null },
+      ],
+    });
+    const before = await trackedChaptersItem.getValue();
+    await listeners[0]!("ao3-1");
+    expect(openTab).toHaveBeenCalledWith({
+      url: "https://archiveofourown.org/works/123/chapters/42?scrollTo=0#chapters",
+    });
+    expect(await trackedChaptersItem.getValue()).toEqual(before);
+    expect(await notificationWorkIdsItem.getValue()).toEqual({});
+  });
+
   it("preserves a disabled legacy toggle when adding category defaults", async () => {
     await notificationsEnabledItem.setValue(false);
     expect(await getNotificationPreferences()).toEqual({

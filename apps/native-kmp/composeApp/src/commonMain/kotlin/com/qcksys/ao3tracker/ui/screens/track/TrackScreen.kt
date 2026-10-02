@@ -28,13 +28,16 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -76,6 +79,9 @@ import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -90,6 +96,9 @@ import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
+import com.qcksys.ao3tracker.ui.components.WorkMetadata
+import com.qcksys.ao3tracker.ui.components.formatWorkTimestamp
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.SettingsTab
 import com.qcksys.ao3tracker.ui.screens.workdetail.WorkDetailScreen
@@ -113,6 +122,7 @@ fun TrackScreen() {
 
     // Sync state
     val syncState by screenModel.syncState.collectAsState()
+    var showSyncDebug by remember { mutableStateOf(false) }
     val lastSyncResult by screenModel.lastSyncResult.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -127,11 +137,9 @@ fun TrackScreen() {
 
     // Show snackbar when sync completes
     LaunchedEffect(lastSyncResult) {
-        lastSyncResult?.let { result ->
-            // Clear immediately to prevent re-showing on tab switch
-            screenModel.clearSyncResult()
-
-            val message = when (result) {
+        lastSyncResult?.let { completion ->
+            val result = completion.result
+            val message = if (completion.signedOut) "Signed out and cleared local data" else when (result) {
                 is SyncResult.Success -> "Synced: ${result.worksFromServer}/${result.chaptersFromServer} from server, ${result.worksToServer}/${result.chaptersToServer} to server"
                 is SyncResult.Error -> "Sync failed: ${result.message}"
                 is SyncResult.NotAuthenticated -> "Please sign in to sync"
@@ -141,6 +149,7 @@ fun TrackScreen() {
                 message = message,
                 actionLabel = actionLabel
             )
+            screenModel.clearSyncResult(completion)
             if (snackbarResult == SnackbarResult.ActionPerformed) {
                 tabNavigator.current = SettingsTab
             }
@@ -169,8 +178,12 @@ fun TrackScreen() {
                 actions = {
                     // Sync button
                     IconButton(
-                        onClick = { screenModel.sync() },
-                        enabled = !syncState.isSyncing
+                        onClick = {
+                            if (syncState.isSyncing) showSyncDebug = true else screenModel.sync()
+                        },
+                        modifier = Modifier.semantics {
+                            contentDescription = if (syncState.isSyncing) "Show sync debug progress" else "Sync"
+                        }
                     ) {
                         if (syncState.isSyncing) {
                             CircularProgressIndicator(
@@ -341,7 +354,12 @@ fun TrackScreen() {
             ) {
                 // Left side: sync status
                 if (syncState.isSyncing) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.weight(1f)
+                            .clickable(role = Role.Button, onClickLabel = "Show sync debug progress") { showSyncDebug = true }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp
@@ -349,13 +367,19 @@ fun TrackScreen() {
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = syncState.statusMessage ?: "Syncing...",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                 } else {
                     syncState.lastSyncedAt?.let { lastSync ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.clickable(role = Role.Button, onClickLabel = "Show sync debug progress") { showSyncDebug = true }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Sync,
                                 contentDescription = null,
@@ -388,6 +412,7 @@ fun TrackScreen() {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable(role = Role.Button, onClickLabel = "Show sync debug progress") { showSyncDebug = true }
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
@@ -468,15 +493,7 @@ fun TrackScreen() {
                         WorkCard(
                             work = work,
                             onClick = {
-                                // Navigate to Read tab with the last read chapter or work URL
-                                val lastChapter = work.lastChapterRead
-                                val url = if (lastChapter != null) {
-                                    "https://archiveofourown.org/works/${work.id}/chapters/${lastChapter.id}"
-                                } else {
-                                    "https://archiveofourown.org/works/${work.id}"
-                                }
-                                val scrollProgress = lastChapter?.readProgress ?: 0f
-                                NavigationState.navigateToRead(url, scrollProgress)
+                                NavigationState.navigateToWork(work.id)
                                 tabNavigator.current = ReadTab
                             },
                             onFavourite = { screenModel.toggleFavourite(work.id, work.favourite) },
@@ -485,6 +502,10 @@ fun TrackScreen() {
                     }
                 }
             }
+        }
+
+        if (showSyncDebug) {
+            SyncDebugDialog(syncState = syncState, onDismiss = { showSyncDebug = false })
         }
 
         // Filter bottom sheet
@@ -503,7 +524,7 @@ fun TrackScreen() {
 }
 
 @Composable
-private fun WorkCard(
+internal fun WorkCard(
     work: Work,
     onClick: () -> Unit,
     onFavourite: () -> Unit,
@@ -520,19 +541,20 @@ private fun WorkCard(
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
+            Text(
+                text = if (work.isPrivate && work.title == null) "Private work" else work.title ?: "Unknown Work",
+                modifier = Modifier.fillMaxWidth(),
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                color = if (work.isPrivate && work.title == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+            )
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (work.isPrivate && work.title == null) "Private work" else work.title ?: "Unknown Work",
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        color = if (work.isPrivate && work.title == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                    )
                     if (!(work.isPrivate && work.author == null)) {
                         Text(
                             text = "by ${work.author ?: "Anonymous"}",
@@ -601,21 +623,31 @@ private fun WorkCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Chapters and last read on same line
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Chapters: ${work.chapterProgress}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                WorkMetadata(
+                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                    value = work.chapterProgress,
+                    description = "Chapters: ${work.chapterProgress}",
+                    modifier = Modifier.weight(1f)
                 )
+                work.lastUpdated?.let { lastUpdatedTimestamp ->
+                    WorkMetadata(
+                        icon = Icons.Default.Update,
+                        value = formatWorkTimestamp(lastUpdatedTimestamp, compact = true),
+                        description = "Updated: ${formatWorkTimestamp(lastUpdatedTimestamp)}",
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 work.lastRead?.let { lastReadTimestamp ->
-                    Text(
-                        text = "Last read: ${formatTimestamp(lastReadTimestamp)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    WorkMetadata(
+                        icon = Icons.Default.History,
+                        value = formatWorkTimestamp(lastReadTimestamp, compact = true),
+                        description = "Read: ${formatWorkTimestamp(lastReadTimestamp)}",
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -1151,32 +1183,6 @@ private fun ReadingStatusFilterSection(
 
 private fun Int.formatWithCommas(): String {
     return this.toString().reversed().chunked(3).joinToString(",").reversed()
-}
-
-@OptIn(kotlin.time.ExperimentalTime::class)
-private fun formatTimestamp(timestamp: Long): String {
-    // Simple formatting - shows relative time or date
-    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
-    val diff = now - timestamp
-    val days = diff / (1000 * 60 * 60 * 24)
-
-    return when {
-        days < 1 -> "Today"
-        days < 2 -> "Yesterday"
-        days < 7 -> "$days days ago"
-        else -> {
-            // Simple date formatting
-            val totalSeconds = timestamp / 1000
-            val totalMinutes = totalSeconds / 60
-            val totalHours = totalMinutes / 60
-            val totalDays = totalHours / 24
-            val year = 1970 + (totalDays / 365).toInt()
-            val dayOfYear = (totalDays % 365).toInt()
-            val month = (dayOfYear / 30) + 1
-            val day = (dayOfYear % 30) + 1
-            "$year-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
-        }
-    }
 }
 
 @OptIn(kotlin.time.ExperimentalTime::class)

@@ -116,6 +116,20 @@ val MIGRATION_8_9 = object : Migration(8, 9) {
     }
 }
 
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN lastViewedAt INTEGER")
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN changesJson TEXT NOT NULL DEFAULT '{}'")
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN attemptedAt INTEGER NOT NULL DEFAULT 0")
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN partial INTEGER NOT NULL DEFAULT 0")
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN fullSnapshot INTEGER NOT NULL DEFAULT 1")
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN resumeUrl TEXT")
+        connection.execSQL("ALTER TABLE search_check ADD COLUMN scanStartedAt INTEGER")
+        // Legacy counts have no work IDs to deduplicate; retain their snapshot as the baseline.
+        connection.execSQL("UPDATE search_check SET newWorks = 0, updatedWorks = 0, previousCheckedAt = NULL")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("CREATE TABLE IF NOT EXISTS active_account (id INTEGER NOT NULL PRIMARY KEY, owner TEXT NOT NULL, remoteCursor TEXT, localCursor INTEGER)")

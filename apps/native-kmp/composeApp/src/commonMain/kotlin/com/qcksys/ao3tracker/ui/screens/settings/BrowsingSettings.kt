@@ -1,5 +1,9 @@
 package com.qcksys.ao3tracker.ui.screens.settings
 
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +37,9 @@ import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.Ao3Languages
 
 @Composable
-fun BrowsingSettings(appSettings: AppSettings) {
+fun BrowsingSettings(appSettings: AppSettings, onOpenHiddenWorks: () -> Unit) {
     val preferences by appSettings.browsingPreferences.collectAsState()
-    var draft by remember { mutableStateOf<String?>(null) }
+    var draft by remember { mutableStateOf("") }
     var fandomDraft by remember { mutableStateOf<String?>(null) }
     val fandomInput = fandomDraft ?: preferences.maxFandoms?.toString().orEmpty()
     val fandomLimit = fandomInput.trim().toIntOrNull()
@@ -98,31 +102,42 @@ fun BrowsingSettings(appSettings: AppSettings) {
                     fandomDraft = null
                 }
             }) { Text("Save fandom limit") }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Hide caught-up and finished works", modifier = Modifier.weight(1f))
+                Switch(
+                    checked = preferences.hideCaughtUp,
+                    onCheckedChange = { enabled -> save { appSettings.setHideCaughtUp(enabled) } },
+                    modifier = Modifier.semantics { contentDescription = "Hide caught-up and finished works" }
+                )
+            }
+            Text("Collapse these works in AO3 lists. Works with new chapters stay visible.")
+            Text("Excluded tags", style = MaterialTheme.typography.titleSmall)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                preferences.hiddenTags.forEach { tag ->
+                    InputChip(
+                        selected = true,
+                        onClick = { save { appSettings.setHiddenTags(preferences.hiddenTags.filter { it != tag }.joinToString("\n")) } },
+                        label = { Text(tag) },
+                        trailingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
+                        modifier = Modifier.semantics { contentDescription = "Remove $tag" }
+                    )
+                }
+            }
             OutlinedTextField(
-                value = draft ?: preferences.hiddenTags.joinToString("\n"),
+                value = draft,
                 onValueChange = { draft = it },
-                label = { Text("Default hidden tags") },
-                supportingText = { Text("One tag per line, or separated by commas. Added to every work and bookmark search.") },
-                minLines = 3,
+                label = { Text("Add excluded tags") },
+                supportingText = { Text("Excluded from every work and bookmark search. Add one tag or paste comma-separated tags.") },
                 modifier = Modifier.fillMaxWidth()
             )
-            Button(enabled = draft != null, onClick = {
+            Button(enabled = draft.isNotBlank(), onClick = {
                 save {
-                    appSettings.setHiddenTags(draft.orEmpty())
-                    draft = null
+                    appSettings.setHiddenTags((preferences.hiddenTags + draft).joinToString("\n"))
+                    draft = ""
                 }
-            }) { Text("Save hidden tags") }
-            Text("Hidden works (${preferences.hiddenWorkIds.size})", style = MaterialTheme.typography.titleSmall)
-            if (preferences.hiddenWorkIds.isEmpty()) {
-                Text("Use “Hide work” on an AO3 result to hide it from lists.")
-            }
-            preferences.hiddenWorkIds.forEach { workId ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Work $workId", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { save { appSettings.setWorkHidden(workId, false) } }) {
-                        Text("Unhide")
-                    }
-                }
+            }) { Text("Add tags") }
+            TextButton(onClick = onOpenHiddenWorks) {
+                Text("Hidden works (${preferences.hiddenWorkIds.size})")
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }

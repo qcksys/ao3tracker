@@ -14,7 +14,7 @@ import com.qcksys.ao3tracker.data.auth.AuthRepository
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.push.PushRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
-import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.di.appModule
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
@@ -49,16 +49,16 @@ fun App() {
         // Register push token and auto-sync when authenticated
         val authState by authRepository.authState.collectAsState()
         val appSettings = koinInject<AppSettings>()
-        val syncRepository = koinInject<SyncRepository>()
+        val syncCoordinator = koinInject<SyncCoordinator>()
         val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
 
         LaunchedEffect(authState) {
             if (authState is AuthState.Authenticated) {
-                pushRepository.registerTokenIfNeeded()
                 // Auto-sync on app open if enabled
                 if (autoSyncOnOpen) {
-                    syncRepository.sync()
+                    syncCoordinator.requestSync(showResult = false)
                 }
+                pushRepository.registerTokenIfNeeded()
             }
         }
 

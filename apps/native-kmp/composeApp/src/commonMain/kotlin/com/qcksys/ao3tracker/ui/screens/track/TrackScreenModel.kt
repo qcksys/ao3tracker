@@ -7,14 +7,14 @@ import com.qcksys.ao3tracker.data.model.ReadingStatus
 import com.qcksys.ao3tracker.data.model.SortField
 import com.qcksys.ao3tracker.data.model.SortOrder
 import com.qcksys.ao3tracker.data.model.SortState
-import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.SyncState
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
-import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
+import com.qcksys.ao3tracker.data.sync.SyncCompletion
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -44,7 +45,7 @@ enum class FilterSection {
 
 class TrackScreenModel(
     private val repository: Ao3Repository,
-    private val syncRepository: SyncRepository,
+    private val syncCoordinator: SyncCoordinator,
     private val favouriteTagRepository: FavouriteTagRepository,
     private val syncTriggers: SyncTriggers
 ) : ScreenModel {
@@ -77,10 +78,8 @@ class TrackScreenModel(
     val expandedFilterSections: StateFlow<Set<FilterSection>> = _expandedFilterSections.asStateFlow()
 
     // Sync state
-    val syncState: StateFlow<SyncState> = syncRepository.syncState
-
-    private val _lastSyncResult = MutableStateFlow<SyncResult?>(null)
-    val lastSyncResult: StateFlow<SyncResult?> = _lastSyncResult.asStateFlow()
+    val syncState: StateFlow<SyncState> = syncCoordinator.syncState
+    val lastSyncResult = syncCoordinator.lastSyncResult
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val works: StateFlow<List<Work>> = combine(
@@ -253,16 +252,18 @@ class TrackScreenModel(
     }
 
     fun setTagFilter(tagType: TagType, tag: String) {
-        // Clear existing filters but set the new tag filter (don't preserve search query for navigation from details)
-        _filterState.value = when (tagType) {
-            TagType.RATING -> FilterState(ratingFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.WARNING -> FilterState(warningFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.CATEGORY -> FilterState(categoryFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.FANDOM -> FilterState(fandomFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.RELATIONSHIP -> FilterState(relationshipFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.CHARACTER -> FilterState(characterFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.FREEFORM -> FilterState(freeformFilters = mapOf(tag to TagFilterMode.INCLUDE))
-            TagType.UNKNOWN -> _filterState.value // Don't change filter for unknown type
+        _filterState.update { current ->
+            val includedTag = tag to TagFilterMode.INCLUDE
+            when (tagType) {
+                TagType.RATING -> current.copy(ratingFilters = current.ratingFilters + includedTag)
+                TagType.WARNING -> current.copy(warningFilters = current.warningFilters + includedTag)
+                TagType.CATEGORY -> current.copy(categoryFilters = current.categoryFilters + includedTag)
+                TagType.FANDOM -> current.copy(fandomFilters = current.fandomFilters + includedTag)
+                TagType.RELATIONSHIP -> current.copy(relationshipFilters = current.relationshipFilters + includedTag)
+                TagType.CHARACTER -> current.copy(characterFilters = current.characterFilters + includedTag)
+                TagType.FREEFORM -> current.copy(freeformFilters = current.freeformFilters + includedTag)
+                TagType.UNKNOWN -> current
+            }
         }
     }
 
@@ -342,14 +343,11 @@ class TrackScreenModel(
     }
 
     fun sync() {
-        screenModelScope.launch {
-            val result = syncRepository.sync()
-            _lastSyncResult.value = result
-        }
+        syncCoordinator.requestSync()
     }
 
-    fun clearSyncResult() {
-        _lastSyncResult.value = null
+    fun clearSyncResult(completion: SyncCompletion) {
+        syncCoordinator.clearLastSyncResult(completion)
     }
 
     fun isFavouriteTag(tagType: TagType, tag: String): Boolean {

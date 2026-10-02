@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.automirrored.filled.List
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -73,6 +75,8 @@ import com.qcksys.ao3tracker.data.model.Chapter
 import com.qcksys.ao3tracker.data.model.Tag
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
+import com.qcksys.ao3tracker.ui.components.WorkMetadata
+import com.qcksys.ao3tracker.ui.components.formatWorkTimestamp
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.TrackTab
@@ -96,7 +100,6 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
     val tabNavigator = LocalTabNavigator.current
     val work by screenModel.work.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var chapterToDelete by remember { mutableStateOf<Chapter?>(null) }
     var showDebugDialog by remember { mutableStateOf(false) }
 
     // JSON formatter for debug output
@@ -237,8 +240,7 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
                             chapter = chapter,
                             onClick = { navigateToRead(buildChapterUrl(workData.id, chapter.id), chapter.readProgress ?: 0f) },
                             onMarkAsRead = { screenModel.markChapterAsRead(chapter.id) },
-                            onMarkAsUnread = { screenModel.markChapterAsUnread(chapter.id) },
-                            onDelete = { chapterToDelete = chapter }
+                            onMarkAsUnread = { screenModel.markChapterAsUnread(chapter.id) }
                         )
                     }
                 }
@@ -274,30 +276,6 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Delete chapter dialog
-    chapterToDelete?.let { chapter ->
-        AlertDialog(
-            onDismissRequest = { chapterToDelete = null },
-            title = { Text("Delete Chapter") },
-            text = { Text("Are you sure you want to delete the progress for \"${chapter.displayTitle}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        screenModel.deleteChapter(chapter.id)
-                        chapterToDelete = null
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { chapterToDelete = null }) {
                     Text("Cancel")
                 }
             }
@@ -662,12 +640,11 @@ private fun CollapsibleTagCategory(
 }
 
 @Composable
-private fun ChapterCard(
+internal fun ChapterCard(
     chapter: Chapter,
     onClick: () -> Unit,
     onMarkAsRead: () -> Unit,
-    onMarkAsUnread: () -> Unit,
-    onDelete: () -> Unit
+    onMarkAsUnread: () -> Unit
 ) {
     val progress = chapter.readProgress ?: 0f
     val hasStarted = progress > 0f
@@ -705,30 +682,19 @@ private fun ChapterCard(
                             MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text(
-                            text = when {
-                                isComplete -> "Completed"
-                                hasStarted -> "${chapter.progressPercent}%"
-                                else -> "Not started"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = when {
-                                isComplete -> MaterialTheme.colorScheme.primary
-                                hasStarted -> MaterialTheme.colorScheme.onSurfaceVariant
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            }
-                        )
-                        chapter.lastReadAt?.let { lastRead ->
-                            Text(
-                                text = formatTimestamp(lastRead),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    Text(
+                        text = when {
+                            isComplete -> "Completed"
+                            hasStarted -> "${chapter.progressPercent}%"
+                            else -> "Not started"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = when {
+                            isComplete -> MaterialTheme.colorScheme.primary
+                            hasStarted -> MaterialTheme.colorScheme.onSurfaceVariant
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         }
-                    }
+                    )
                 }
 
                 // Mark as read button (only show if not complete)
@@ -753,15 +719,6 @@ private fun ChapterCard(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete chapter progress",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
                 }
             }
 
@@ -773,6 +730,31 @@ private fun ChapterCard(
                     modifier = Modifier.fillMaxWidth(),
                     drawStopIndicator = {}
                 )
+            }
+
+            if (chapter.dateUpdated != null || chapter.lastReadAt != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    chapter.dateUpdated?.let { published ->
+                        WorkMetadata(
+                            icon = Icons.Default.Update,
+                            value = formatWorkTimestamp(published, compact = true),
+                            description = "Published: ${formatWorkTimestamp(published)}",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    chapter.lastReadAt?.let { lastRead ->
+                        WorkMetadata(
+                            icon = Icons.Default.History,
+                            value = formatWorkTimestamp(lastRead, compact = true),
+                            description = "Read: ${formatWorkTimestamp(lastRead)}",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }

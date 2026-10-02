@@ -5,6 +5,8 @@ const languageCodes = new Set(languages.map(({ code }) => code));
 
 export const browsingPreferencesSchema = z.object({
   hiddenWorkIds: z.array(z.number().int().positive()),
+  hiddenWorkTitles: z.record(z.string(), z.string()).default({}),
+  hideCaughtUp: z.boolean().default(false),
   hiddenTags: z.array(z.string().trim().min(1)),
   languageFilterEnabled: z.boolean().default(false),
   maxFandoms: z.number().int().positive().max(2147483647).nullable().default(null),
@@ -23,6 +25,7 @@ export type BrowsingState = z.infer<typeof browsingStateSchema>;
 export const setWorkHiddenSchema = z.object({
   workId: z.number().int().positive(),
   hidden: z.boolean(),
+  title: z.string().optional(),
 });
 
 export const browsingReadyMessageSchema = z.object({

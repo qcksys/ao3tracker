@@ -1,9 +1,12 @@
 package com.qcksys.ao3tracker.ui.screens.searches
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
@@ -16,10 +19,12 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.unit.dp
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.database.SearchCheckEntity
 import java.awt.datatransfer.DataFlavor
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -35,6 +40,55 @@ class SearchesScreenTest {
         updatedAt = 1L,
         pendingSync = false
     )
+
+    @Test
+    fun showsFiveTagsAndOverflowBelowAFullWidthNameOnNarrowScreens() {
+        val saved = search.copy(
+            name = "Favourite stories with a long descriptive name",
+            url = "https://archiveofourown.org/works?work_search[other_tag_names]=Fluff,Caf%C3%A9,Slow+Burn,Friendship,Happy+Ending,Angst,Humour"
+        )
+        rule.setContent {
+            MaterialTheme {
+                Box(Modifier.width(320.dp)) {
+                    SearchesScreenContent(
+                        searches = listOf(saved),
+                        onOpen = {}, onRename = { _, _ -> }, onDelete = {}
+                    )
+                }
+            }
+        }
+        listOf("Fluff", "Café", "Slow Burn", "Friendship", "Happy Ending", "+2 more").forEach {
+            rule.onNodeWithText(it).assertIsDisplayed()
+        }
+        rule.onNodeWithText("Angst").assertDoesNotExist()
+        rule.onNodeWithText("Humour").assertDoesNotExist()
+        rule.onNodeWithText(saved.url).assertDoesNotExist()
+        val name = rule.onNodeWithText(saved.name, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val tag = rule.onNodeWithText("Fluff", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val copy = rule.onNodeWithContentDescription("Copy link for ${saved.name}").fetchSemanticsNode().boundsInRoot
+        assertTrue(name.width >= with(rule.density) { 288.dp.toPx() })
+        assertTrue(tag.top >= name.bottom)
+        assertTrue(copy.top >= tag.bottom)
+    }
+
+    @Test
+    fun hidesOverflowAtFiveTagsAndOmitsEmptyTagPreviews() {
+        val url = mutableStateOf("https://archiveofourown.org/works?work_search[tag_names]=One,Two,Three,Four,Five")
+        rule.setContent {
+            MaterialTheme {
+                SearchesScreenContent(
+                    searches = listOf(search.copy(url = url.value)),
+                    onOpen = {}, onRename = { _, _ -> }, onDelete = {}
+                )
+            }
+        }
+        rule.onNodeWithText("Five").assertIsDisplayed()
+        rule.onNodeWithText("more", substring = true).assertDoesNotExist()
+        rule.runOnIdle { url.value = "https://archiveofourown.org/works" }
+        rule.onNodeWithText("One").assertDoesNotExist()
+        rule.onNodeWithText("more", substring = true).assertDoesNotExist()
+        rule.onNodeWithText(search.name).assertIsDisplayed()
+    }
 
     @OptIn(ExperimentalComposeUiApi::class)
     @Test
@@ -159,7 +213,7 @@ class SearchesScreenTest {
                 )
             }
         }
-        rule.onNodeWithText("3 new works · 2 updated works").assertIsDisplayed()
+        rule.onNodeWithText("3 newly found · 2 updated works").assertIsDisplayed()
         rule.onNodeWithText("Checked ", substring = true).assertIsDisplayed()
         rule.onNodeWithText("AO3 returned 429.", substring = true).assertIsDisplayed()
         rule.onNodeWithContentDescription("Check ${search.name}").performClick()
