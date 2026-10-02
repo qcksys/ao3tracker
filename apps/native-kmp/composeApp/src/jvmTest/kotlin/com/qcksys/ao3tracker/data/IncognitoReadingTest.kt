@@ -53,6 +53,40 @@ import kotlinx.serialization.json.Json
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
     @Test
+    fun `browsing controls work while incognito and push preference and saved search changes`() = runTest {
+        fixture { f ->
+            val pageUrl = "https://archiveofourown.org/works/search?work_search[query]=test"
+            val scripts = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.jsInjectionFlow.collect { scripts.add(it) }
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            f.model.updateCurrentUrl(pageUrl)
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$pageUrl"}""")
+            advanceUntilIdle()
+            assertTrue(scripts.any { it.contains("applyBrowsingState") && it.contains("savedSearchUrls") })
+
+            f.model.handleWebViewMessage("""{"type":"setWorkHidden","url":"$pageUrl","workId":123,"hidden":true}""")
+            advanceUntilIdle()
+            assertEquals(listOf(123L), f.settings.browsingPreferences.value.hiddenWorkIds)
+            assertTrue(scripts.last().contains("\"hiddenWorkIds\":[123]"))
+
+            f.settings.setHiddenTags("Angst")
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"hiddenTags\":[\"Angst\"]"))
+
+            f.model.confirmSaveSearch("My search", pageUrl)
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"savedSearchUrls\":[\"$pageUrl\"]"))
+            assertTrue(f.db.workDao().getAllWorksIncludingDeletedOnce().isEmpty())
+
+            f.model.handleWebViewMessage("""{"type":"setWorkHidden","url":"https://example.com/works","workId":456,"hidden":true}""")
+            advanceUntilIdle()
+            assertEquals(listOf(123L), f.settings.browsingPreferences.value.hiddenWorkIds)
+        }
+    }
+
+    @Test
     fun `initial account initialization preserves an external reading URL`() = runTest {
         val externalUrl = "${url()}?view_adult=true&view_full_work=true#comment_123"
         fixture(beforeInitialization = { it.model.navigateToExternalUrl(externalUrl) }) { f ->

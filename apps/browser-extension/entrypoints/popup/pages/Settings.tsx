@@ -18,6 +18,7 @@ import { apiBaseUrlPresets, availableApiBaseUrlPresets } from "@/lib/storage";
 import { authClient } from "~popup/lib/auth-client";
 import { SettingsSection } from "~popup/components/SettingsSection";
 import { usePopupState } from "~popup/lib/state";
+import { BrowsingSettings } from "./BrowsingSettings";
 
 const notificationOptions: {
   key: keyof NotificationPreferences;
@@ -135,6 +136,7 @@ export default function Settings() {
       </Card>
 
       <Accordion.Root multiple className="flex flex-col gap-3">
+        <BrowsingSettings />
         <SettingsSection
           id="notifications"
           title="Notifications"

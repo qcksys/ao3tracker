@@ -87,6 +87,12 @@ actual class SettingsStorage {
 
     actual fun getNotificationPreferences(): String? = prefs.getString("notification_preferences", null)
 
+    actual fun getBrowsingPreferences(): String? = prefs.getString("browsing_preferences", null)
+
+    actual fun setBrowsingPreferences(preferences: String) {
+        prefs.edit().putString("browsing_preferences", preferences).apply()
+    }
+
     actual fun setNotificationPreferences(preferences: String) {
         prefs.edit().putString("notification_preferences", preferences).apply()
     }

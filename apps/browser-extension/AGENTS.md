@@ -91,7 +91,7 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 | `/`                   | `Tracker`           | Default. Shows current work + sync controls when signed in, otherwise prompts sign-in.                      |
 | `/searches`           | `Searches`          | Saved AO3 filter URLs — open in a new tab, rename, delete. Saved via the on-page "Save this search" button. |
 | `/lists`              | `Lists`             | Favourite-tag chips grouped by type.                                                                        |
-| `/settings`           | `Settings`          | Account controls, expandable Notifications and Advanced (API environment) sections.                         |
+| `/settings`           | `Settings`          | Account controls, expandable Search preferences, Notifications and Advanced (API environment) sections.     |
 | `/login`, `/register` | `Login`, `Register` | react-hook-form + zod, talks to Better Auth via the sync client.                                            |
 
 ### Sync flow
@@ -100,8 +100,11 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 2. Background ingests via `tracker-repo.ingestPageEvent`, marks affected rows `pendingSync = true`, and debounces a sync 2 s later.
 3. `runSync()` pulls `/sync` (paginated), then merges against the latest local state under the mutation queue. Reading fields use `lastReadAt`; favourite/subscription flags use their independent timestamps (explicit timestamps beat missing ones, remote wins ties). It pushes pending rows in batches of 50 works, with parent works included for pending chapters, including chapter tombstones (`deleted: true`). Each POST acknowledges only the exact local versions it sent. The cursor is the first GET page's server mutation watermark, not a reading timestamp. Full GETs include tombstones so the one-time cursor migration does not resurrect deleted work.
 4. Favourite-tag rows are LWW-merged with `mergeFavouriteTags`. Explicit local `pendingSync` flags preserve unsent changes independently of the server cursor. Missing flags on legacy rows are retried once; remote rows win ties. Per-row tables batch at 500 rows.
-5. Saved-search rows work the same way: the content script's "Save this search" button posts a `saveSearch` message (origin-gated to AO3), and the background writes via `saved-searches-repo`. Rows LWW-merge with `mergeSavedSearches` (id-keyed).
+5. Saved-search rows use `saveSearch` messages (origin-gated to AO3), persist through `saved-searches-repo`, and LWW-merge with `mergeSavedSearches` (id-keyed). The content script requests live search URLs in `getBrowsingState` and watches storage changes; the shared DOM helper shows a disabled "Saved search" button for a matching URL, ignoring pagination and parameter order. `suggestSavedSearchName` supplies the editable default from applied filters, excluding pagination, counts, and result blurbs; keep it shared with the native WebView.
+
 6. Auth tokens change only through the background's `setAuthSession` message. Account/endpoint switches archive unsent changes, restore only that identity's data, and invalidate old sync responses. Logged-out data stays in its own endpoint-specific archive. Tag metadata is replaced per returned work, retaining unrelated works' cached tags.
+
+**Search preferences**: Settings edits device-local `browsingPreferencesItem` (`hiddenWorkIds`, `hiddenTags`), outside account sync. Background mutations use `withLocalState`; message schemas derive from the shared browsing schemas. `@qcksys/ao3tracker-core/dom` adds tag defaults to AO3 work/bookmark GET searches while preserving explicit exclusions, and collapses hidden works with an Unhide action. Preferences start empty and remain when accounts change.
 
 ## Conventions
 

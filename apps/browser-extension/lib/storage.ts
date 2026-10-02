@@ -5,10 +5,19 @@ import type {
   SyncWorkMetadata,
 } from "@qcksys/ao3tracker-core";
 import { storage } from "@wxt-dev/storage";
+import type { BrowsingPreferences } from "@qcksys/ao3tracker-core/schemas";
+
 import {
   defaultNotificationPreferences,
   type NotificationPreferences,
 } from "@qcksys/ao3tracker-core/notifications";
+
+export const browsingPreferencesItem = storage.defineItem<BrowsingPreferences>(
+  "local:browsingPreferences",
+  {
+    fallback: { hiddenWorkIds: [], hiddenTags: [] },
+  },
+);
 
 /**
  * Persistent state for the extension. Everything here is mirrored in the

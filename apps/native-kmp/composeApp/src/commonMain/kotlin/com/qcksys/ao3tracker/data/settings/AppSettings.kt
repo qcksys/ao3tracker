@@ -62,6 +62,30 @@ class AppSettings(
     }
     private val trackingGeneration = MutableStateFlow(0L)
 
+    private val _browsingPreferences = MutableStateFlow(
+        settingsStorage?.getBrowsingPreferences()?.let {
+            JsonConfig.json.decodeFromString<BrowsingPreferences>(it)
+        } ?: BrowsingPreferences()
+    )
+    val browsingPreferences: StateFlow<BrowsingPreferences> = _browsingPreferences.asStateFlow()
+
+    private fun setBrowsingPreferences(preferences: BrowsingPreferences) {
+        settingsStorage?.setBrowsingPreferences(JsonConfig.json.encodeToString(preferences))
+        _browsingPreferences.value = preferences
+    }
+
+    fun setHiddenTags(text: String) {
+        val tags = text.split(',', '\n').map { it.trim() }.filter { it.isNotEmpty() }.distinctBy { it.lowercase() }
+        setBrowsingPreferences(_browsingPreferences.value.copy(hiddenTags = tags))
+    }
+
+    fun setWorkHidden(workId: Long, hidden: Boolean) {
+        if (workId <= 0) return
+        val ids = _browsingPreferences.value.hiddenWorkIds.toMutableSet()
+        if (hidden) ids.add(workId) else ids.remove(workId)
+        setBrowsingPreferences(_browsingPreferences.value.copy(hiddenWorkIds = ids.toList()))
+    }
+
     fun setIncognitoModeEnabled(enabled: Boolean) {
         if (_incognitoModeEnabled.value == enabled) return
         trackingGeneration.value++

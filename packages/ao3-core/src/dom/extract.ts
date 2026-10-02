@@ -180,7 +180,10 @@ export function getWorkChapterSelect(
 export function isFilterableListPage(doc: Document, location: Location): boolean {
   if (!classifyAo3Url(location.href).isList) return false;
   return (
-    doc.querySelector("form#work-filters") !== null ||
+    doc.querySelector(
+      "form#work-filters, form#bookmark-filters, form#work_search, form#bookmark_search",
+    ) !== null ||
+    /\/(works|bookmarks)\/search$/.test(new URL(location.href).pathname) ||
     doc.querySelector('li[id^="work_"], li[id^="bookmark_"]') !== null
   );
 }

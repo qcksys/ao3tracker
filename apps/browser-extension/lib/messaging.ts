@@ -7,7 +7,12 @@ import {
   webViewMessageSchema,
 } from "@qcksys/ao3tracker-core";
 import { z } from "zod";
-import { notificationPreferencesSchema } from "@qcksys/ao3tracker-core/schemas";
+import {
+  browsingPreferencesSchema,
+  browsingStateSchema,
+  notificationPreferencesSchema,
+  setWorkHiddenSchema,
+} from "@qcksys/ao3tracker-core/schemas";
 
 /**
  * Messages flowing **content script → background**. These wrap the canonical
@@ -15,6 +20,8 @@ import { notificationPreferencesSchema } from "@qcksys/ao3tracker-core/schemas";
  * branch on `message.kind` before dispatching to per-type handlers.
  */
 export const contentToBackgroundSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("getBrowsingState") }),
+  setWorkHiddenSchema.extend({ kind: z.literal("setWorkHidden") }),
   z.object({ kind: z.literal("pageEvent"), payload: webViewMessageSchema }),
   z.object({ kind: z.literal("requestBadges"), workIds: z.array(z.number().int().positive()) }),
   z.object({
@@ -27,6 +34,7 @@ export type ContentToBackground = z.infer<typeof contentToBackgroundSchema>;
 
 /** background → content responses (synchronous, sent as the sendResponse). */
 export const backgroundToContentResponseSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("browsingState"), state: browsingStateSchema }),
   z.object({ kind: z.literal("ok") }),
   z.object({ kind: z.literal("badges"), entries: z.array(z.custom<WorkBadgeData>()) }),
   z.object({ kind: z.literal("error"), message: z.string() }),
@@ -39,6 +47,8 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
  * picks up token changes via `authTokenItem.watch` and triggers sync.
  */
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
+  setWorkHiddenSchema.pick({ workId: true }).extend({ kind: z.literal("unhideWork") }),
+  browsingPreferencesSchema.pick({ hiddenTags: true }).extend({ kind: z.literal("setHiddenTags") }),
   z.object({ kind: z.literal("getState") }),
   z.object({ kind: z.literal("syncNow") }),
   z.object({
@@ -75,6 +85,7 @@ export const popupStateSchema = z.object({
   syncing: z.boolean(),
   trackedCount: z.number().int().nonnegative(),
   notificationPreferences: notificationPreferencesSchema,
+  browsingPreferences: browsingPreferencesSchema,
   currentWork: z
     .object({
       workId: z.number().int().positive(),

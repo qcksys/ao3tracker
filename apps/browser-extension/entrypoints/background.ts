@@ -24,6 +24,8 @@ import {
 import { runSync, StaleSyncSessionError } from "@/lib/sync";
 import { initializeAccount, setApiEndpoint, setAuthSession } from "@/lib/account-state";
 import { withLocalState } from "@/lib/local-state";
+import { getBrowsingState, setHiddenTags, setWorkHidden } from "@/lib/browsing-repo";
+import { browsingPreferencesItem } from "@/lib/storage";
 import {
   buildBadgePayloads,
   currentWorkSummary,
@@ -95,6 +97,7 @@ async function getPopupState(): Promise<PopupState> {
     currentWork,
     trackedCount,
     notificationPreferences,
+    browsingPreferences,
   ] = await Promise.all([
     apiBaseUrlItem.getValue(),
     lastSyncedAtItem.getValue(),
@@ -104,6 +107,7 @@ async function getPopupState(): Promise<PopupState> {
     currentWorkSummary(),
     trackedWorkCount(),
     getNotificationPreferences(),
+    browsingPreferencesItem.getValue(),
   ]);
   return {
     // Coerce so the popup's "Active" endpoint matches what requests actually
@@ -114,6 +118,7 @@ async function getPopupState(): Promise<PopupState> {
     syncing,
     trackedCount,
     notificationPreferences,
+    browsingPreferences,
     currentWork,
     favouriteTags,
     savedSearches,
@@ -124,6 +129,11 @@ async function handleContentMessage(
   msg: ContentToBackground,
 ): Promise<BackgroundToContentResponse> {
   switch (msg.kind) {
+    case "getBrowsingState":
+      return { kind: "browsingState", state: await getBrowsingState() };
+    case "setWorkHidden":
+      await setWorkHidden(msg.workId, msg.hidden);
+      return { kind: "browsingState", state: await getBrowsingState() };
     case "pageEvent": {
       const affected = await ingestPageEvent(msg.payload);
       if (affected.length > 0) scheduleSync();
@@ -143,6 +153,13 @@ async function handleContentMessage(
 
 async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToPopupResponse> {
   switch (msg.kind) {
+    case "unhideWork":
+    case "setHiddenTags":
+      return withLocalState(async () => {
+        if (msg.kind === "unhideWork") await setWorkHidden(msg.workId, false);
+        else await setHiddenTags(msg.hiddenTags);
+        return { kind: "state", state: await getPopupState() };
+      });
     case "getState":
       return withLocalState(async () => ({ kind: "state", state: await getPopupState() }));
 
