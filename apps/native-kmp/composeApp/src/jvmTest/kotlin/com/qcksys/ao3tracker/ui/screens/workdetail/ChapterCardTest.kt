@@ -92,8 +92,7 @@ class ChapterCardTest {
                         chapter,
                         onClick = {},
                         onMarkAsRead = {},
-                        onMarkAsUnread = {},
-                        onDelete = {}
+                        onMarkAsUnread = {}
                     )
                 }
             }
