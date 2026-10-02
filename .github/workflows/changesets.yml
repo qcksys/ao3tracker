@@ -2,19 +2,19 @@ name: Generate patch notes
 
 on:
   push:
-    branches: [dev]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: changesets-dev
+  group: changesets-main
   cancel-in-progress: false
 
 jobs:
   version:
-    if: github.ref == 'refs/heads/dev'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -23,7 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: dev
+          ref: main
           fetch-depth: 0
           persist-credentials: false
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
@@ -36,7 +36,7 @@ jobs:
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           version-script: vp run version-packages
-          pr-base-branch: dev
+          pr-base-branch: main
           pr-title: "chore: update package versions and patch notes"
           commit-message: "chore: update package versions and patch notes"
           create-github-releases: false
