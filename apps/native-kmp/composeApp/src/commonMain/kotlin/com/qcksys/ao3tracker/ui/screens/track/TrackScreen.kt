@@ -55,7 +55,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -423,7 +422,7 @@ fun TrackScreen() {
                 onValueChange = { screenModel.updateSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
                 placeholder = { Text("Search by title or author") },
                 leadingIcon = {
                     Icon(Icons.Default.Search, contentDescription = null)
@@ -478,8 +477,8 @@ fun TrackScreen() {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(works, key = { it.id }) { work ->
                         WorkCard(
@@ -672,7 +671,7 @@ private fun WorkCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -690,15 +689,15 @@ private fun WorkCard(
                     if (!(work.isPrivate && work.author == null)) {
                         Text(
                             text = "by ${work.author ?: "Anonymous"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    // Fandom tags
-                    val fandoms = work.tags.filter { it.type == TagType.FANDOM }
-                    if (fandoms.isNotEmpty()) {
+                    work.tags.firstOrNull { it.type == TagType.FANDOM }?.let { fandom ->
                         Text(
-                            text = fandoms.joinToString(", ") { it.tag },
+                            text = fandom.tag,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -737,7 +736,7 @@ private fun WorkCard(
                 ) {
                     Text(
                         text = "Reading: ${chapter.displayTitle}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -745,18 +744,13 @@ private fun WorkCard(
                     )
                     Text(
                         text = "${chapter.progressPercent}%",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
             }
 
-            // Progress bar
-            LinearProgressIndicator(
-                progress = { work.readProgress },
-                modifier = Modifier.fillMaxWidth(),
-                drawStopIndicator = {}
-            )
+            ChapterProgressBar(work)
 
             Spacer(modifier = Modifier.height(4.dp))
 

@@ -39,7 +39,29 @@ Every store job allocates its version after acquiring its store lock, including 
 
 These values increase with the runner clock and exceed the repository's existing Android code `20` and Chrome version `0.0.1`. A one-second allocation delay separates immediate sequential runs; clock rollback across runners and previously uploaded higher versions require manual investigation. The scheme supports Android's version-code limit through July 2086. Verify that neither store already has a version above this scheme before enabling it.
 
-Versions are generated inside each store job so **Re-run failed jobs** receives a fresh version even after a partial upload. Inspect store processing/review state before retrying. A superseded automatic run is rejected; use the latest successful `main` CI run instead. Source package versions are not bumped or committed, so the pipeline creates no version-commit loop. Changesets still manage package release notes and ordinary local builds; iOS versioning remains manual.
+Versions are generated inside each store job so **Re-run failed jobs** receives a fresh version even after a partial upload. Inspect store processing/review state before retrying. A superseded automatic run is rejected; use the latest successful `main` CI run instead. Store jobs do not commit source package versions. Changesets records package versions and changelogs through a separate version PR; store version allocation stays independent. iOS versioning remains manual.
+
+## Automatic patch notes
+
+Write release summaries in `.changeset/*.md` with each user-visible change. **Generate patch notes** runs on pushes to `dev` and maintains one version PR against `dev`. It runs `vp run version-packages` to consume changesets, bump the private package versions, generate per-package `CHANGELOG.md` files, and update the lockfile. Review and merge that PR before promoting `dev` to `main`; subsequent runs with no pending changesets create no version commit. It does not publish npm packages or GitHub Releases.
+
+Enable **Settings → Actions → General → Allow GitHub Actions to create and approve pull requests**, as required by the [Changesets action](https://github.com/changesets/action). The workflow uses the built-in GitHub token. PR creation and updates made with that token do not trigger other workflows; close and reopen the version PR as a user to trigger its PR checks after the latest bot update. Merging it as a user triggers the normal `dev` CI and release flow. See [GitHub token event behavior](https://docs.github.com/en/actions/how-tos/writing-workflows/choosing-when-your-workflow-runs/triggering-a-workflow).
+
+Both store workflows generate notes from their exact checked-out source, including manual, beta, production, build-only and retry runs:
+
+- If that package has a pending Changesets release, use its changeset summaries for the upcoming package version. Notes accumulate until the version PR is merged.
+- Otherwise, use the `CHANGELOG.md` entry matching the checked-in package version. Rebuilds reuse those notes. These are package-version notes, not a diff since the previous store upload.
+- If neither exists, state that no user-facing changes were recorded. Dependency-only releases use a dependency-update note.
+
+Full Markdown notes appear in the workflow summary and separate `android-notes-*` / `chrome-notes-*` artifacts. Android also uploads `whatsnew-en-US` through the existing Play action. This plain-text copy uses each change's opening paragraph and is limited to [500 Unicode characters](https://support.google.com/googleplay/android-developer/answer/9859348?hl=en), with an ellipsis when truncated; the artifact retains the full text. Put a concise user-facing summary first in each changeset and technical details in later paragraphs. Chrome notes are available in the artifact for store-listing edits.
+
+Preview the native notes without changing versions or consuming changesets:
+
+```shell
+vp node scripts/release-notes.mjs apps/native-kmp dist/release-notes
+```
+
+Use `apps/browser-extension` as the package directory to preview Chrome notes. `vp run version-packages` is the mutating command used by the version PR; do not run it just to preview notes. Changesets' built-in formatter is disabled so this command formats generated changelogs through `vp fmt`, using the repository's Vite+ configuration.
 
 ## GitHub environments
 

@@ -204,10 +204,16 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)
         }
+        androidUnitTest.dependencies {
+            implementation(libs.robolectric)
+        }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.ktor.client.java)
+        }
+        jvmTest.dependencies {
+            implementation(compose.desktop.uiTestJUnit4)
         }
     }
 }
@@ -260,6 +266,9 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
     packaging {
         resources {

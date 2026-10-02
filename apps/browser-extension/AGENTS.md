@@ -91,7 +91,7 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 | `/`                   | `Tracker`           | Default. Shows current work + sync controls when signed in, otherwise prompts sign-in.                      |
 | `/searches`           | `Searches`          | Saved AO3 filter URLs — open in a new tab, rename, delete. Saved via the on-page "Save this search" button. |
 | `/lists`              | `Lists`             | Favourite-tag chips grouped by type.                                                                        |
-| `/settings`           | `Settings`          | Account + API endpoint override.                                                                            |
+| `/settings`           | `Settings`          | Account controls, expandable Notifications and Advanced (API environment) sections.                         |
 | `/login`, `/register` | `Login`, `Register` | react-hook-form + zod, talks to Better Auth via the sync client.                                            |
 
 ### Sync flow

@@ -66,6 +66,8 @@ For app-specific commands (running dev servers, deploying, building a single pla
 
 Versioning and changelog generation use [Changesets](https://github.com/changesets/changesets). Config lives in [.changeset/config.json](.changeset/config.json) — `commit: false` (you commit the changeset with your PR), `access: restricted` (no npm auto-publish, all packages are private/internal), `baseBranch: main`.
 
+Pushes to `dev` create or update a version PR that consumes pending changesets, bumps package versions, and generates package `CHANGELOG.md` files. Write user-facing summaries in changesets; Android and Chrome workflows use them for patch-note artifacts, and Android uploads shortened notes to Google Play. Merge the version PR to record the changelogs before promoting `dev` to `main`. For setup, note selection, and local previews, see [automatic patch notes](docs/store-releases.md#automatic-patch-notes).
+
 ### When to write one
 
 Add a changeset for any user-visible change to a tracked package:
@@ -94,7 +96,7 @@ From the repo root:
 ```bash
 vp exec changeset           # Interactive: pick packages, bump type, summary
 vp exec changeset status    # Show which packages have pending changesets
-vp exec changeset version   # Apply pending changesets — bumps versions + writes CHANGELOG.md (release time only)
+vp run version-packages     # Consume changesets, update versions/lockfile and format changelogs (release time only)
 ```
 
 `vp exec changeset` writes a markdown file under [.changeset/](.changeset/) with a random slug like `chilly-rats-clap.md`. Commit it with the PR that introduces the change.

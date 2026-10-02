@@ -82,8 +82,8 @@ class Ao3Repository(private val accountData: AccountDataStore) {
             workDao.getAllWorks()
         }
 
-        baseFlow.map { works ->
-            if (works.isEmpty()) return@map emptyList()
+        combine(baseFlow, database.invalidationTracker.createFlow("chapters", "tags")) { works, _ ->
+            if (works.isEmpty()) return@combine emptyList()
 
             val workIds = works.map { it.id }
 
@@ -91,21 +91,18 @@ class Ao3Repository(private val accountData: AccountDataStore) {
             val allChapters = chapterDao.getChaptersByWorkIds(workIds)
             val chaptersByWorkId = allChapters.groupBy { it.workId }
 
-            // Only load tags if we have active tag filters
-            val tagsByWorkId = if (filterState.hasActiveTagFilters) {
-                val allTags = tagDao.getTagsByWorkIds(workIds)
-                allTags.groupBy { it.workId }
-            } else {
-                emptyMap()
-            }
+            val tagsByWorkId = tagDao.getTagsByWorkIds(workIds).groupBy { it.workId }
 
             works.mapNotNull { work ->
                 val chapters = chaptersByWorkId[work.id] ?: emptyList()
-                val domainWork = work.toDomain(chapters.map { it.toDomain() })
+                val workTags = tagsByWorkId[work.id] ?: emptyList()
+                val domainWork = work.toDomain(
+                    chapters.map { it.toDomain() },
+                    workTags.map { it.toDomain() }
+                )
 
                 // Apply tag filters if any are active
                 if (filterState.hasActiveTagFilters) {
-                    val workTags = tagsByWorkId[work.id] ?: emptyList()
                     if (!matchesTagFilters(workTags, filterState)) {
                         return@mapNotNull null
                     }

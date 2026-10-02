@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Accordion } from "@base-ui/react/accordion";
+import { BellIcon, CodeIcon } from "lucide-react";
 import type { NotificationPreferences } from "@qcksys/ao3tracker-core/schemas";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,7 @@ import {
 import { setAuthToken } from "@/lib/auth-token-cache";
 import { apiBaseUrlPresets, availableApiBaseUrlPresets } from "@/lib/storage";
 import { authClient } from "~popup/lib/auth-client";
+import { SettingsSection } from "~popup/components/SettingsSection";
 import { usePopupState } from "~popup/lib/state";
 
 const notificationOptions: {
@@ -100,12 +103,14 @@ export default function Settings() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex flex-col gap-4 pb-2">
       <h1 className="text-lg font-semibold">Settings</h1>
 
-      <Card>
+      <Card size="sm">
         <CardHeader>
-          <CardTitle className="text-base">Account</CardTitle>
+          <CardTitle>
+            <h2>Account</h2>
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2 text-sm">
           {session?.user ? (
@@ -129,16 +134,27 @@ export default function Settings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Notifications</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2 text-sm">
+      <Accordion.Root multiple className="flex flex-col gap-3">
+        <SettingsSection
+          id="notifications"
+          title="Notifications"
+          summary={
+            savingNotifications
+              ? "Saving notification settings…"
+              : state.notificationPreferences.enabled
+                ? "On in this browser · Choose alert types"
+                : "Off in this browser"
+          }
+          icon={BellIcon}
+        >
           <p className="text-muted-foreground text-xs">
             These settings apply only to this browser. Other devices keep their own settings.
           </p>
           {notificationOptions.map(({ key, label, description }) => (
-            <div key={key} className="flex items-center justify-between gap-2">
+            <div
+              key={key}
+              className="flex items-center justify-between gap-3 border-b pb-3 last:border-0 last:pb-0"
+            >
               <div className="flex-1">
                 <Label htmlFor={`notification-${key}`}>{label}</Label>
                 <p id={`notification-${key}-description`} className="text-muted-foreground text-xs">
@@ -173,14 +189,14 @@ export default function Settings() {
               {notificationError}
             </p>
           )}
-        </CardContent>
-      </Card>
+        </SettingsSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">API endpoint</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
+        <SettingsSection
+          id="advanced"
+          title="Advanced"
+          summary={`${activePreset?.label ?? "Custom environment"} · API endpoint`}
+          icon={CodeIcon}
+        >
           <Label htmlFor="apiBaseUrl">Environment</Label>
           <Select
             value={selectedId ?? undefined}
@@ -197,7 +213,7 @@ export default function Settings() {
               ))}
             </SelectContent>
           </Select>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-xs break-all">
             {selectedPreset && selectedPreset.url !== state.apiBaseUrl ? (
               <>
                 Active: <span className="font-mono">{state.apiBaseUrl}</span>
@@ -213,8 +229,8 @@ export default function Settings() {
           <Button size="sm" disabled={!canSave} onClick={onSaveApiUrl}>
             Save
           </Button>
-        </CardContent>
-      </Card>
+        </SettingsSection>
+      </Accordion.Root>
     </div>
   );
 }

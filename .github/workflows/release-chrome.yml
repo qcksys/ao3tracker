@@ -72,6 +72,15 @@ jobs:
         run: vp node scripts/release-version.mjs
       - name: Install locked dependencies
         run: vp install --frozen-lockfile
+      - name: Generate patch notes from Changesets
+        run: vp node scripts/release-notes.mjs apps/browser-extension "$RUNNER_TEMP/chrome-release-notes"
+      - name: Save Chrome patch notes
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: chrome-notes-${{ inputs.channel }}-${{ steps.version.outputs.chrome_version }}
+          path: ${{ runner.temp }}/chrome-release-notes/release-notes.md
+          if-no-files-found: error
+          retention-days: 30
       - name: Check shared packages and extension
         run: |
           vp node --test scripts/release-chrome.test.mjs
