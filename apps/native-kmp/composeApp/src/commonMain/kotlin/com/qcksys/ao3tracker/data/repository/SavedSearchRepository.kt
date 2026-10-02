@@ -65,6 +65,19 @@ class SavedSearchRepository(
         )
     }
 
+    suspend fun updateUrl(id: String, url: String, isCurrentOperation: () -> Boolean = { true }) =
+        accountData.edit(isCurrentOperation) {
+            require(url.isNotBlank() && url.length <= MAX_URL_LENGTH)
+            val current = requireNotNull(dao.getOne(id)?.takeUnless { it.deleted }) {
+                "This saved search no longer exists."
+            }
+            dao.upsert(current.copy(
+                url = url,
+                updatedAt = maxOf(Clock.System.now().toEpochMilliseconds(), current.updatedAt + 1),
+                pendingSync = true
+            ))
+        }
+
     /**
      * Delete a saved search. Tombstones the row (deleted = true) rather than
      * removing it, so the deletion syncs to other devices via LWW.

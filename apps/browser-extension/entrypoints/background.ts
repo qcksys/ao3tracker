@@ -8,7 +8,12 @@ import type {
 import { contentToBackgroundSchema, popupToBackgroundSchema } from "@/lib/messaging";
 import { loadAuthToken } from "@/lib/auth-token-cache";
 import { toggleFavouriteTag } from "@/lib/favourite-tags-repo";
-import { deleteSavedSearch, renameSavedSearch, saveSearch } from "@/lib/saved-searches-repo";
+import {
+  deleteSavedSearch,
+  renameSavedSearch,
+  saveSearch,
+  updateSavedSearchUrl,
+} from "@/lib/saved-searches-repo";
 import { attachNotificationClickHandler, pollAndDisplayNotifications } from "@/lib/notifications";
 import {
   apiBaseUrlItem,
@@ -151,6 +156,11 @@ async function handleContentMessage(
     }
     case "saveSearch": {
       await saveSearch(msg.name, msg.url);
+      scheduleSync();
+      return { kind: "ok" };
+    }
+    case "updateSavedSearch": {
+      await updateSavedSearchUrl(msg.id, msg.url);
       scheduleSync();
       return { kind: "ok" };
     }

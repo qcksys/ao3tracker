@@ -54,6 +54,49 @@ import kotlinx.serialization.json.Json
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
     @Test
+    fun `saved search updates apply current filters in incognito and refresh the page state`() = runTest {
+        fixture { f ->
+            val searches = SavedSearchRepository(f.accounts)
+            val saved = searches.save("My stories", "https://archiveofourown.org/works")
+            searches.markSynced(saved)
+            val url = "https://archiveofourown.org/works?work_search%5Bquery%5D=fluff"
+            val scripts = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.jsInjectionFlow.collect { scripts.add(it) }
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$url"}""")
+            f.model.handleWebViewMessage("""{"type":"saveSearch","url":"$url","name":"New filters"}""")
+            advanceUntilIdle()
+            assertNotNull(f.model.pendingSaveSearch.value)
+            f.model.confirmUpdateSavedSearch(saved.id, url)
+            advanceUntilIdle()
+            assertNull(f.model.pendingSaveSearch.value)
+            val updated = searches.getPendingSync().single()
+            assertEquals(saved.id, updated.id)
+            assertEquals(saved.name, updated.name)
+            assertEquals(url, updated.url)
+            assertEquals(1, f.db.savedSearchDao().getAll().size)
+            assertTrue(scripts.last { it.contains("applyBrowsingState") }.contains(url))
+        }
+    }
+
+    @Test
+    fun `queued saved search update cannot edit a different account`() = runTest {
+        fixture { f ->
+            val searches = SavedSearchRepository(f.accounts)
+            val saved = searches.save("Guest stories", "https://archiveofourown.org/works")
+            f.model.confirmUpdateSavedSearch(saved.id, "https://archiveofourown.org/bookmarks")
+            f.accounts.activate("PRODUCTION:other")
+            f.db.savedSearchDao().upsert(saved.copy(name = "Account stories"))
+            advanceUntilIdle()
+            assertEquals(saved.url, f.db.savedSearchDao().getOne(saved.id)?.url)
+            f.accounts.activate(AccountDataStore.GUEST)
+            assertEquals(saved, f.db.savedSearchDao().getOne(saved.id))
+        }
+    }
+
+    @Test
     fun `diagnostic bridge discards messages queued before a consent change`() = runTest {
         fixture { f ->
             val sent = mutableListOf<String>()

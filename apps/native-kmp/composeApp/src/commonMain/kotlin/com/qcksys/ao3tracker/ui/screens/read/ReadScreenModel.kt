@@ -53,9 +53,10 @@ class ReadScreenModel(
     val currentUrl: StateFlow<String> = _currentUrl.asStateFlow()
 
     // Set when the in-page "Save this search" button is tapped; the UI shows a
-    // naming dialog and clears this on confirm/cancel.
+    // save/update dialog and clears this on confirm/cancel.
     private val _pendingSaveSearch = MutableStateFlow<SaveSearchEvent?>(null)
     val pendingSaveSearch: StateFlow<SaveSearchEvent?> = _pendingSaveSearch.asStateFlow()
+    val savedSearches = savedSearchRepository.observeLive()
 
     private val _linkActionMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val linkActionMessage: SharedFlow<String> = _linkActionMessage.asSharedFlow()
@@ -306,7 +307,25 @@ class ReadScreenModel(
         }
     }
 
-    /** Dismiss the save-search naming dialog without saving. */
+    fun confirmUpdateSavedSearch(id: String, url: String) {
+        _pendingSaveSearch.value = null
+        if (!isTrustedAo3Url(url)) return
+        val accountGeneration = accountData.generation
+        screenModelScope.launch {
+            try {
+                savedSearchRepository.updateUrl(id, url) { accountData.generation == accountGeneration }
+                syncTriggers.notifySavedSearchChanged()
+                _linkActionMessage.emit("Saved search updated")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.e("Failed to update saved search", TAG, e)
+                _linkActionMessage.emit("Could not update this saved search. Please try again.")
+            }
+        }
+    }
+
+    /** Dismiss the save-search dialog without saving. */
     fun dismissSaveSearch() {
         _pendingSaveSearch.value = null
     }

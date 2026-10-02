@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.ui.screens.read
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -10,6 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -30,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
+import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.navigation.TrackTab
@@ -77,12 +82,15 @@ fun ReadScreen() {
         WORK_URL_REGEX.containsMatchIn(currentUrl)
     }
 
-    // Naming dialog for the in-page "Save this search" button.
+    // Dialog for the in-page "Save this search" button.
     val pendingSaveSearch by screenModel.pendingSaveSearch.collectAsState()
     pendingSaveSearch?.let { event ->
+        val savedSearches by screenModel.savedSearches.collectAsState(initial = emptyList())
         SaveSearchDialog(
             suggestedName = event.name?.takeIf { it.isNotBlank() } ?: "AO3 search",
+            savedSearches = savedSearches,
             onConfirm = { name -> screenModel.confirmSaveSearch(name, event.url) },
+            onUpdate = { id -> screenModel.confirmUpdateSavedSearch(id, event.url) },
             onDismiss = { screenModel.dismissSaveSearch() }
         )
     }
@@ -144,30 +152,70 @@ fun ReadScreen() {
 }
 
 @Composable
-private fun SaveSearchDialog(
+internal fun SaveSearchDialog(
     suggestedName: String,
+    savedSearches: List<SavedSearchEntity>,
     onConfirm: (String) -> Unit,
+    onUpdate: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     var name by remember { mutableStateOf(suggestedName) }
+    var updating by remember { mutableStateOf(false) }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    var expanded by remember { mutableStateOf(false) }
+    val liveSearches = savedSearches.filterNot { it.deleted }
+    val selected = liveSearches.find { it.id == selectedId }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Save this search") },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(191) },
-                label = { Text("Name") },
-                singleLine = true
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (updating) {
+                    Text("Update saved search to match the current filters. Its name stays the same.")
+                    Box {
+                        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(selected?.name ?: "Choose saved search")
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            liveSearches.forEach { search ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(search.name)
+                                            Text(search.url, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedId = search.id
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    TextButton(onClick = { updating = false }) { Text("Save as new search instead") }
+                } else {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it.take(191) },
+                        label = { Text("Name") },
+                        singleLine = true
+                    )
+                    if (liveSearches.isNotEmpty()) {
+                        TextButton(onClick = { updating = true }) { Text("Update saved search to match") }
+                    }
+                }
+            }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name) },
-                enabled = name.isNotBlank()
+                onClick = {
+                    if (updating) selected?.let { onUpdate(it.id) } else onConfirm(name)
+                },
+                enabled = if (updating) selected != null else name.isNotBlank()
             ) {
-                Text("Save")
+                Text(if (updating) "Update" else "Save")
             }
         },
         dismissButton = {
