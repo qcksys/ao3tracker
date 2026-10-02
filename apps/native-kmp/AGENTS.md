@@ -91,6 +91,8 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 
 **Navigation**: Voyager library handles navigation with a tab-based structure (`ReadTab`, `TrackTab`, `SettingsTab`). `MainScreen` is the root navigator.
 
+**Settings layout**: Keep account controls visible at the top. Reading, Sync, Notifications (supported platforms), Library & data, About, and Advanced use expandable `SettingsSection` cards with status summaries. Expansion is saved across tab switches and configuration changes. Keep ongoing operations and their state outside the collapsible content so closing a section does not cancel saves. Android supported-link controls live under Reading.
+
 **Database**: Room database with KSP for code generation. Schema files are in `composeApp/schemas/`. Entities: `WorkEntity`, `ChapterEntity`, `TagEntity`, `FavouriteTagEntity`. When modifying the schema:
 
 1. Update entity classes in `data/database/Entities.kt`

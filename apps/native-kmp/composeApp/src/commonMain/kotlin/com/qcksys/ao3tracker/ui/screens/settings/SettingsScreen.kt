@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
@@ -239,29 +240,6 @@ fun SettingsScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Incognito mode", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = incognitoModeEnabled,
-                            onCheckedChange = appSettings::setIncognitoModeEnabled,
-                            modifier = Modifier.semantics { contentDescription = "Incognito mode" }
-                        )
-                    }
-                    Text(
-                        "Stops saving works, chapters and reading progress on this device. " +
-                            "AO3 stays signed in, and your existing library can still sync.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-            }
-
-            Ao3LinkSettings()
-
             // Account section
             AccountSection(
                 authState = authState,
@@ -342,31 +320,42 @@ fun SettingsScreen() {
                 }
             )
 
-            // Sync section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            SettingsSection(
+                title = "Reading",
+                summary = if (incognitoModeEnabled) "Incognito on · Tracking paused" else "Incognito off · Tracking enabled",
+                icon = Icons.Default.Book
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Incognito mode", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = incognitoModeEnabled,
+                            onCheckedChange = appSettings::setIncognitoModeEnabled,
+                            modifier = Modifier.semantics { contentDescription = "Incognito mode" }
+                        )
+                    }
+                    Text(
+                        "Stops saving works, chapters and reading progress on this device. " +
+                            "AO3 stays signed in, and your existing library can still sync.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Ao3LinkSettings()
+                }
+            }
+
+            SettingsSection(
+                title = "Sync",
+                summary = when {
+                    syncState.isSyncing -> syncState.statusMessage ?: "Syncing..."
+                    authState !is AuthState.Authenticated -> "Sign in to sync across devices"
+                    autoSyncOnOpen -> "Sync on open enabled"
+                    else -> "Manual sync · Sync on open disabled"
+                },
+                icon = Icons.Default.Sync
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Sync,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = "Sync",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 8.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     // Auto sync on open toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -461,20 +450,14 @@ fun SettingsScreen() {
                 snackbarHostState = snackbarHostState
             )
 
-            // Database section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            SettingsSection(
+                title = "Library & data",
+                summary = "$workCount tracked works · Import, export and delete",
+                icon = Icons.Default.FileDownload
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
-                    Text(
-                        text = "Database",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     Text(
                         text = when (activeAccount?.owner) {
                             null -> "Loading library..."
@@ -571,10 +554,10 @@ fun SettingsScreen() {
                 }
             }
 
-            // About section
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            SettingsSection(
+                title = "About",
+                summary = "App information, privacy and contact",
+                icon = Icons.Default.Info
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
@@ -1008,30 +991,14 @@ private fun DeveloperSection(
     onApiEnvironmentChanged: (ApiEnvironment) -> Unit,
     currentUserEmail: String? = null
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    SettingsSection(
+        title = "Advanced",
+        summary = "${apiEnvironment.displayName} · Developer options",
+        icon = Icons.Default.Code
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Code,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Developer",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1179,30 +1146,20 @@ private fun PushNotificationsSection(
         )
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    SettingsSection(
+        title = "Notifications",
+        summary = when {
+            isSaving -> "Saving notification settings..."
+            isRegistering -> "Registering notifications..."
+            !preferences.enabled -> "Off on this device"
+            !isAuthenticated -> "Sign in to receive alerts"
+            else -> "On this device · Alert types and history"
+        },
+        icon = if (preferences.enabled) Icons.Default.Notifications else Icons.Default.NotificationsOff
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = if (preferences.enabled) Icons.Default.Notifications else Icons.Default.NotificationsOff,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "Push Notifications",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
             Text(
                 text = "Choose alerts for subscribed works on this device. Other devices keep their own settings.",
                 style = MaterialTheme.typography.bodySmall,
