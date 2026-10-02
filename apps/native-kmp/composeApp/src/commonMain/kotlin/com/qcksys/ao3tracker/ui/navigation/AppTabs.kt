@@ -3,6 +3,7 @@ package com.qcksys.ao3tracker.ui.navigation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -13,6 +14,7 @@ import cafe.adriel.voyager.navigator.tab.Tab
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import cafe.adriel.voyager.transitions.SlideTransition
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreen
+import com.qcksys.ao3tracker.ui.screens.searches.SearchesScreen
 import com.qcksys.ao3tracker.ui.screens.settings.SettingsScreen
 import com.qcksys.ao3tracker.ui.screens.track.TrackScreen
 
@@ -48,7 +50,7 @@ object TrackTab : Tab {
             return remember {
                 TabOptions(
                     index = 1u,
-                    title = "Track",
+                    title = "Works",
                     icon = icon
                 )
             }
@@ -80,6 +82,28 @@ private class TrackScreenWrapper : Screen {
     }
 }
 
+object SearchesTab : Tab {
+    private fun readResolve(): Any = SearchesTab
+
+    override val options: TabOptions
+        @Composable
+        get() {
+            val icon = rememberVectorPainter(Icons.Default.Search)
+            return remember {
+                TabOptions(
+                    index = 2u,
+                    title = "Searches",
+                    icon = icon
+                )
+            }
+        }
+
+    @Composable
+    override fun Content() {
+        SearchesScreen()
+    }
+}
+
 object SettingsTab : Tab {
     private fun readResolve(): Any = SettingsTab
 
@@ -89,7 +113,7 @@ object SettingsTab : Tab {
             val icon = rememberVectorPainter(Icons.Default.Settings)
             return remember {
                 TabOptions(
-                    index = 2u,
+                    index = 3u,
                     title = "Settings",
                     icon = icon
                 )

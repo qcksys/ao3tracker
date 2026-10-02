@@ -37,7 +37,7 @@ class MainScreen : Screen {
             val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
 
             // Switch to the Read tab whenever an external trigger (notification,
-            // Track tab click) sets a pending navigation. ReadScreen then consumes
+            // Works or Searches tab click) sets a pending navigation. ReadScreen then consumes
             // the URL on its own LaunchedEffect.
             LaunchedEffect(pendingNavigation) {
                 if (pendingNavigation != null && tabNavigator.current.key != ReadTab.key) {
@@ -47,14 +47,7 @@ class MainScreen : Screen {
 
             Scaffold(
                 bottomBar = {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ) {
-                        TabNavigationItem(ReadTab, isWebViewLoading)
-                        TabNavigationItem(TrackTab, false)
-                        TabNavigationItem(SettingsTab, false)
-                    }
+                    AppNavigationBar(isWebViewLoading)
                 }
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(PaddingValues(bottom = paddingValues.calculateBottomPadding()))) {
@@ -62,6 +55,19 @@ class MainScreen : Screen {
                 }
             }
         }
+    }
+}
+
+@Composable
+internal fun AppNavigationBar(isWebViewLoading: Boolean) {
+    NavigationBar(
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        TabNavigationItem(ReadTab, isWebViewLoading)
+        TabNavigationItem(TrackTab, false)
+        TabNavigationItem(SearchesTab, false)
+        TabNavigationItem(SettingsTab, false)
     }
 }
 

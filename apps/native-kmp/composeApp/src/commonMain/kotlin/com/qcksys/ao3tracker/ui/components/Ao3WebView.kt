@@ -13,7 +13,8 @@ expect fun Ao3WebView(
     onMessage: (String) -> Unit = {},
     onLoadingStateChange: (isLoading: Boolean) -> Unit = {},
     onBackAtRoot: () -> Unit = {},
-    jsInjectionFlow: SharedFlow<String>? = null
+    jsInjectionFlow: SharedFlow<String>? = null,
+    pageScript: String? = null
 )
 
 interface WebViewNavigator {
