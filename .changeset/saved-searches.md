@@ -14,6 +14,8 @@ Add saved searches: name and save an AO3 filter/search URL from a "Save this sea
 
 On Android and iOS, show the number of new and updated works for each saved search since its previous successful check. Check when opening Searches or refresh manually. Establish a baseline on the first check and keep previous counts if AO3 cannot be checked. Counts and check history stay on this device and do not trigger sync or notifications.
 
+Add a Copy link action to saved searches in the native app and browser extension, with confirmation when the full search URL is copied for sharing.
+
 Fix cross-device synchronization and local data safety:
 
 - Isolate each account and API environment, preserving its local data and pending edits when switching accounts. Native Room DB v8 stores each account and guest in a separate database file and migrates existing data automatically.

@@ -1,7 +1,13 @@
 package com.qcksys.ao3tracker.ui.screens.searches
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.asAwtTransferable
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
@@ -12,6 +18,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.database.SearchCheckEntity
+import java.awt.datatransfer.DataFlavor
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -28,6 +35,72 @@ class SearchesScreenTest {
         updatedAt = 1L,
         pendingSync = false
     )
+
+    @OptIn(ExperimentalComposeUiApi::class)
+    @Test
+    fun copiesTheSelectedSearchUrlWithoutOpeningOrEditingIt() {
+        val searches = listOf(
+            search.copy(url = "https://archiveofourown.org/works?work_search%5Bquery%5D=slow+burn&page=2#work_123"),
+            search.copy(id = "bookmarks", name = "Saved bookmarks", url = "https://archiveofourown.org/bookmarks?bookmark_search%5Bother_tag_names%5D=Fluff%2C+Caf%C3%A9")
+        )
+        val copied = mutableListOf<String>()
+        val clipboard = object : Clipboard {
+            override val nativeClipboard: Any = Unit
+            override suspend fun getClipEntry(): ClipEntry? = null
+            override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+                copied.add(clipEntry!!.asAwtTransferable!!.getTransferData(DataFlavor.stringFlavor) as String)
+            }
+        }
+        rule.setContent {
+            CompositionLocalProvider(LocalClipboard provides clipboard) {
+                MaterialTheme {
+                    SearchesScreenContent(
+                        searches = searches,
+                        onOpen = { error("Copy must not open the search") },
+                        onRename = { _, _ -> error("Copy must not rename the search") },
+                        onDelete = { error("Copy must not delete the search") }
+                    )
+                }
+            }
+        }
+
+        searches.forEach { savedSearch ->
+            rule.onNodeWithContentDescription("Copy link for ${savedSearch.name}").performClick()
+            rule.onNodeWithText("Link copied").assertIsDisplayed()
+        }
+        assertEquals(searches.map { it.url }, copied)
+    }
+
+    @Test
+    fun showsClipboardFailureAndAllowsRetry() {
+        var fail = true
+        val clipboard = object : Clipboard {
+            override val nativeClipboard: Any = Unit
+            override suspend fun getClipEntry(): ClipEntry? = null
+            override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+                if (fail) throw IllegalStateException("Clipboard unavailable")
+            }
+        }
+        rule.setContent {
+            CompositionLocalProvider(LocalClipboard provides clipboard) {
+                MaterialTheme {
+                    SearchesScreenContent(
+                        searches = listOf(search),
+                        onOpen = {}, onRename = { _, _ -> }, onDelete = {}
+                    )
+                }
+            }
+        }
+
+        rule.onNodeWithContentDescription("Copy link for ${search.name}").performClick()
+        rule.onNodeWithText("Couldn't copy link. Try again.").assertIsDisplayed()
+        rule.onNodeWithText("Link copied").assertDoesNotExist()
+
+        fail = false
+        rule.onNodeWithContentDescription("Copy link for ${search.name}").performClick()
+        rule.onNodeWithText("Link copied").assertIsDisplayed()
+        rule.onNodeWithText("Couldn't copy link. Try again.").assertDoesNotExist()
+    }
 
     @Test
     fun opensRenamesAndDeletesSavedSearches() {
