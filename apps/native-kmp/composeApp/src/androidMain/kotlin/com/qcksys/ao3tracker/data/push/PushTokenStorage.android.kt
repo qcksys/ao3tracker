@@ -4,6 +4,10 @@ import android.content.Context
 import android.content.SharedPreferences
 import io.github.aakira.napier.Napier
 import java.util.UUID
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 private lateinit var appContext: Context
 
@@ -13,28 +17,37 @@ fun initializePushTokenStorage(context: Context) {
 
 actual fun getPushTokenStorage(): PushTokenStorage = PushTokenStorage()
 
-actual class PushTokenStorage {
+actual class PushTokenStorage : PushTokenStore {
     private val prefs: SharedPreferences by lazy {
         appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
-    actual fun getFcmToken(): String? {
+    actual override fun getFcmToken(): String? {
         val token = prefs.getString(KEY_FCM_TOKEN, null)
         Napier.d("getFcmToken: ${if (token != null) "found (${token.take(10)}...)" else "null"}")
         return token
     }
 
-    actual fun saveFcmToken(token: String) {
+    override suspend fun fetchFcmToken(): String? = suspendCancellableCoroutine { continuation ->
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                saveFcmToken(token)
+                continuation.resume(token)
+            }
+            .addOnFailureListener { error -> continuation.resumeWithException(error) }
+    }
+
+    actual override fun saveFcmToken(token: String) {
         Napier.d("saveFcmToken: saving token (${token.take(10)}...)")
         prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
     }
 
-    actual fun clearFcmToken() {
+    actual override fun clearFcmToken() {
         Napier.d("clearFcmToken: clearing token")
         prefs.edit().remove(KEY_FCM_TOKEN).apply()
     }
 
-    actual fun getDeviceId(): String {
+    actual override fun getDeviceId(): String {
         var deviceId = prefs.getString(KEY_DEVICE_ID, null)
         if (deviceId == null) {
             deviceId = UUID.randomUUID().toString()
@@ -44,7 +57,7 @@ actual class PushTokenStorage {
         return deviceId
     }
 
-    actual fun getPlatform(): String = "android"
+    actual override fun getPlatform(): String = "android"
 
     companion object {
         private const val PREFS_NAME = "ao3_push_prefs"

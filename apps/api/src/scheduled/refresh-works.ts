@@ -154,7 +154,31 @@ async function processRefreshResult(
     oldState.totalChapters !== null &&
     oldState.currentChapters === oldState.totalChapters;
 
-  // Update work record
+  // Persist update events before advancing the metadata used to detect them.
+  const workTitle = workInfo.workName || oldState?.title || "Unknown";
+  const isNowComplete =
+    parsed.totalChapters !== null && parsed.currentChapters === parsed.totalChapters;
+  if (oldChapterCount !== null && parsed.currentChapters > oldChapterCount) {
+    await createWorkNotifications(db, env.NOTIFICATION_QUEUE, {
+      workId,
+      workTitle,
+      type: "new_chapters",
+      oldChapters: oldChapterCount,
+      newChapters: parsed.currentChapters,
+      totalChapters: parsed.totalChapters,
+    });
+  }
+  if (!wasComplete && isNowComplete) {
+    await createWorkNotifications(db, env.NOTIFICATION_QUEUE, {
+      workId,
+      workTitle,
+      type: "work_completed",
+      newChapters: parsed.currentChapters,
+      totalChapters: parsed.totalChapters,
+    });
+  }
+
+  // Advance metadata after notification persistence succeeds.
   const workUpdateData: WorkUpdateData = {
     title: workInfo.workName || "Unknown",
     author: workInfo.authorName || "Unknown",
@@ -177,9 +201,8 @@ async function processRefreshResult(
   // Save tags and chapters
   await saveWorkRelations(db, workId, data);
 
-  // If work went from single-chapter (1) to multi-chapter (2+),
-  // migrate tracking records from chapterId=0 to actual first chapter ID
-  if (oldChapterCount === 1 && parsed.currentChapters > 1 && chapters.length > 0) {
+  // Also repair chapterId=0 records uploaded by clients during an earlier refresh.
+  if (parsed.currentChapters > 1 && chapters.length > 0) {
     const firstChapterId = chapters[0].id;
     const migratedCount = await migrateSingleChapterTracking(db, workId, firstChapterId);
     if (migratedCount > 0) {
@@ -194,44 +217,6 @@ async function processRefreshResult(
 
   // Download and backup work if needed
   await downloadAndBackupWork(db, env, workId, workInfo);
-
-  // Create notifications for work updates
-  const workTitle = workInfo.workName || oldState?.title || "Unknown";
-  const isNowComplete =
-    parsed.totalChapters !== null && parsed.currentChapters === parsed.totalChapters;
-
-  // Debug: Log notification condition check
-  console.log({
-    message: "Checking notification conditions",
-    workId,
-    oldChapterCount,
-    newChapterCount: parsed.currentChapters,
-    hasOldState: oldState !== null,
-    shouldNotify: oldChapterCount !== null && parsed.currentChapters > oldChapterCount,
-  });
-
-  // Notify for new chapters
-  if (oldChapterCount !== null && parsed.currentChapters > oldChapterCount) {
-    await createWorkNotifications(db, env.NOTIFICATION_QUEUE, {
-      workId,
-      workTitle,
-      type: "new_chapters",
-      oldChapters: oldChapterCount,
-      newChapters: parsed.currentChapters,
-      totalChapters: parsed.totalChapters,
-    });
-  }
-
-  // Notify for work completion (only if it just became complete)
-  if (!wasComplete && isNowComplete) {
-    await createWorkNotifications(db, env.NOTIFICATION_QUEUE, {
-      workId,
-      workTitle,
-      type: "work_completed",
-      newChapters: parsed.currentChapters,
-      totalChapters: parsed.totalChapters,
-    });
-  }
 
   console.log({ message: "Work refreshed successfully", workId });
 }

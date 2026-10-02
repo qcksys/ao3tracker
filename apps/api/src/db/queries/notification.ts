@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import {
   type NotificationStatus,
@@ -12,7 +12,7 @@ import { tTrackWork } from "~/db/schema/track.work";
 /** Data for creating a notification */
 export type NotificationCreate = Pick<
   TNotificationI,
-  "userId" | "workId" | "type" | "title" | "body" | "payload"
+  "userId" | "workId" | "type" | "title" | "body" | "payload" | "dispatchPending"
 >;
 
 /**
@@ -32,6 +32,40 @@ export async function insertNotifications(
 ): Promise<void> {
   if (data.length === 0) return;
   await db.insert(tNotification).values(data);
+}
+
+export async function getPendingNotificationDispatches(
+  db: TDatabase,
+  workId?: number,
+): Promise<TNotificationS[]> {
+  return db
+    .select()
+    .from(tNotification)
+    .where(
+      and(
+        eq(tNotification.dispatchPending, true),
+        workId === undefined ? undefined : eq(tNotification.workId, workId),
+      ),
+    )
+    .orderBy(asc(tNotification.rowUpdatedAt), asc(tNotification.id))
+    .limit(500);
+}
+
+export async function recordNotificationDispatch(
+  db: TDatabase,
+  ids: number[],
+  errorMessage?: string,
+): Promise<void> {
+  if (ids.length === 0) return;
+  await db
+    .update(tNotification)
+    .set({
+      dispatchPending: errorMessage !== undefined,
+      errorMessage: errorMessage ?? null,
+      retryCount: errorMessage === undefined ? undefined : sql`${tNotification.retryCount} + 1`,
+      rowUpdatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .where(inArray(tNotification.id, ids));
 }
 
 /**

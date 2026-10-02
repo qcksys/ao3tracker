@@ -6,32 +6,41 @@ package com.qcksys.ao3tracker.data.push
  * - iOS: NSUserDefaults
  * - JVM: No-op (desktop doesn't support push)
  */
-expect class PushTokenStorage() {
+interface PushTokenStore {
+    fun getFcmToken(): String?
+    suspend fun fetchFcmToken(): String? = getFcmToken()
+    fun saveFcmToken(token: String)
+    fun clearFcmToken()
+    fun getDeviceId(): String
+    fun getPlatform(): String
+}
+
+expect class PushTokenStorage() : PushTokenStore {
     /**
      * Get the stored FCM/APNs token.
      */
-    fun getFcmToken(): String?
+    override fun getFcmToken(): String?
 
     /**
      * Save the FCM/APNs token.
      */
-    fun saveFcmToken(token: String)
+    override fun saveFcmToken(token: String)
 
     /**
      * Clear the stored FCM/APNs token.
      */
-    fun clearFcmToken()
+    override fun clearFcmToken()
 
     /**
      * Get a unique device identifier for this device.
      * This is used to identify the device when unregistering push tokens.
      */
-    fun getDeviceId(): String
+    override fun getDeviceId(): String
 
     /**
      * Get the platform identifier ("android", "ios", or "desktop").
      */
-    fun getPlatform(): String
+    override fun getPlatform(): String
 }
 
 expect fun getPushTokenStorage(): PushTokenStorage

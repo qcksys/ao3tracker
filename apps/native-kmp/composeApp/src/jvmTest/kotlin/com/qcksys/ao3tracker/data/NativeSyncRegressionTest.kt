@@ -194,6 +194,86 @@ class NativeSyncRegressionTest {
     }
 
     @Test
+    fun `large saved collections sync in independent extras-only batches`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                f.db.favouriteTagDao().upsertAll((1..501).map { FavouriteTagEntity(4, "Tag $it", true, 100, true) })
+                f.db.savedSearchDao().upsertAll((1..1001).map { search("search-$it") })
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(listOf(500, 1, 0), f.remote.sent.map { it.favouriteTags.orEmpty().size })
+            assertEquals(listOf(500, 500, 1), f.remote.sent.map { it.savedSearches.orEmpty().size })
+            assertTrue(f.remote.sent.all { it.works.isEmpty() && it.chapters.isEmpty() })
+            assertEquals((1..501).map { "Tag $it" }.toSet(), f.remote.sent.flatMap { it.favouriteTags.orEmpty() }.map { it.tag }.toSet())
+            assertEquals((1..1001).map { "search-$it" }.toSet(), f.remote.sent.flatMap { it.savedSearches.orEmpty() }.map { it.id }.toSet())
+            assertTrue(f.db.favouriteTagDao().getPendingSync().isEmpty())
+            assertTrue(f.db.savedSearchDao().getPendingSync().isEmpty())
+        }
+    }
+
+    @Test
+    fun `large saved collections share work batches and flush their remaining rows`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                for (id in 1L..51L) {
+                    f.db.workDao().upsertWork(work(id))
+                    f.db.chapterDao().upsertChapter(chapter().copy(workId = id, chapterId = id + 100))
+                }
+                f.db.favouriteTagDao().upsertAll((1..1001).map { FavouriteTagEntity(4, "Tag $it", true, 100, true) })
+                f.db.savedSearchDao().upsertAll((1..501).map { search("search-$it") })
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(listOf(50, 1, 0), f.remote.sent.map { it.works.size })
+            assertEquals(listOf(50, 1, 0), f.remote.sent.map { it.chapters.size })
+            assertEquals(listOf(500, 500, 1), f.remote.sent.map { it.favouriteTags.orEmpty().size })
+            assertEquals(listOf(500, 1, 0), f.remote.sent.map { it.savedSearches.orEmpty().size })
+            for (request in f.remote.sent) {
+                assertEquals(request.works.map { it.workId }.toSet(), request.chapters.map { it.workId }.toSet())
+            }
+            assertEquals((1L..51L).toSet(), f.remote.sent.flatMap { it.works }.map { it.workId }.toSet())
+            assertTrue(f.db.favouriteTagDao().getPendingSync().isEmpty())
+            assertTrue(f.db.savedSearchDao().getPendingSync().isEmpty())
+        }
+    }
+
+    @Test
+    fun `a failed later batch retries all saved rows and preserves newer edits`() = runTest {
+        fixture { f ->
+            f.accounts.edit {
+                f.db.favouriteTagDao().upsertAll((1..501).map { FavouriteTagEntity(4, "Tag $it", true, 100, true) })
+                f.db.savedSearchDao().upsertAll((1..501).map { search("search-$it") })
+            }
+            f.remote.onSend = {
+                if (f.remote.sent.size == 2) Result.failure(Exception("Offline"))
+                else Result.success(accepted())
+            }
+            assertIs<SyncResult.Error>(f.sync.sync())
+            assertEquals(2, f.remote.sent.size)
+            assertEquals(501, f.db.favouriteTagDao().getPendingSync().size)
+            assertEquals(501, f.db.savedSearchDao().getPendingSync().size)
+            assertNull(f.accounts.active.value?.remoteCursor)
+
+            val sentSearch = f.remote.sent.first().savedSearches!!.first()
+            val sentFavourite = f.remote.sent.first().favouriteTags!!.first()
+            f.remote.sent.clear()
+            f.remote.onSend = {
+                if (f.remote.sent.size == 2) {
+                    f.searches.rename(sentSearch.id, "Newer local name")
+                    f.favourites.toggleFavourite(TagType.FANDOM, sentFavourite.tag)
+                }
+                Result.success(accepted())
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(501, f.remote.sent.sumOf { it.savedSearches.orEmpty().size })
+            assertEquals(501, f.remote.sent.sumOf { it.favouriteTags.orEmpty().size })
+            assertEquals(sentSearch.id, f.db.savedSearchDao().getPendingSync().single().id)
+            assertEquals("Newer local name", f.db.savedSearchDao().getPendingSync().single().name)
+            assertEquals(sentFavourite.tag, f.db.favouriteTagDao().getPendingSync().single().tag)
+            assertFalse(f.db.favouriteTagDao().getPendingSync().single().favourited)
+        }
+    }
+
+    @Test
     fun `server wins equal timestamp values for saved rows`() = runTest {
         fixture { f ->
             f.accounts.edit {

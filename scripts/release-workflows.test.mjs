@@ -97,7 +97,7 @@ test("preparation builds without deployment credentials and exports an immutable
   assert.equal(build.environment, undefined);
   assert.doesNotMatch(
     text,
-    /secrets\.|wrangler deploy|deploy:prod|deploy:dev|release-android|release-chrome/,
+    /secrets\.|wrangler deploy|deploy:prod|deploy:dev|release-android|release-chrome|scripts\/migrate\.mjs|db:migrate/,
   );
   const buildStep = build.steps.find((step) => step.run?.includes(" build --mode"));
   assert.ok(buildStep);
@@ -136,7 +136,7 @@ for (const [name, environment, database, token, url] of [
     "https://dev.ao3tracker.com/ping",
   ],
 ]) {
-  test(`${environment}: deploy the prepared artifact only after database and current-source checks`, async () => {
+  test(`${environment}: migrate the target database before readiness and artifact deployment`, async () => {
     const config = await workflow(name);
     const { deploy } = config.jobs;
     assert.equal(deploy.environment, environment);
@@ -145,13 +145,33 @@ for (const [name, environment, database, token, url] of [
     assert.equal(download.with["artifact-ids"], "${{ inputs.api_artifact_id }}");
     assert.equal(download.with.path, "apps/api/dist/");
     assert.equal(download.with["run-id"], undefined);
+    const migrations = steps.find((step) => step.run?.includes("apps/api/scripts/migrate.mjs"));
+    assert.ok(migrations, "deployment must apply pending migrations");
+    assert.equal(migrations.env.DATABASE_URL, `\${{ secrets.${database} }}`);
     const readiness = steps.find((step) => step.run?.includes("scripts/check-api-migrations.mjs"));
-    assert.equal(readiness.env.DATABASE_URL, `\${{ secrets.${database} }}`);
-    const current = steps.find((step) => step.run?.includes("assert-current-source"));
+    assert.equal(readiness.env.DATABASE_URL, migrations.env.DATABASE_URL);
+    const guards = steps.filter((step) => step.run?.includes("assert-current-source"));
+    assert.equal(
+      guards.length,
+      2,
+      "reject stale sources before migrations and again before deploy",
+    );
+    const [beforeMigrations, current] = guards;
+    assert.equal(beforeMigrations.env.RELEASE_SOURCE_REF, current.env.RELEASE_SOURCE_REF);
     const upload = steps.find((step) => step.run?.includes("wrangler deploy"));
     assert.equal(upload.env.CLOUDFLARE_API_TOKEN, token);
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
+    assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));
+    assert.equal(steps.indexOf(beforeMigrations) + 1, steps.indexOf(migrations));
+    assert.equal(steps.indexOf(migrations) + 1, steps.indexOf(readiness));
     assert.ok(steps.indexOf(readiness) < steps.indexOf(current));
+    for (const step of [beforeMigrations, migrations, readiness, current, upload]) {
+      assert.equal(step["continue-on-error"], undefined);
+      assert.equal(
+        step.if,
+        environment === "api-development" ? "steps.release.outputs.eligible == 'true'" : undefined,
+      );
+    }
     assert.equal(steps.indexOf(current) + 1, steps.indexOf(upload));
     assert.match(upload.run, /wrangler deploy --config dist\/ssr\/wrangler.json/);
     assert.doesNotMatch(JSON.stringify(steps), /deploy:prod|deploy:dev| build --mode/);
