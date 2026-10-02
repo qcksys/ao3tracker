@@ -1,7 +1,8 @@
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
+  test: { exclude: [...configDefaults.exclude, "test/e2e/**"] },
   resolve: { tsconfigPaths: true },
   plugins: [
     cloudflareTest({

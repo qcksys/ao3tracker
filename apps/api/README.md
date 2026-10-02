@@ -90,7 +90,8 @@ vp run types:cf             # Generate Cloudflare bindings types
 vp run types:tsc            # Run TypeScript type check
 
 # Testing
-vp run test                 # Run all tests
+vp run test                 # Run unit tests without Docker
+vp run test:e2e             # Build the Worker and run seeded MySQL sync tests (Docker required)
 vp run test test/lww.test.ts              # Run specific test file
 vp run test -t "should parse"             # Run tests matching pattern
 
@@ -107,6 +108,14 @@ vp run deploy:prod          # Deploy to production
 vp run biome:check:unsafe   # Fix linting issues
 vp run biome:ci             # CI linting check
 ```
+
+### Seeded sync end-to-end tests
+
+Start Docker Desktop (Linux containers) or another Docker-compatible runtime, then run `vp run test:e2e` from the repository root or this package. The command builds the API with Vite+, starts disposable MySQL 8.0 and [PlanetScale HTTP simulator](https://github.com/mattrobenolt/ps-http-sim) containers with Testcontainers, applies every checked-in migration through the normal migration script, and starts the built Worker locally with Wrangler's test harness. The shared sync client sends real HTTP requests through authentication, routing, validation, and the production PlanetScale/Drizzle adapter. No cloud or 1Password credentials are required.
+
+Each test clears and reseeds its isolated database with two readers, sessions, tracked works and chapters, metadata, favourite tags, saved searches, and tombstones. Coverage includes full and paginated pulls, incremental discovery, offline pushes, per-field conflicts, mark-unread resets, deletion propagation, retries, legacy chapter IDs, account isolation, and invalid requests. Database reads also verify persisted state. Containers and the Worker are stopped after the suite, including on setup failure; Docker failures fail the suite rather than skipping it.
+
+The first run downloads the container images. CI runs this suite in the workspace checks job; `vp run -r test` remains Docker-free. Tests live in `test/e2e/` with a separate Node/DOM TypeScript configuration because the shared browser client and the Worker have different global types. `vp run types:tsc` checks both configurations. The simulator exercises real MySQL queries but does not reproduce PlanetScale's hosted Vitess infrastructure.
 
 ### Environment Variables
 

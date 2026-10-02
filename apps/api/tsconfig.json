@@ -1,5 +1,6 @@
 {
   "include": ["src/**/*", "test/**/*", "*"],
+  "exclude": ["test/e2e"],
   "compilerOptions": {
     "types": ["vite/client"],
     "verbatimModuleSyntax": true,

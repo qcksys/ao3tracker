@@ -76,6 +76,8 @@ jobs:
         run: vp node --test scripts/*.test.mjs
       - name: Workspace tests
         run: vp run -r test
+      - name: Seeded sync end-to-end tests
+        run: vp run test:e2e
       - name: Workspace builds
         run: vp run -r build
 
