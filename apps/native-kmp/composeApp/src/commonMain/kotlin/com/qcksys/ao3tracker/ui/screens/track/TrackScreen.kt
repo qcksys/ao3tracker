@@ -495,7 +495,7 @@ fun TrackScreen() {
 }
 
 @Composable
-private fun WorkCard(
+internal fun WorkCard(
     work: Work,
     onClick: () -> Unit,
     onFavourite: () -> Unit,
@@ -593,19 +593,26 @@ private fun WorkCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Chapters and last read on same line
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = "Chapters: ${work.chapterProgress}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                work.lastUpdated?.let { lastUpdatedTimestamp ->
+                    Text(
+                        text = "Updated: ${formatWorkTimestamp(lastUpdatedTimestamp)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 work.lastRead?.let { lastReadTimestamp ->
                     Text(
-                        text = "Last read: ${formatTimestamp(lastReadTimestamp)}",
+                        text = "Read: ${formatWorkTimestamp(lastReadTimestamp)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1146,28 +1153,22 @@ private fun Int.formatWithCommas(): String {
 }
 
 @OptIn(kotlin.time.ExperimentalTime::class)
-private fun formatTimestamp(timestamp: Long): String {
-    // Simple formatting - shows relative time or date
-    val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
+internal fun formatWorkTimestamp(
+    timestamp: Long,
+    now: Long = kotlin.time.Clock.System.now().toEpochMilliseconds()
+): String {
     val diff = now - timestamp
-    val days = diff / (1000 * 60 * 60 * 24)
+    val minutes = diff / (1000 * 60)
+    val hours = minutes / 60
+    val days = hours / 24
 
     return when {
-        days < 1 -> "Today"
-        days < 2 -> "Yesterday"
-        days < 7 -> "$days days ago"
-        else -> {
-            // Simple date formatting
-            val totalSeconds = timestamp / 1000
-            val totalMinutes = totalSeconds / 60
-            val totalHours = totalMinutes / 60
-            val totalDays = totalHours / 24
-            val year = 1970 + (totalDays / 365).toInt()
-            val dayOfYear = (totalDays % 365).toInt()
-            val month = (dayOfYear / 30) + 1
-            val day = (dayOfYear % 30) + 1
-            "$year-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}"
-        }
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "$minutes min ago"
+        hours == 1L -> "1 hour ago"
+        hours < 24 -> "$hours hours ago"
+        days == 1L -> "1 day ago"
+        else -> "$days days ago"
     }
 }
 
