@@ -430,6 +430,7 @@ class Ao3Repository(private val accountData: AccountDataStore) {
                 chapterDao.updateChapterProgress(chapterId, workId, newProgress, now, now)
             }
             workDao.updateLastRead(workId, now, now)
+            markWorkCaughtUp(workId, now)
         }
     }
 
@@ -475,12 +476,25 @@ class Ao3Repository(private val accountData: AccountDataStore) {
         val now = getCurrentTimestamp()
         chapterDao.markChapterAsRead(chapterId, workId, now, now, now)
         workDao.updateLastRead(workId, now, now)
+        markWorkCaughtUp(workId, now)
     }
 
     suspend fun markWorkAsRead(workId: Long) = accountData.edit {
         val now = getCurrentTimestamp()
         chapterDao.markAllChaptersAsRead(workId, now, now, now)
         workDao.updateLastRead(workId, now, now)
+        markWorkCaughtUp(workId, now)
+    }
+
+    private suspend fun markWorkCaughtUp(workId: Long, now: Long) {
+        val work = workDao.getWorkById(workId) ?: return
+        if (work.markedCompleteAt != null) return
+
+        val chapters = chapterDao.getChaptersByWorkOnce(workId)
+        val currentChapters = work.currentChapters ?: chapters.size
+        if (currentChapters > 0 && chapters.count { it.toDomain().isComplete } >= currentChapters) {
+            workDao.markWorkComplete(workId, now, now)
+        }
     }
 
     suspend fun markChapterAsUnread(chapterId: Long, workId: Long) = accountData.edit {
