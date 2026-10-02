@@ -28,6 +28,7 @@ import {
   getBrowsingState,
   setHiddenTags,
   setSearchLanguage,
+  setMaxFandoms,
   setWorkHidden,
 } from "@/lib/browsing-repo";
 import { browsingPreferencesItem } from "@/lib/storage";
@@ -161,9 +162,11 @@ async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToP
     case "unhideWork":
     case "setHiddenTags":
     case "setSearchLanguage":
+    case "setMaxFandoms":
       return withLocalState(async () => {
         if (msg.kind === "unhideWork") await setWorkHidden(msg.workId, false);
         else if (msg.kind === "setHiddenTags") await setHiddenTags(msg.hiddenTags);
+        else if (msg.kind === "setMaxFandoms") await setMaxFandoms(msg.maxFandoms);
         else
           await setSearchLanguage({
             languageFilterEnabled: msg.languageFilterEnabled,

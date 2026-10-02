@@ -1,6 +1,7 @@
 import {
   readSearchPage,
   savedSearchKey,
+  withCrossoverLimit,
   withDefaultHiddenTags,
   withSearchLanguage,
 } from "@qcksys/ao3tracker-core/dom";
@@ -15,10 +16,14 @@ export async function checkSearch(
   post: (message: SearchCheckMessage) => void,
   load: (url: string) => Promise<Document> = loadPage,
   pause: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 1500)),
+  maxFandoms: number | null = null,
 ): Promise<void> {
   try {
     const firstUrl = new URL(
-      withSearchLanguage(withDefaultHiddenTags(initialUrl, hiddenTags), language),
+      withCrossoverLimit(
+        withSearchLanguage(withDefaultHiddenTags(initialUrl, hiddenTags), language),
+        maxFandoms,
+      ),
     );
     firstUrl.hash = "";
     for (const key of ["page", "work_search[page]", "bookmark_search[page]"])
@@ -34,7 +39,7 @@ export async function checkSearch(
       visited.add(url);
       const doc =
         visited.size === 1 && url === new URL(initialUrl).href ? initialDocument : await load(url);
-      const page = readSearchPage(doc, url);
+      const page = readSearchPage(doc, url, maxFandoms);
       if (viewer !== undefined && viewer !== page.viewer)
         throw new Error("AO3 sign-in changed during the check. Please try again.");
       viewer = page.viewer;
@@ -50,6 +55,7 @@ export async function checkSearch(
         savedSearchKey(firstUrl.href),
         viewer,
         [...hidden].sort((a, b) => a - b),
+        maxFandoms,
       ]),
       works: [...results.values()].filter((work) => !hidden.has(work.id)),
     });

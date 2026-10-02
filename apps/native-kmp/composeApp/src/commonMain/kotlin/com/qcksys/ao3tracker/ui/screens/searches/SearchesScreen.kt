@@ -97,6 +97,7 @@ fun SearchesScreen() {
                     put("hiddenTags", JsonArray(check.preferences.hiddenTags.map(::JsonPrimitive)))
                     put("hiddenWorkIds", JsonArray(check.preferences.hiddenWorkIds.map(::JsonPrimitive)))
                     put("language", if (check.preferences.languageFilterEnabled) check.preferences.searchLanguage else null)
+                    put("maxFandoms", check.preferences.maxFandoms)
                 }.toString().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
                 "window.__ao3SearchCheckOptions = $options;\n${SearchCheckScriptGenerated.script}"
             }

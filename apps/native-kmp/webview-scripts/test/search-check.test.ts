@@ -79,9 +79,59 @@ describe("local saved search checks", () => {
         JSON.stringify(["/works", [["work_search[language_id]", "fr"]]]),
         "/users/reader",
         [],
+        null,
       ]),
       works: [{ id: 1 }],
     });
+  });
+
+  it("filters fandoms on every page and resets the baseline when the limit changes", async () => {
+    const first = page([1, 2], "?page=2");
+    const second = page([3, 4]);
+    for (const [doc, id, count] of [
+      [first, 2, 4],
+      [second, 3, 3],
+      [second, 4, 4],
+    ] as const) {
+      const blurb = doc.querySelector(`#work_${id}`);
+      if (!blurb) throw new Error("Expected work blurb");
+      blurb.innerHTML = `<h5 class="fandoms">${'<a class="tag">Fandom</a>'.repeat(count)}</h5>`;
+    }
+    const messages: SearchCheckMessage[] = [];
+    const post = (message: SearchCheckMessage) => messages.push(message);
+    await checkSearch(first, url, [], [], null, post, async () => second, pause, 3);
+    const limited = messages.at(-1);
+    expect(limited).toMatchObject({ type: "searchCheckResult", works: [{ id: 1 }, { id: 3 }] });
+    await checkSearch(first, url, [], [], null, post, async () => second, pause, null);
+    const unlimited = messages.at(-1);
+    expect(unlimited).toMatchObject({
+      type: "searchCheckResult",
+      works: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }],
+    });
+    if (limited?.type !== "searchCheckResult" || unlimited?.type !== "searchCheckResult")
+      throw new Error("Expected complete checks");
+    expect(limited.context).not.toBe(unlimited.context);
+  });
+
+  it("injects AO3's crossover exclusion when checking single-fandom searches", async () => {
+    const messages: SearchCheckMessage[] = [];
+    const load = vi.fn(async (href: string) => {
+      expect(new URL(href).searchParams.get("work_search[crossover]")).toBe("F");
+      return page([1]);
+    });
+    await checkSearch(
+      page([9]),
+      url,
+      [],
+      [],
+      null,
+      (message) => messages.push(message),
+      load,
+      pause,
+      1,
+    );
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(messages.at(-1)).toMatchObject({ type: "searchCheckResult", works: [{ id: 1 }] });
   });
 
   it("never emits a completed result after a later page fails", async () => {

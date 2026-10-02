@@ -20,6 +20,7 @@ export const browsingPreferencesItem = storage.defineItem<BrowsingPreferences>(
       hiddenTags: [],
       languageFilterEnabled: false,
       searchLanguage: "en",
+      maxFandoms: null,
     },
   },
 );

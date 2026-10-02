@@ -30,6 +30,13 @@ export async function setHiddenTags(tags: string[]): Promise<void> {
   await browsingPreferencesItem.setValue({ ...preferences, hiddenTags: normalizeHiddenTags(tags) });
 }
 
+export async function setMaxFandoms(maxFandoms: BrowsingPreferences["maxFandoms"]): Promise<void> {
+  const preferences = await browsingPreferencesItem.getValue();
+  await browsingPreferencesItem.setValue(
+    browsingPreferencesSchema.parse({ ...preferences, maxFandoms }),
+  );
+}
+
 export async function setSearchLanguage(
   settings: Pick<BrowsingPreferences, "languageFilterEnabled" | "searchLanguage">,
 ): Promise<void> {

@@ -9,6 +9,7 @@ declare global {
       hiddenTags: string[];
       hiddenWorkIds: number[];
       language: string | null;
+      maxFandoms: number | null;
     };
     __ao3SearchCheckStarted?: boolean;
   }
@@ -39,6 +40,9 @@ if (window.top === window && options && !window.__ao3SearchCheckStarted) {
       options.hiddenWorkIds,
       options.language,
       post,
+      undefined,
+      undefined,
+      options.maxFandoms,
     );
   }
 }

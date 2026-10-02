@@ -55,10 +55,16 @@ export function savedSearchKey(
   href: string,
   hiddenTags: string[] = [],
   language: string | null = null,
+  maxFandoms: number | null = null,
 ): string | null {
   let url: URL;
   try {
-    url = new URL(withSearchLanguage(withDefaultHiddenTags(href, hiddenTags), language));
+    url = new URL(
+      withCrossoverLimit(
+        withSearchLanguage(withDefaultHiddenTags(href, hiddenTags), language),
+        maxFandoms,
+      ),
+    );
   } catch {
     return null;
   }
@@ -88,12 +94,14 @@ export function updateSavedSearchButton(
   savedUrls: string[],
   hiddenTags: string[] = [],
   language: string | null = null,
+  maxFandoms: number | null = null,
 ): void {
   const button = doc.querySelector<HTMLButtonElement>(".ao3-tracker-save-search");
   if (!button) return;
-  const key = savedSearchKey(href, hiddenTags, language);
+  const key = savedSearchKey(href, hiddenTags, language, maxFandoms);
   const saved =
-    key !== null && savedUrls.some((url) => savedSearchKey(url, hiddenTags, language) === key);
+    key !== null &&
+    savedUrls.some((url) => savedSearchKey(url, hiddenTags, language, maxFandoms) === key);
   button.textContent = saved ? SAVED_SEARCH_LABEL : SAVE_SEARCH_LABEL;
   button.disabled = saved;
 }
@@ -130,6 +138,45 @@ export function installSearchLanguage(
   location: Location,
   getLanguage: () => string | null,
 ): () => void {
+  return installSearchDefault(
+    doc,
+    location,
+    (namespace) => `${namespace}[language_id]`,
+    getLanguage,
+  );
+}
+
+export function withCrossoverLimit(href: string, maxFandoms: number | null = null): string {
+  if (maxFandoms !== 1) return href;
+  const url = new URL(href);
+  if (searchNamespace(url) !== "work_search" || (url.pathname.endsWith("/search") && !url.search))
+    return href;
+  const key = "work_search[crossover]";
+  const existing = url.searchParams.getAll(key);
+  if (existing.length === 1 && existing[0] === "F") return href;
+  url.searchParams.set(key, "F");
+  return url.href;
+}
+
+export function installCrossoverLimit(
+  doc: Document,
+  location: Location,
+  getMaxFandoms: () => number | null,
+): () => void {
+  return installSearchDefault(
+    doc,
+    location,
+    (namespace) => (namespace === "work_search" ? "work_search[crossover]" : null),
+    () => (getMaxFandoms() === 1 ? "F" : null),
+  );
+}
+
+function installSearchDefault(
+  doc: Document,
+  location: Location,
+  getName: (namespace: string) => string | null,
+  getValue: () => string | null,
+): () => void {
   const restorations = new Map<HTMLFormElement, () => void>();
   const onSubmit = (event: Event): void => {
     const form = event.target as HTMLFormElement;
@@ -139,22 +186,22 @@ export function installSearchLanguage(
     const namespace = searchNamespace(
       new URL(form.getAttribute("action") || location.href, location.href),
     );
-    const language = getLanguage();
-    if (!namespace || !language) return;
-    const name = `${namespace}[language_id]`;
+    const value = getValue();
+    const name = namespace && getName(namespace);
+    if (!name || !value) return;
     const fields = Array.from(
       form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
         `input[name="${name}"], select[name="${name}"]`,
       ),
     );
-    // Submit exactly one language even when the page already has a language selector.
+    // Submit exactly one value even when the page already has selectors or radio buttons.
     fields.forEach((field) => {
       field.removeAttribute("name");
     });
     const input = doc.createElement("input");
     input.type = "hidden";
     input.name = name;
-    input.value = language;
+    input.value = value;
     form.appendChild(input);
     restorations.set(form, () => {
       input.remove();
@@ -168,6 +215,27 @@ export function installSearchLanguage(
     doc.removeEventListener("submit", onSubmit, true);
     restorations.forEach((restore) => restore());
   };
+}
+
+export function exceedsFandomLimit(blurb: Element, maxFandoms: number | null = null): boolean {
+  return maxFandoms !== null && blurb.querySelectorAll(".fandoms a.tag").length > maxFandoms;
+}
+
+export function applyFandomLimit(doc: Document, maxFandoms: number | null = null): void {
+  if (!doc.getElementById("ao3-tracker-fandom-limit-style")) {
+    const style = doc.createElement("style");
+    style.id = "ao3-tracker-fandom-limit-style";
+    style.textContent = ".ao3-tracker-fandom-limit-hidden { display: none !important; }";
+    doc.head.appendChild(style);
+  }
+  for (const blurb of doc.querySelectorAll('li[id^="work_"], li[id^="bookmark_"]')) {
+    const hidden = exceedsFandomLimit(blurb, maxFandoms);
+    blurb.classList.toggle("ao3-tracker-fandom-limit-hidden", hidden);
+    const placeholder = blurb.nextElementSibling;
+    if (placeholder?.classList.contains("ao3-tracker-hidden-work")) {
+      placeholder.classList.toggle("ao3-tracker-fandom-limit-hidden", hidden);
+    }
+  }
 }
 
 export function applyHiddenWorks(

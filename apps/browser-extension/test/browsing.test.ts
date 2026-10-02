@@ -18,6 +18,7 @@ import {
   setHiddenTags,
   setSearchLanguage,
   setWorkHidden,
+  setMaxFandoms,
 } from "../lib/browsing-repo";
 import { contentToBackgroundSchema, popupToBackgroundSchema } from "../lib/messaging";
 import { browsingPreferencesItem, savedSearchesItem } from "../lib/storage";
@@ -33,6 +34,7 @@ describe("browsing preferences", () => {
       hiddenTags: [],
       hiddenWorkIds: [],
       savedSearchUrls: [],
+      maxFandoms: null,
     });
     await Promise.all([
       withLocalState(() => setWorkHidden(123, true)),
@@ -45,6 +47,7 @@ describe("browsing preferences", () => {
       searchLanguage: "en",
       hiddenTags: ["Angst", "Fluff"],
       hiddenWorkIds: [123, 456],
+      maxFandoms: null,
     });
     await setWorkHidden(123, false);
     await setHiddenTags([]);
@@ -54,7 +57,40 @@ describe("browsing preferences", () => {
       hiddenTags: [],
       hiddenWorkIds: [456],
       savedSearchUrls: [],
+      maxFandoms: null,
     });
+  });
+
+  it("persists and clears fandom limits without losing other preferences", async () => {
+    persisted.set("local:browsingPreferences", { hiddenTags: ["Angst"], hiddenWorkIds: [123] });
+    expect((await getBrowsingState()).maxFandoms).toBeNull();
+    await withLocalState(() => setMaxFandoms(3));
+    await withLocalState(() =>
+      setSearchLanguage({ searchLanguage: "fr", languageFilterEnabled: true }),
+    );
+    expect(await getBrowsingState()).toMatchObject({
+      maxFandoms: 3,
+      hiddenTags: ["Angst"],
+      hiddenWorkIds: [123],
+      searchLanguage: "fr",
+    });
+    await setMaxFandoms(1);
+    expect((await getBrowsingState()).maxFandoms).toBe(1);
+    await expect(setMaxFandoms(0)).rejects.toThrow();
+    expect((await getBrowsingState()).maxFandoms).toBe(1);
+    await setMaxFandoms(null);
+    expect((await getBrowsingState()).maxFandoms).toBeNull();
+  });
+
+  it("validates fandom limits at the message boundary", () => {
+    for (const maxFandoms of [null, 1, 3])
+      expect(popupToBackgroundSchema.safeParse({ kind: "setMaxFandoms", maxFandoms }).success).toBe(
+        true,
+      );
+    for (const maxFandoms of [0, -1, 1.5, "3", undefined])
+      expect(popupToBackgroundSchema.safeParse({ kind: "setMaxFandoms", maxFandoms }).success).toBe(
+        false,
+      );
   });
 
   it("persists language settings without losing existing preferences", async () => {
