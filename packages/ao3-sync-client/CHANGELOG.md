@@ -1,5 +1,16 @@
 # @qcksys/ao3tracker-sync-client
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [8e9d240]
+- Updated dependencies [7964092]
+- Updated dependencies [fe279ed]
+- Updated dependencies [9ffbe51]
+  - @qcksys/ao3tracker-core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes

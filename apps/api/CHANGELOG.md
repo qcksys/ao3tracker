@@ -1,5 +1,20 @@
 # @qcksys/ao3tracker-api
 
+## 0.1.1
+
+### Patch Changes
+
+- 8e9d240: Store the full work summary up to 2,048 characters, including all paragraphs and text around inline formatting. Exclude chapter summaries from the work summary.
+- 6afcaf9: Retry temporary AO3 TLS handshake failures before deferring work update checks, reducing missed or delayed notifications. Preserve deleted-work detection when the HTTP client has already consumed the error response.
+- f6ed2e6: Fix passkey creation and sign-in for Google Play installations by associating the dev and production apps with their respective Play signing certificates.
+- f1d382d: Replace Sentry with PostHog crash reporting through AO3 Tracker’s API. Retain pending crash reports across network failures and app restarts, attach app versions and readable Android release mappings, and respect the diagnostic collection setting. Fix delivery of crash reports and diagnostic events through the API proxy.
+- Updated dependencies
+- Updated dependencies [8e9d240]
+- Updated dependencies [7964092]
+- Updated dependencies [fe279ed]
+- Updated dependencies [9ffbe51]
+  - @qcksys/ao3tracker-core@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
