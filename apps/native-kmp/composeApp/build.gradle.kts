@@ -1,5 +1,8 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -18,6 +21,31 @@ plugins {
 val webviewScriptsDir = rootProject.file("webview-scripts")
 val webviewScriptsOutputDir = layout.buildDirectory.dir("generated/webview-scripts")
 val generatedKotlinDir = layout.buildDirectory.dir("generated/kotlin/webview")
+val generatedBuildInfoDir = layout.buildDirectory.dir("generated/kotlin/build-info")
+val desktopVersion = "1.0.0"
+
+val generateAppBuildInfo by tasks.registering {
+    val version = desktopVersion
+    inputs.property("desktopVersion", version)
+    val outputFile = generatedBuildInfoDir.get().file("GeneratedAppBuildInfo.kt").asFile
+    outputs.file(outputFile)
+    // Capture this build's time even when Gradle reuses its configuration.
+    outputs.upToDateWhen { false }
+    doLast {
+        val buildTimeUtc = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'")
+            .withZone(ZoneOffset.UTC)
+            .format(Instant.now())
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText("""
+            |package com.qcksys.ao3tracker
+            |
+            |internal object GeneratedAppBuildInfo {
+            |    const val desktopVersion = "$version"
+            |    const val buildTimeUtc = "$buildTimeUtc"
+            |}
+        """.trimMargin())
+    }
+}
 
 val workspaceRoot = rootProject.file("../..")
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
@@ -112,6 +140,7 @@ tasks.matching {
     it.name.startsWith("ksp")
 }.configureEach {
     dependsOn(generateWebviewScriptKotlin)
+    dependsOn(generateAppBuildInfo)
 }
 
 kotlin {
@@ -140,6 +169,7 @@ kotlin {
     sourceSets {
         commonMain {
             kotlin.srcDir(generatedKotlinDir)
+            kotlin.srcDir(generatedBuildInfoDir)
         }
         androidMain.dependencies {
             implementation(compose.preview)
@@ -331,7 +361,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.qcksys.ao3tracker"
-            packageVersion = "1.0.0"
+            packageVersion = desktopVersion
             macOS { iconFile.set(project.file("icons/app.icns")) }
             windows { iconFile.set(project.file("icons/app.ico")) }
             linux { iconFile.set(project.file("icons/app.png")) }

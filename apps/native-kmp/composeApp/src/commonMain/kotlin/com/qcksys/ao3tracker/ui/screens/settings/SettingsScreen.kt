@@ -584,11 +584,7 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.headlineSmall
                     )
 
-                    Text(
-                        text = "Version 0.1.0",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    AppVersionInfo()
 
                     Spacer(modifier = Modifier.height(16.dp))
 
