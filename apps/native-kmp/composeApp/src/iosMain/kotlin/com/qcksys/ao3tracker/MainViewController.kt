@@ -1,13 +1,10 @@
 package com.qcksys.ao3tracker
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.posthog.kmp.PostHogContext
+import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 
 fun MainViewController(): androidx.compose.ui.uikit.UIViewController {
-    // Initialize Sentry before creating the UI
-    initializeSentry(
-        dsn = SentryConfig.dsn,
-        isDebug = SentryConfig.isDebug,
-        environment = "production"
-    )
+    PostHogCrashReporter.initialize(PostHogContext())
     return ComposeUIViewController { App() }
 }

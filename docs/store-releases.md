@@ -107,13 +107,16 @@ Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender 
 
 ### `google-play`
 
-| Secret                             | Value                                                               |
-| ---------------------------------- | ------------------------------------------------------------------- |
-| `ANDROID_KEYSTORE_BASE64`          | Base64 encoding of the existing Android upload keystore             |
-| `ANDROID_KEYSTORE_PASSWORD`        | Keystore password                                                   |
-| `ANDROID_KEY_ALIAS`                | Upload key alias                                                    |
-| `ANDROID_KEY_PASSWORD`             | Upload key password                                                 |
-| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Entire Google service-account JSON key; only required for uploading |
+| Secret                             | Value                                                                                                          |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `ANDROID_KEYSTORE_BASE64`          | Base64 encoding of the existing Android upload keystore                                                        |
+| `ANDROID_KEYSTORE_PASSWORD`        | Keystore password                                                                                              |
+| `ANDROID_KEY_ALIAS`                | Upload key alias                                                                                               |
+| `ANDROID_KEY_PASSWORD`             | Upload key password                                                                                            |
+| `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` | Entire Google service-account JSON key; only required for uploading                                            |
+| `POSTHOG_CLI_API_KEY`              | Personal API key scoped to AO3 Tracker dev/production projects with error tracking write and organization read |
+
+Android builds embed a PostHog mapping ID. Release builds upload the matching R8 mapping through the PostHog Gradle plugin before the store upload; a failed mapping upload fails the release. The workflow selects EU project 291114 for beta and 69100 for production, and requires the key even for signed build-only runs. Local and PR builds without this key still generate mapping IDs but skip uploads. The official CLI is a workspace dev dependency; Linux release jobs run Gradle through `vp exec` to put it on PATH. PostHog Gradle plugin 1.7.0 incorrectly passes `cmd /c` to the CLI on Windows, so use Linux for authenticated Gradle release builds. Back up the key in the QckSys vault item **AO3 Tracker - PostHog release symbols**, tagged **QckSys/ao3tracker**. This personal key is only for symbol uploads; the API proxy uses its separate Worker project token.
 
 ### `chrome-web-store`
 

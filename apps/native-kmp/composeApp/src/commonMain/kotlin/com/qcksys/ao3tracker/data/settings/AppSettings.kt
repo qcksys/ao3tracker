@@ -2,7 +2,7 @@ package com.qcksys.ao3tracker.data.settings
 
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
 import com.qcksys.ao3tracker.util.JsonConfig
-import com.qcksys.ao3tracker.setSentryDiagnosticDataEnabled
+import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,6 +66,7 @@ class AppSettings(
             _diagnosticDataEnabled.value && !_incognitoModeEnabled.value,
             _apiEnvironment.value.apiBaseUrl
         )
+        PostHogCrashReporter.configure(_diagnosticSession.value)
     }
 
     fun setDiagnosticDataEnabled(enabled: Boolean) {
@@ -73,7 +74,6 @@ class AppSettings(
         _diagnosticDataEnabled.value = enabled
         updateDiagnosticSession()
         settingsStorage?.setDiagnosticDataEnabled(enabled)
-        setSentryDiagnosticDataEnabled(enabled)
     }
 
     fun captureDiagnosticSession(): DiagnosticSession? = _diagnosticSession.value.takeIf { it.enabled }

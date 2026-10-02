@@ -3,6 +3,7 @@ packages:
   - apps/native-kmp/webview-scripts
   - packages/*
 allowBuilds:
+  "@posthog/cli": true
   cpu-features: false
   esbuild: true
   protobufjs: false
@@ -30,6 +31,7 @@ catalog:
   "@hookform/resolvers": ^5.9.1
   # Drizzle RC still requires the parameterized execute API removed in driver 2.x.
   "@planetscale/database": ^1.20.2
+  "@posthog/cli": ^0.18.9
   "@qcksys/drizzle-extensions": ^0.3.0
   "@scalar/hono-api-reference": ^0.12.7
   "@scalar/openapi-to-markdown": ^1.4.0

@@ -194,6 +194,9 @@ catalogs:
     '@planetscale/database':
       specifier: ^1.20.2
       version: 1.20.2
+    '@posthog/cli':
+      specifier: ^0.18.9
+      version: 0.18.9
     '@qcksys/drizzle-extensions':
       specifier: ^0.3.0
       version: 0.3.0
@@ -340,6 +343,9 @@ importers:
       '@changesets/get-release-plan':
         specifier: 'catalog:'
         version: 5.0.2
+      '@posthog/cli':
+        specifier: 'catalog:'
+        version: 0.18.9
       vite:
         specifier: 'catalog:'
         version: '@voidzero-dev/vite-plus-core@1.0.0(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.47.1)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)'
@@ -2268,6 +2274,11 @@ packages:
 
   '@poppinss/exception@1.2.3':
     resolution: {integrity: sha512-dCED+QRChTVatE9ibtoaxc+WkdzOSjYTKi/+uacHWIsfodVfpsueo3+DKpgU5Px8qXjgmXkSvhXvSCz3fnP9lw==}
+
+  '@posthog/cli@0.18.9':
+    resolution: {integrity: sha512-uASaB3MLV5zHIZs9IqeG9d5sgo1lHhxxGh01Ndkmw6RWzLhZaM8ud+pcT0DVbYvpRZvT+eGFookh0/QakeaJ1g==}
+    engines: {node: '>=14.14', npm: '>=6'}
+    hasBin: true
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -7391,6 +7402,10 @@ snapshots:
       supports-color: 10.2.2
 
   '@poppinss/exception@1.2.3': {}
+
+  '@posthog/cli@0.18.9':
+    dependencies:
+      detect-libc: 2.1.2
 
   '@protobufjs/aspromise@1.1.2': {}
 

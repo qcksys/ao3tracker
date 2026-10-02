@@ -1,6 +1,7 @@
 import { diagnosticRequestSchema } from "@qcksys/ao3tracker-core/diagnostics";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
+import { nativeIngestRouter } from "./native-ingest";
 
 type IngestEnv = {
   Bindings: Pick<
@@ -10,6 +11,7 @@ type IngestEnv = {
 };
 
 export const ingestRouter = new Hono<IngestEnv>();
+ingestRouter.route("/native", nativeIngestRouter);
 
 ingestRouter.post("/", bodyLimit({ maxSize: 2048 }), async (c) => {
   if (!c.env.POSTHOG_PROJECT_TOKEN) return c.body(null, 204);

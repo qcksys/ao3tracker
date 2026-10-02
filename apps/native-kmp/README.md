@@ -135,6 +135,24 @@ Open the `iosApp/` directory in Xcode.
 
 This creates platform-specific installers in `composeApp/build/compose/binaries/main/`.
 
+## Crash reporting
+
+The native app uses [PostHog KMP error tracking](https://posthog.com/docs/error-tracking/installation/kmp). Unhandled exceptions and the Developer settings test error use the selected API's `/ingest/native` proxy. Deploy the API before distributing a client update. Both EU projects must have exception autocapture enabled: `ao3tracker-dev` (291114) and `ao3tracker` (69100).
+
+The SDK saves pending crashes to disk and retries on later launches. Diagnostic opt-out and incognito stop new collection; reports collected while enabled can still be delivered. Crash details include exception messages and stacks, so avoid putting credentials or reading content in thrown error messages.
+
+Android's PostHog Gradle plugin embeds the mapping ID and uploads R8 mappings in the store workflow. See [release credential setup](../../docs/store-releases.md#google-play). The developer test error can verify delivery after installation; a real fatal crash must be followed by relaunching the app to verify recovery.
+
+iOS uses Kotlin 2.4 SwiftPM linkage. The generated `iosApp/KotlinMultiplatformLinkedPackage` and its Xcode reference are checked in. After upgrading the SDK, run on macOS from this directory:
+
+```shell
+XCODEPROJ_PATH="$PWD/iosApp/iosApp.xcodeproj" ./gradlew :composeApp:integrateLinkagePackage
+```
+
+Commit generated linkage and SwiftPM lock-file changes. Archive and test on macOS before shipping iOS, including a crash and relaunch. Upload the archive's dSYMs using [PostHog's iOS symbol instructions](https://posthog.com/docs/error-tracking/upload-source-maps/ios); Android R8 mappings do not symbolicate iOS crashes.
+
+Desktop release packaging includes the PostHog/Gson ProGuard rules and `jdk.unsupported` needed to deserialize persisted reports. The JVM regression tests launch isolated processes, crash with failed delivery, then verify replay after restart through the configured proxy.
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
