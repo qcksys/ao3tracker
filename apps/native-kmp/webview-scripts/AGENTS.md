@@ -40,7 +40,7 @@ Vite refuses multi-entry IIFE bundles in library config mode (see [vitejs/vite#1
 
 ### Files
 
-- [src/ao3-tracking.ts](./src/ao3-tracking.ts) — entry that wires `@qcksys/ao3tracker-core/dom` + `/badges` helpers to the native `postMessage` bridges. Exposes `window.__ao3Tracker.applyListBadges(payloadJson)` for native→JS evaluation.
+- [src/ao3-tracking.ts](./src/ao3-tracking.ts) wires shared DOM and badge helpers to the native bridges. Exposes `applyListBadges`, `reportReadingActivity`, and `applyBrowsingState` on `window.__ao3Tracker`. The `browsingReady` handshake runs on every page, including empty results. Native replies with `{ hiddenWorkIds, hiddenTags, savedSearchUrls }`; the script merges default tag exclusions into search URLs/forms, updates the saved label, and adds Hide work/Unhide actions. Those actions post `{ type: "setWorkHidden", url, workId, hidden }`. Keep the fields aligned with shared browsing schemas and native `BrowsingState`/`SetWorkHiddenEvent`.
 - [src/scroll-restore.ts](./src/scroll-restore.ts) — one-shot IIFE that calls `consumeScrollToParam(document, window)` from `@qcksys/ao3tracker-core/dom`.
 - [test/ao3-tracking.test.ts](./test/ao3-tracking.test.ts) — drives the shared `@qcksys/ao3tracker-core/dom` helpers against real AO3 fixture HTML; exercises the JSON-bridge wrapper for `applyListBadges`.
 - [test/fixtures.ts](./test/fixtures.ts) — real AO3 HTML fixture (XCOM: The Advent Directive) used by the test above.

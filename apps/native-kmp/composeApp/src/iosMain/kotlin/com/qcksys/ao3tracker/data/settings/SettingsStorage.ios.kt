@@ -56,6 +56,12 @@ actual class SettingsStorage {
 
     actual fun getNotificationPreferences(): String? = userDefaults.stringForKey("notification_preferences")
 
+    actual fun getBrowsingPreferences(): String? = userDefaults.stringForKey("browsing_preferences")
+
+    actual fun setBrowsingPreferences(preferences: String) {
+        userDefaults.setObject(preferences, "browsing_preferences")
+    }
+
     actual fun setNotificationPreferences(preferences: String) {
         userDefaults.setObject(preferences, "notification_preferences")
     }

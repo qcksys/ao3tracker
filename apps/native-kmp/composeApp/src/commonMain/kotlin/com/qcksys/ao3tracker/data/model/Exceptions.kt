@@ -72,5 +72,7 @@ sealed class WebViewMessage {
     data class ScrollProgress(val event: ScrollProgressEvent) : WebViewMessage()
     data class ListWorks(val event: ListWorksEvent) : WebViewMessage()
     data class SaveSearch(val event: SaveSearchEvent) : WebViewMessage()
+    data class BrowsingReady(val event: BrowsingReadyEvent) : WebViewMessage()
+    data class SetWorkHidden(val event: SetWorkHiddenEvent) : WebViewMessage()
     data class Unknown(val type: String?, val rawJson: String) : WebViewMessage()
 }

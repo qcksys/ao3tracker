@@ -78,7 +78,7 @@ data class ListWorksEvent(
 
 /**
  * Page → host request to save the current filter/search URL. `name` is a
- * suggested name derived from the page heading; the host confirms it with the
+ * suggested name derived from the applied filters; the host confirms it with the
  * user before persisting.
  */
 @Serializable
@@ -87,6 +87,12 @@ data class SaveSearchEvent(
     val url: String,
     val name: String? = null
 )
+
+@Serializable
+data class BrowsingReadyEvent(val url: String)
+
+@Serializable
+data class SetWorkHiddenEvent(val url: String, val workId: Long, val hidden: Boolean)
 
 /**
  * Payload sent back to the WebView to render a tracker badge on a list page.

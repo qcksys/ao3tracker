@@ -343,6 +343,8 @@ fun SettingsScreen() {
                 }
             }
 
+            BrowsingSettings(appSettings)
+
             SettingsSection(
                 title = "Sync",
                 summary = when {

@@ -19,7 +19,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("~popup/lib/state", () => ({
   usePopupState: () => ({
-    state: { apiBaseUrl: "https://ao3tracker.com", notificationPreferences: mocks.preferences },
+    state: {
+      apiBaseUrl: "https://ao3tracker.com",
+      notificationPreferences: mocks.preferences,
+      browsingPreferences: { hiddenTags: ["Angst"], hiddenWorkIds: [123] },
+    },
     dispatch: mocks.dispatch,
   }),
 }));
@@ -77,6 +81,8 @@ describe("settings sections", () => {
     expect(button("Sign out").closest("[hidden]")).toBeNull();
     expect(button("Notifications").getAttribute("aria-expanded")).toBe("false");
     expect(button("Advanced").getAttribute("aria-expanded")).toBe("false");
+    expect(button("Search preferences").getAttribute("aria-expanded")).toBe("false");
+    expect(button("Unhide work 123").closest("[hidden]")).not.toBeNull();
     expect(button("New chapters").closest("[hidden]")).not.toBeNull();
 
     await act(async () => button("Notifications").click());
@@ -84,6 +90,10 @@ describe("settings sections", () => {
     expect(button("Notifications").getAttribute("aria-expanded")).toBe("true");
     expect(button("Advanced").getAttribute("aria-expanded")).toBe("true");
     expect(button("New chapters").closest("[hidden]")).toBeNull();
+    await act(async () => button("Search preferences").click());
+    expect(button("Unhide work 123").closest("[hidden]")).toBeNull();
+    await act(async () => button("Unhide work 123").click());
+    expect(mocks.dispatch).toHaveBeenCalledWith({ kind: "unhideWork", workId: 123 });
 
     await act(async () => button("Sign out").click());
     expect(mocks.signOut).toHaveBeenCalledOnce();

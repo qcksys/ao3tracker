@@ -84,7 +84,7 @@ export type ListWorksMessage = z.infer<typeof listWorksMessageSchema>;
 /**
  * Page → host request to save the current filter/search URL. Posted by the
  * "Save this search" button injected on AO3 list pages. `name` is a suggested
- * name derived from the page heading (the host prompts the user to confirm it).
+ * name derived from the applied filters (the host prompts the user to confirm it).
  *
  * Kept out of `webViewMessageSchema` below because, like the browser
  * extension's `saveSearch` message, it's a side-channel request handled

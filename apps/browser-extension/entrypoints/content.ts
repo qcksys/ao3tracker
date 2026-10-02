@@ -1,5 +1,4 @@
 import {
-  applyListBadges,
   classifyAo3Url,
   consumeScrollToParam,
   findListWorkIds,
@@ -7,22 +6,59 @@ import {
   getWorkChapterSelect,
   getWorkInfo,
   getWorkTagInfo,
+  suggestSavedSearchName,
   injectSaveSearchButton,
   publishScrollPercentage,
-  SAVE_SEARCH_LABEL,
-  type WebViewMessage,
-} from "@qcksys/ao3tracker-core";
-import type { BackgroundToContentResponse, ContentToBackground } from "@/lib/messaging";
+  applyHiddenWorks,
+  installDefaultSearchTags,
+  updateSavedSearchButton,
+  withDefaultHiddenTags,
+} from "@qcksys/ao3tracker-core/dom";
+import { applyListBadges } from "@qcksys/ao3tracker-core/badges";
+import type { BrowsingState, WebViewMessage } from "@qcksys/ao3tracker-core/schemas";
+import { backgroundToContentResponseSchema, type ContentToBackground } from "@/lib/messaging";
+import { browsingPreferencesItem, savedSearchesItem } from "@/lib/storage";
 
 export default defineContentScript({
   matches: ["https://archiveofourown.org/*"],
   runAt: "document_end",
-  async main() {
+  async main(ctx) {
     if ((window as Window & { __ao3TrackerInitialized?: boolean }).__ao3TrackerInitialized) return;
     (window as Window & { __ao3TrackerInitialized?: boolean }).__ao3TrackerInitialized = true;
 
-    const send = (msg: ContentToBackground): Promise<BackgroundToContentResponse> =>
-      browser.runtime.sendMessage(msg) as Promise<BackgroundToContentResponse>;
+    const send = async (msg: ContentToBackground) =>
+      backgroundToContentResponseSchema.parse(await browser.runtime.sendMessage(msg));
+
+    let browsingState: BrowsingState = { hiddenTags: [], hiddenWorkIds: [], savedSearchUrls: [] };
+    const applyBrowsingState = (state: BrowsingState): void => {
+      browsingState = state;
+      const filteredUrl = withDefaultHiddenTags(window.location.href, state.hiddenTags);
+      if (filteredUrl !== window.location.href) {
+        window.location.replace(filteredUrl);
+        return;
+      }
+      updateSavedSearchButton(
+        document,
+        window.location.href,
+        state.savedSearchUrls,
+        state.hiddenTags,
+      );
+      applyHiddenWorks(document, state.hiddenWorkIds, (workId, hidden) => {
+        void send({ kind: "setWorkHidden", workId, hidden })
+          .then((response) => {
+            if (response.kind === "browsingState") applyBrowsingState(response.state);
+            else if (response.kind === "error") throw new Error(response.message);
+          })
+          .catch(() => window.alert("Could not update hidden works. Please try again."));
+      });
+    };
+    const refreshBrowsingState = async (): Promise<void> => {
+      const response = await send({ kind: "getBrowsingState" });
+      if (response.kind === "browsingState") applyBrowsingState(response.state);
+    };
+    ctx.onInvalidated(
+      installDefaultSearchTags(document, window.location, () => browsingState.hiddenTags),
+    );
 
     const postPageEvent = (payload: WebViewMessage): void => {
       void send({ kind: "pageEvent", payload }).catch((err) => {
@@ -52,35 +88,33 @@ export default defineContentScript({
 
     consumeScrollToParam(document, window);
 
-    // On filterable list/search pages, offer a "Save this search" button that
-    // names + persists the current filter URL (synced via the background).
-    let saveFeedbackTimer: ReturnType<typeof setTimeout> | undefined;
-    const flashSaveButton = (button: HTMLButtonElement, label: string): void => {
-      if (saveFeedbackTimer) clearTimeout(saveFeedbackTimer);
-      button.textContent = label;
-      saveFeedbackTimer = setTimeout(() => {
-        button.textContent = SAVE_SEARCH_LABEL;
-      }, 2000);
-    };
     injectSaveSearchButton(document, window.location, (url, button) => {
-      const heading = document.querySelector("#main h2.heading")?.textContent?.trim();
-      const suggested = heading && heading.length > 0 ? heading : "AO3 search";
-      const name = window.prompt("Name this saved search:", suggested);
+      const name = window.prompt("Name this saved search:", suggestSavedSearchName(document, url));
       if (!name || name.trim().length === 0) return;
-      void send({ kind: "saveSearch", name: name.trim(), url })
-        .then((res) => {
+      button.disabled = true;
+      void send({ kind: "saveSearch", name: name.trim().slice(0, 191), url })
+        .then(async (res) => {
           if (res.kind === "ok") {
-            flashSaveButton(button, "Saved ✓");
+            await refreshBrowsingState();
           } else if (res.kind === "error") {
-            flashSaveButton(button, "Couldn't save");
-            console.warn("[ao3-tracker] save search rejected", res.message);
+            throw new Error(res.message);
           }
         })
         .catch((err) => {
-          flashSaveButton(button, "Couldn't save");
+          button.disabled = false;
+          button.textContent = "Couldn't save — try again";
           console.warn("[ao3-tracker] save search failed", err);
         });
     });
+
+    const refresh = () => {
+      void refreshBrowsingState().catch((err) =>
+        console.warn("[ao3-tracker] preferences failed", err),
+      );
+    };
+    ctx.onInvalidated(browsingPreferencesItem.watch(refresh));
+    ctx.onInvalidated(savedSearchesItem.watch(refresh));
+    refresh();
 
     const listWorkIds = findListWorkIds(document);
     if (listWorkIds.length > 0) {

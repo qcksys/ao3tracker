@@ -13,6 +13,8 @@ expect class SettingsStorage() {
     fun setIncognitoModeEnabled(enabled: Boolean)
     fun getNotificationPreferences(): String?
     fun setNotificationPreferences(preferences: String)
+    fun getBrowsingPreferences(): String?
+    fun setBrowsingPreferences(preferences: String)
 }
 
 expect fun getSettingsStorage(): SettingsStorage

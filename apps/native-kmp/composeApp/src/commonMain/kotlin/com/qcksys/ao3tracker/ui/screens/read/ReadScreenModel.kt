@@ -6,6 +6,9 @@ import com.qcksys.ao3tracker.data.model.DataException
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.model.ListWorksEvent
 import com.qcksys.ao3tracker.data.model.SaveSearchEvent
+import com.qcksys.ao3tracker.data.model.BrowsingReadyEvent
+import com.qcksys.ao3tracker.data.model.SetWorkHiddenEvent
+import com.qcksys.ao3tracker.data.settings.BrowsingState
 import com.qcksys.ao3tracker.data.model.ScrollProgressEvent
 import com.qcksys.ao3tracker.data.model.WebViewMessage
 import com.qcksys.ao3tracker.data.model.WorkBadgePayload
@@ -27,6 +30,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.SerializationException
@@ -67,6 +72,7 @@ class ReadScreenModel(
     // injection is a one-shot.
     private val _jsInjectionFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val jsInjectionFlow: SharedFlow<String> = _jsInjectionFlow.asSharedFlow()
+    private var browsingUrl: String? = null
 
     // Cache for work info until we have all the data
     private var pendingWorkInfo: WorkInfoEvent? = null
@@ -82,6 +88,13 @@ class ReadScreenModel(
     }
 
     init {
+        screenModelScope.launch {
+            combine(appSettings.browsingPreferences, savedSearchRepository.observeLive()) { preferences, searches ->
+                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url })
+            }.collect { state ->
+                browsingUrl?.let { emitBrowsingState(it, state) }
+            }
+        }
         screenModelScope.launch {
             var previousOwner: String? = null
             accountData.active.collect { account ->
@@ -116,6 +129,7 @@ class ReadScreenModel(
     }
 
     fun updateCurrentUrl(url: String) {
+        if (url != browsingUrl) browsingUrl = null
         _currentUrl.value = url
     }
 
@@ -167,6 +181,12 @@ class ReadScreenModel(
             "saveSearch" -> WebViewMessage.SaveSearch(
                 JsonConfig.json.decodeFromString<SaveSearchEvent>(messageJson)
             )
+            "browsingReady" -> WebViewMessage.BrowsingReady(
+                JsonConfig.json.decodeFromString<BrowsingReadyEvent>(messageJson)
+            )
+            "setWorkHidden" -> WebViewMessage.SetWorkHidden(
+                JsonConfig.json.decodeFromString<SetWorkHiddenEvent>(messageJson)
+            )
             else -> {
                 AppLogger.w("Unknown WebView message type: $type", TAG)
                 WebViewMessage.Unknown(type, messageJson)
@@ -205,6 +225,15 @@ class ReadScreenModel(
             }
             is WebViewMessage.SaveSearch -> {
                 _pendingSaveSearch.value = message.event
+            }
+            is WebViewMessage.BrowsingReady -> {
+                if (!isTrustedAo3Url(message.event.url)) return
+                browsingUrl = message.event.url
+                refreshBrowsingState(message.event.url)
+            }
+            is WebViewMessage.SetWorkHidden -> {
+                if (!isTrustedAo3Url(message.event.url) || message.event.url != browsingUrl) return
+                appSettings.setWorkHidden(message.event.workId, message.event.hidden)
             }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
@@ -248,6 +277,21 @@ class ReadScreenModel(
             })();
         """.trimIndent()
         _jsInjectionFlow.emit(script)
+    }
+
+    private suspend fun refreshBrowsingState(url: String) {
+        val preferences = appSettings.browsingPreferences.value
+        val searches = savedSearchRepository.observeLive().first()
+        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }))
+    }
+
+    private suspend fun emitBrowsingState(url: String, state: BrowsingState) {
+        val payload = JsonConfig.json.encodeToString(state)
+        _jsInjectionFlow.emit("""
+            if (location.href === ${jsStringLiteral(url)}) {
+                window.__ao3Tracker?.applyBrowsingState?.(${jsStringLiteral(payload)});
+            }
+        """.trimIndent())
     }
 
     /** Wraps a string for safe embedding inside a JS source as a string literal. */
