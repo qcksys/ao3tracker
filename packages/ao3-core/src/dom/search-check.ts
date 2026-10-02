@@ -1,6 +1,24 @@
 import type { SearchWork } from "../schemas/search-check";
 import { exceedsFandomLimit, savedSearchKey } from "./browsing";
 
+export function recentSearchUrl(href: string, since: number | null): string {
+  const url = new URL(href);
+  if (!savedSearchKey(href)) throw new Error("This is not an AO3 work or bookmark search.");
+  const bookmarks = /\/bookmarks(?:\/search)?\/?$/.test(url.pathname);
+  const namespace = bookmarks ? "bookmark_search" : "work_search";
+  url.searchParams.set(`${namespace}[sort_column]`, bookmarks ? "bookmarkable_date" : "revised_at");
+  if (!bookmarks) url.searchParams.set(`${namespace}[sort_direction]`, "desc");
+  if (since !== null) {
+    // AO3 displays calendar dates; overlap a day to cover date boundaries and delayed indexing.
+    const from = new Date(since - 86_400_000).toISOString().slice(0, 10);
+    const key = `${namespace}[${bookmarks ? "bookmarkable_query" : "query"}]`;
+    const query = url.searchParams.get(key)?.trim();
+    const range = `revised_at:[${from} TO *]`;
+    url.searchParams.set(key, query ? `(${query}) AND ${range}` : range);
+  }
+  return url.href;
+}
+
 export function readSearchPage(doc: Document, href: string, maxFandoms: number | null = null) {
   const key = savedSearchKey(href);
   const results = doc.querySelector("#main ol.work.index, #main ol.bookmark.index");

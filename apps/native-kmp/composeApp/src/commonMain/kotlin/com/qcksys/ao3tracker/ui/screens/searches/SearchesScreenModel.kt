@@ -11,6 +11,7 @@ import com.qcksys.ao3tracker.data.repository.SearchCheckRequest
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.BrowsingPreferences
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
+import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.util.JsonConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -30,14 +31,16 @@ data class RunningSearchCheck(
     val runId: Long,
     val request: SearchCheckRequest,
     val preferences: BrowsingPreferences,
-    val pages: Int = 0
+    val pages: Int = 0,
+    val fullScan: Boolean = false
 )
 
 class SearchesScreenModel(
     private val savedSearchRepository: SavedSearchRepository,
     private val syncTriggers: SyncTriggers,
     private val checkRepository: SearchCheckRepository,
-    private val settings: AppSettings
+    private val settings: AppSettings,
+    private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() }
 ) : ScreenModel {
     val savedSearches: StateFlow<List<SavedSearchEntity>> = savedSearchRepository
         .observeLive()
@@ -50,6 +53,9 @@ class SearchesScreenModel(
     val isChecking = _isChecking.asStateFlow()
     private val _errors = MutableStateFlow<Map<String, String>>(emptyMap())
     val errors = _errors.asStateFlow()
+    private val _checkStatus = MutableStateFlow<String?>(null)
+    val checkStatus = _checkStatus.asStateFlow()
+    private var retryAt = 0L
     private var checkJob: Job? = null
     private var messages: Channel<SearchCheckMessage>? = null
     private var nextRunId = 0L
@@ -58,8 +64,15 @@ class SearchesScreenModel(
 
     fun checkSearch(id: String) = startChecks(id, false)
 
-    private fun startChecks(id: String?, automatic: Boolean) {
+    fun fullScan(id: String) = startChecks(id, false, fullScan = true)
+
+    private fun startChecks(id: String?, automatic: Boolean, fullScan: Boolean = false) {
         if (checkJob?.isCompleted == false) return
+        if (now() < retryAt) {
+            _checkStatus.value = "AO3 checks are paused. Try again in ${(retryAt - now()) / 1000 + 1} seconds."
+            return
+        }
+        _checkStatus.value = null
         _isChecking.value = true
         checkJob = screenModelScope.launch {
             try {
@@ -68,13 +81,13 @@ class SearchesScreenModel(
                     try {
                         val request = checkRepository.capture(search.id)
                         if (automatic && request.previous?.url == search.url &&
-                            Clock.System.now().toEpochMilliseconds() - request.previous.checkedAt < 5 * 60_000) continue
+                            now() - maxOf(request.previous.checkedAt, request.previous.attemptedAt) < 5 * 60_000) continue
                         if (checkedAny) delay(1500)
                         checkedAny = true
                         _errors.value -= search.id
                         val channel = Channel<SearchCheckMessage>(Channel.UNLIMITED)
                         messages = channel
-                        _runningCheck.value = RunningSearchCheck(++nextRunId, request, settings.browsingPreferences.value)
+                        _runningCheck.value = RunningSearchCheck(++nextRunId, request, settings.browsingPreferences.value, fullScan = fullScan)
                         while (true) {
                             val message = withTimeout(60_000) { channel.receive() }
                             when (message.type) {
@@ -83,7 +96,15 @@ class SearchesScreenModel(
                                     checkRepository.record(request, message)
                                     break
                                 }
-                                "searchCheckError" -> error(message.error)
+                                "searchCheckError" -> {
+                                    message.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
+                                        retryAt = now() + seconds.coerceAtMost(Long.MAX_VALUE / 2000) * 1000
+                                        _checkStatus.value = "AO3 checks are paused. Try again in $seconds seconds."
+                                        _errors.value += search.id to message.error
+                                        return@launch
+                                    }
+                                    error(message.error)
+                                }
                                 else -> error("Could not read the search results.")
                             }
                         }
@@ -115,6 +136,14 @@ class SearchesScreenModel(
     fun cancelChecks() {
         checkJob?.cancel()
         _runningCheck.value = null
+    }
+
+    fun openSearch(url: String) {
+        cancelChecks()
+        screenModelScope.launch {
+            checkRepository.liveSearches().filter { it.url == url }.forEach { checkRepository.markViewed(it.id) }
+            NavigationState.navigateToRead(url)
+        }
     }
 
     fun renameSavedSearch(id: String, name: String) {

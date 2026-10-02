@@ -1,5 +1,6 @@
 package com.qcksys.ao3tracker.data.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.ForeignKey
@@ -25,7 +26,14 @@ data class SearchCheckEntity(
     val checkedAt: Long,
     val previousCheckedAt: Long?,
     val newWorks: Int,
-    val updatedWorks: Int
+    val updatedWorks: Int,
+    val lastViewedAt: Long? = null,
+    @ColumnInfo(defaultValue = "'{}'") val changesJson: String = "{}",
+    @ColumnInfo(defaultValue = "0") val attemptedAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val partial: Boolean = false,
+    @ColumnInfo(defaultValue = "1") val fullSnapshot: Boolean = true,
+    val resumeUrl: String? = null,
+    val scanStartedAt: Long? = null
 )
 
 @Dao

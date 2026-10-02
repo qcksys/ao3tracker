@@ -40,8 +40,15 @@ class SearchCheckRepositoryTest {
             assertEquals(baseline.checkedAt, changed.previousCheckedAt)
 
             checks.record(checks.capture(search.id), result(updated, added))
+            assertEquals(1, accounts.database.searchCheckDao().getOne(search.id)!!.newWorks)
+            assertEquals(1, accounts.database.searchCheckDao().getOne(search.id)!!.updatedWorks)
+            checks.markViewed(search.id)
+            val viewed = accounts.database.searchCheckDao().getOne(search.id)!!
+            assertEquals(0, viewed.newWorks)
+            assertEquals(0, viewed.updatedWorks)
+            assertNotNull(viewed.lastViewedAt)
+            checks.record(checks.capture(search.id), result(updated, added))
             assertEquals(0, accounts.database.searchCheckDao().getOne(search.id)!!.newWorks)
-            assertEquals(0, accounts.database.searchCheckDao().getOne(search.id)!!.updatedWorks)
             assertEquals(savedBefore, accounts.database.savedSearchDao().getOne(search.id))
             assertTrue(savedSearches.getPendingSync().isEmpty())
             assertEquals(revisionBefore, accounts.localRevision)
@@ -107,11 +114,26 @@ class SearchCheckRepositoryTest {
             accounts.activate(AccountDataStore.GUEST)
             val search = SavedSearchRepository(accounts).save("Stories", "https://archiveofourown.org/works")
             val checks = SearchCheckRepository(accounts)
-            checks.record(checks.capture(search.id), result(original))
+            checks.record(checks.capture(search.id).copy(startedAt = 1000), result(original))
+            val nextUrl = "https://archiveofourown.org/works?page=11"
+            checks.record(checks.capture(search.id).copy(startedAt = 2000),
+                result(original.copy(id = 2)).copy(complete = false, nextUrl = nextUrl))
             accounts.close()
             accounts = createTestAccounts(directory)
             accounts.initialize()
-            assertNotNull(accounts.database.searchCheckDao().getOne(search.id))
+            val resumed = SearchCheckRepository(accounts).capture(search.id).previous!!
+            assertEquals(nextUrl, resumed.resumeUrl)
+            assertEquals(2000, resumed.scanStartedAt)
+            assertEquals(1000, resumed.checkedAt)
+            assertTrue(resumed.partial)
+            assertEquals(1, resumed.newWorks)
+            SearchCheckRepository(accounts).record(
+                SearchCheckRepository(accounts).capture(search.id).copy(startedAt = 3000),
+                result(original.copy(id = 2), original.copy(id = 3)))
+            val completed = accounts.database.searchCheckDao().getOne(search.id)!!
+            assertEquals(2000, completed.checkedAt)
+            assertEquals(2, completed.newWorks)
+            assertNull(completed.resumeUrl)
             accounts.edit { accounts.clearAccount() }
             assertNull(accounts.database.searchCheckDao().getOne(search.id))
         } finally {

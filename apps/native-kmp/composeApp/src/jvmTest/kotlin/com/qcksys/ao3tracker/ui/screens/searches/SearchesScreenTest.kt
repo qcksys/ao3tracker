@@ -159,7 +159,7 @@ class SearchesScreenTest {
                 )
             }
         }
-        rule.onNodeWithText("3 new works · 2 updated works").assertIsDisplayed()
+        rule.onNodeWithText("3 newly found · 2 updated works").assertIsDisplayed()
         rule.onNodeWithText("Checked ", substring = true).assertIsDisplayed()
         rule.onNodeWithText("AO3 returned 429.", substring = true).assertIsDisplayed()
         rule.onNodeWithContentDescription("Check ${search.name}").performClick()

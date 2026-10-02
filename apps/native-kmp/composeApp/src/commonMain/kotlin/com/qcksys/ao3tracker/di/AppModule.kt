@@ -10,6 +10,7 @@ import com.qcksys.ao3tracker.data.database.DB_FILE_NAME
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
 import com.qcksys.ao3tracker.data.database.MIGRATION_8_9
+import com.qcksys.ao3tracker.data.database.MIGRATION_9_10
 import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_1_2
 import com.qcksys.ao3tracker.data.database.MIGRATION_2_3
@@ -56,7 +57,8 @@ val appModule = module {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
-                    MIGRATION_8_9
+                    MIGRATION_8_9,
+                    MIGRATION_9_10
                 )
                 .build()
         }
