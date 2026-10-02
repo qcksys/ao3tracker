@@ -52,6 +52,10 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
  * picks up token changes via `authTokenItem.watch` and triggers sync.
  */
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("setHideCaughtUp"),
+    hideCaughtUp: browsingPreferencesSchema.shape.hideCaughtUp.removeDefault(),
+  }),
   setWorkHiddenSchema.pick({ workId: true }).extend({ kind: z.literal("unhideWork") }),
   browsingPreferencesSchema.pick({ hiddenTags: true }).extend({ kind: z.literal("setHiddenTags") }),
   z.object({

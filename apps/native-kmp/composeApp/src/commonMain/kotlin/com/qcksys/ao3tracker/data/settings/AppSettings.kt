@@ -117,11 +117,18 @@ class AppSettings(
         setBrowsingPreferences(_browsingPreferences.value.copy(searchLanguage = language, languageFilterEnabled = enabled))
     }
 
-    fun setWorkHidden(workId: Long, hidden: Boolean) {
+    fun setHideCaughtUp(enabled: Boolean) {
+        setBrowsingPreferences(_browsingPreferences.value.copy(hideCaughtUp = enabled))
+    }
+
+    fun setWorkHidden(workId: Long, hidden: Boolean, title: String? = null) {
         if (workId <= 0) return
         val ids = _browsingPreferences.value.hiddenWorkIds.toMutableSet()
         if (hidden) ids.add(workId) else ids.remove(workId)
-        setBrowsingPreferences(_browsingPreferences.value.copy(hiddenWorkIds = ids.toList()))
+        val titles = _browsingPreferences.value.hiddenWorkTitles.toMutableMap()
+        if (hidden && !title.isNullOrBlank()) titles[workId] = title.trim()
+        if (!hidden) titles.remove(workId)
+        setBrowsingPreferences(_browsingPreferences.value.copy(hiddenWorkIds = ids.toList(), hiddenWorkTitles = titles))
     }
 
     fun setIncognitoModeEnabled(enabled: Boolean) {

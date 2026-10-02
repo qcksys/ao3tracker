@@ -124,6 +124,8 @@ describe("search language", () => {
       searchLanguage: "en",
       languageFilterEnabled: false,
       maxFandoms: null,
+      hiddenWorkTitles: {},
+      hideCaughtUp: false,
     });
     for (const { code } of languages) {
       expect(

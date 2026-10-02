@@ -45,10 +45,10 @@ data class Work(
 
     val readProgress: Float
         get() {
-            if (chapterList.isEmpty()) return 0f
-            val total = totalChapters ?: currentChapters ?: chapterList.size
-            if (total == 0) return 0f
-            val totalProgress = chapterList.sumOf { (it.readProgress ?: 0f).toDouble() }
+            val chapters = chapterList.filter { it.rowDeletedAt == null }
+            val total = currentChapters ?: chapters.size
+            if (total <= 0) return 0f
+            val totalProgress = chapters.sumOf { (it.readProgress ?: 0f).coerceIn(0f, 1f).toDouble() }
             return (totalProgress / total).toFloat().coerceIn(0f, 1f)
         }
 

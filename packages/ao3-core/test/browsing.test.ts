@@ -155,12 +155,15 @@ describe("hidden works", () => {
     const change = vi.fn();
     applyHiddenWorks(page, [], change);
     page.querySelector<HTMLButtonElement>("#work_123 button")?.click();
-    expect(change).toHaveBeenCalledWith(123, true);
+    expect(change).toHaveBeenCalledWith(123, true, "Title");
     applyHiddenWorks(page, [123], change);
     applyHiddenWorks(page, [123], change);
     expect(page.querySelectorAll(".ao3-tracker-work-hidden")).toHaveLength(2);
     expect(page.querySelectorAll(".ao3-tracker-hidden-work")).toHaveLength(2);
     expect(page.querySelectorAll(".ao3-tracker-hide-work")).toHaveLength(3);
+    const link = page.querySelector<HTMLAnchorElement>(".ao3-tracker-hidden-work a")!;
+    expect(link.textContent).toBe("Title");
+    expect(link.href).toBe("https://archiveofourown.org/works/123");
     page.querySelector<HTMLButtonElement>(".ao3-tracker-hidden-work button")?.click();
     expect(change).toHaveBeenLastCalledWith(123, false);
     applyHiddenWorks(page, [], change);

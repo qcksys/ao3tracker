@@ -25,7 +25,7 @@ class BrowsingSettingsTest {
     private fun showSettings(settings: AppSettings) {
         rule.setContent {
             MaterialTheme {
-                Column(Modifier.verticalScroll(rememberScrollState())) { BrowsingSettings(settings) }
+                Column(Modifier.verticalScroll(rememberScrollState())) { BrowsingSettings(settings, onOpenHiddenWorks = {}) }
             }
         }
     }
@@ -71,20 +71,23 @@ class BrowsingSettingsTest {
     }
 
     @Test
-    fun preservesDraftWhileCollapsedAndRestoresHiddenWorks() {
+    fun preservesTagDraftAndShowsOnlyHiddenWorkCount() {
         val settings = AppSettings(null)
         settings.setWorkHidden(123, true)
         showSettings(settings)
-        rule.onNodeWithText("Save hidden tags").assertDoesNotExist()
+        rule.onNodeWithText("Add tags").assertDoesNotExist()
         rule.onNodeWithText("Search preferences").performClick()
-        rule.onNodeWithText("Default hidden tags").performScrollTo().performTextReplacement("Angst\nFluff")
+        rule.onNodeWithText("Add excluded tags").performScrollTo().performTextReplacement("Angst\nFluff")
         rule.onNodeWithText("Search preferences").performScrollTo().performClick()
         rule.onNodeWithText("Search preferences").performClick()
-        rule.onNodeWithText("Default hidden tags").assertTextContains("Angst\nFluff")
-        rule.onNodeWithText("Save hidden tags").performScrollTo().performClick()
+        rule.onNodeWithText("Add excluded tags").assertTextContains("Angst\nFluff")
+        rule.onNodeWithText("Add tags").performScrollTo().performClick()
         assertEquals(listOf("Angst", "Fluff"), settings.browsingPreferences.value.hiddenTags)
-        rule.onNodeWithText("Unhide").performScrollTo().performClick()
-        assertEquals(emptyList(), settings.browsingPreferences.value.hiddenWorkIds)
-        rule.onNodeWithText("Hidden works (0)").assertExists()
+        rule.onNodeWithContentDescription("Remove Angst").performScrollTo().performClick()
+        assertEquals(listOf("Fluff"), settings.browsingPreferences.value.hiddenTags)
+        rule.onNodeWithText("Unhide").assertDoesNotExist()
+        rule.onNodeWithText("Hidden works (1)").performScrollTo().assertExists()
+        rule.onNodeWithContentDescription("Hide caught-up and finished works").performScrollTo().performClick()
+        assertEquals(true, settings.browsingPreferences.value.hideCaughtUp)
     }
 }

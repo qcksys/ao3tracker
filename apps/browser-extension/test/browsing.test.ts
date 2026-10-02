@@ -19,6 +19,7 @@ import {
   setSearchLanguage,
   setWorkHidden,
   setMaxFandoms,
+  setHideCaughtUp,
 } from "../lib/browsing-repo";
 import { contentToBackgroundSchema, popupToBackgroundSchema } from "../lib/messaging";
 import { browsingPreferencesItem, savedSearchesItem } from "../lib/storage";
@@ -27,6 +28,33 @@ import { withLocalState } from "../lib/local-state";
 beforeEach(() => persisted.clear());
 
 describe("browsing preferences", () => {
+  it("persists titles and caught-up filtering across reads and removes titles when restored", async () => {
+    persisted.set("local:browsingPreferences", { hiddenTags: ["Angst"], hiddenWorkIds: [] });
+    await setWorkHidden(123, true, "A hidden story");
+    await setHideCaughtUp(true);
+    await setWorkHidden(123, true);
+    expect(await getBrowsingState()).toMatchObject({
+      hiddenWorkIds: [123],
+      hiddenWorkTitles: { 123: "A hidden story" },
+      hideCaughtUp: true,
+      hiddenTags: ["Angst"],
+    });
+    await setWorkHidden(123, false);
+    expect(await getBrowsingState()).toMatchObject({
+      hiddenWorkIds: [],
+      hiddenWorkTitles: {},
+      hideCaughtUp: true,
+    });
+    await setHideCaughtUp(false);
+    expect((await getBrowsingState()).hideCaughtUp).toBe(false);
+    for (const hideCaughtUp of [true, false]) {
+      expect(
+        popupToBackgroundSchema.safeParse({ kind: "setHideCaughtUp", hideCaughtUp }).success,
+      ).toBe(true);
+    }
+    expect(popupToBackgroundSchema.safeParse({ kind: "setHideCaughtUp" }).success).toBe(false);
+  });
+
   it("starts empty and preserves work and tag changes made together", async () => {
     expect(await getBrowsingState()).toEqual({
       languageFilterEnabled: false,
@@ -35,6 +63,8 @@ describe("browsing preferences", () => {
       hiddenWorkIds: [],
       savedSearchUrls: [],
       maxFandoms: null,
+      hiddenWorkTitles: {},
+      hideCaughtUp: false,
     });
     await Promise.all([
       withLocalState(() => setWorkHidden(123, true)),
@@ -48,6 +78,8 @@ describe("browsing preferences", () => {
       hiddenTags: ["Angst", "Fluff"],
       hiddenWorkIds: [123, 456],
       maxFandoms: null,
+      hiddenWorkTitles: {},
+      hideCaughtUp: false,
     });
     await setWorkHidden(123, false);
     await setHiddenTags([]);
@@ -58,6 +90,8 @@ describe("browsing preferences", () => {
       hiddenWorkIds: [456],
       savedSearchUrls: [],
       maxFandoms: null,
+      hiddenWorkTitles: {},
+      hideCaughtUp: false,
     });
   });
 

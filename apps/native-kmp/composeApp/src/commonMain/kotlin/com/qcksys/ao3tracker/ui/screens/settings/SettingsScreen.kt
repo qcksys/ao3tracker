@@ -1,5 +1,7 @@
 package com.qcksys.ao3tracker.ui.screens.settings
 
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -110,6 +112,7 @@ import ao3tracker.composeapp.generated.resources.app_logo_beta
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    val navigator = LocalNavigator.currentOrThrow
     val accountData = koinInject<AccountDataStore>()
     val activeAccount by accountData.active.collectAsState()
     val repository = koinInject<Ao3Repository>()
@@ -329,7 +332,7 @@ fun SettingsScreen() {
                 }
             }
 
-            BrowsingSettings(appSettings)
+            BrowsingSettings(appSettings, onOpenHiddenWorks = { navigator.push(HiddenWorksScreen()) })
 
             SettingsSection(
                 title = "Privacy",

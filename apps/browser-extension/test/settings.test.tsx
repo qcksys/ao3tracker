@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
+import { MemoryRouter, Route, Routes } from "react-router";
+import HiddenWorks from "../entrypoints/popup/pages/HiddenWorks";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { defaultNotificationPreferences } from "@qcksys/ao3tracker-core/notifications";
@@ -25,6 +27,8 @@ vi.mock("~popup/lib/state", () => ({
       browsingPreferences: {
         hiddenTags: ["Angst"],
         hiddenWorkIds: [123],
+        hiddenWorkTitles: { 123: "A Hidden Story" },
+        hideCaughtUp: false,
         languageFilterEnabled: false,
         searchLanguage: "en",
         maxFandoms: null,
@@ -73,7 +77,16 @@ beforeEach(async () => {
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root.render(<Settings />));
+  await act(async () =>
+    root.render(
+      <MemoryRouter initialEntries={["/settings"]}>
+        <Routes>
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings/hidden-works" element={<HiddenWorks />} />
+        </Routes>
+      </MemoryRouter>,
+    ),
+  );
 });
 
 afterEach(async () => {
@@ -83,6 +96,65 @@ afterEach(async () => {
 });
 
 describe("settings sections", () => {
+  it("opens a separate searchable hidden-work list with title links and restore actions", async () => {
+    await act(async () => button("Search preferences").click());
+    await act(async () =>
+      container.querySelector<HTMLAnchorElement>('a[href="/settings/hidden-works"]')!.click(),
+    );
+    const workLink = container.querySelector<HTMLAnchorElement>('a[target="_blank"]')!;
+    expect(workLink.textContent).toBe("A Hidden Story");
+    expect(workLink.href).toBe("https://archiveofourown.org/works/123");
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const search = async (value: string) =>
+      act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          input,
+          value,
+        );
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    await search("missing");
+    expect(container.textContent).toContain("No matching hidden works");
+    await search("hidden story");
+    expect(container.querySelector('a[target="_blank"]')).not.toBeNull();
+    await search("123");
+    await act(async () => button("Unhide A Hidden Story").click());
+    expect(mocks.dispatch).toHaveBeenCalledWith({ kind: "unhideWork", workId: 123 });
+  });
+
+  it("adds and removes tag chips and enables caught-up hiding", async () => {
+    await act(async () => button("Search preferences").click());
+    expect(container.querySelector("textarea")).toBeNull();
+    await act(async () => button("Remove Angst").click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setHiddenTags", hiddenTags: [] });
+    const input = container.querySelector<HTMLInputElement>("#hidden-tags")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+        input,
+        "Fluff, angst",
+      );
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.dispatch.mockResolvedValueOnce({ ok: false, error: "Save failed" });
+    await act(async () =>
+      input.form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+    );
+    expect(input.value).toBe("Fluff, angst");
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({
+      kind: "setHiddenTags",
+      hiddenTags: ["Angst", "Fluff"],
+    });
+    await act(async () =>
+      input.form!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })),
+    );
+    expect(input.value).toBe("");
+    await act(async () => container.querySelector<HTMLButtonElement>("#hide-caught-up")!.click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({
+      kind: "setHideCaughtUp",
+      hideCaughtUp: true,
+    });
+  });
+
   it("validates, saves and clears the fandom limit, retaining drafts after save failures", async () => {
     await act(async () => button("Search preferences").click());
     const input = container.querySelector<HTMLInputElement>("#max-fandoms")!;
@@ -154,7 +226,7 @@ describe("settings sections", () => {
     expect(button("Notifications").getAttribute("aria-expanded")).toBe("false");
     expect(button("Advanced").getAttribute("aria-expanded")).toBe("false");
     expect(button("Search preferences").getAttribute("aria-expanded")).toBe("false");
-    expect(button("Unhide work 123").closest("[hidden]")).not.toBeNull();
+    expect(container.textContent).not.toContain("A Hidden Story");
     expect(button("New chapters").closest("[hidden]")).not.toBeNull();
 
     await act(async () => button("Notifications").click());
@@ -163,9 +235,10 @@ describe("settings sections", () => {
     expect(button("Advanced").getAttribute("aria-expanded")).toBe("true");
     expect(button("New chapters").closest("[hidden]")).toBeNull();
     await act(async () => button("Search preferences").click());
-    expect(button("Unhide work 123").closest("[hidden]")).toBeNull();
-    await act(async () => button("Unhide work 123").click());
-    expect(mocks.dispatch).toHaveBeenCalledWith({ kind: "unhideWork", workId: 123 });
+    expect(container.querySelector('a[href="/settings/hidden-works"]')?.textContent).toContain(
+      "Hidden works (1)",
+    );
+    expect(container.textContent).not.toContain("A Hidden Story");
 
     await act(async () => button("Sign out").click());
     expect(mocks.signOut).toHaveBeenCalledOnce();
@@ -197,7 +270,16 @@ describe("settings sections", () => {
 
   it("keeps notification categories disabled when the master switch is off", async () => {
     mocks.preferences.enabled = false;
-    await act(async () => root.render(<Settings />));
+    await act(async () =>
+      root.render(
+        <MemoryRouter initialEntries={["/settings"]}>
+          <Routes>
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/settings/hidden-works" element={<HiddenWorks />} />
+          </Routes>
+        </MemoryRouter>,
+      ),
+    );
     await act(async () => button("Notifications").click());
     expect(button("Enable notifications").disabled).toBe(false);
     for (const label of ["New chapters", "Completed works", "Restricted works", "Deleted works"]) {

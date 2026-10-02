@@ -15,9 +15,10 @@ class ChapterProgressBarTest {
     }
 
     @Test
-    fun `known planned chapters remain empty at the end`() {
+    fun `unpublished planned chapters do not reduce reading progress`() {
         val work = work(current = 2, total = 4, chapters = listOf(chapter(1, 1f), chapter(2, 0.4f)))
-        assertEquals(listOf(1f, 0.4f, 0f, 0f), work.chapterProgressSegments())
+        assertEquals(listOf(1f, 0.4f), work.chapterProgressSegments())
+        assertEquals(0.7f, work.readProgress)
     }
 
     @Test

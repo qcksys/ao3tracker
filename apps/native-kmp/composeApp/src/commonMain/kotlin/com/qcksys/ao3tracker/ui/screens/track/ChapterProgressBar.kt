@@ -18,7 +18,7 @@ import com.qcksys.ao3tracker.data.model.Work
 
 internal fun Work.chapterProgressSegments(): List<Float> {
     val chapters = chapterList.filter { it.rowDeletedAt == null }
-    val count = maxOf(totalChapters ?: 0, currentChapters ?: 0, chapters.maxOfOrNull { it.number ?: 0 } ?: 0)
+    val count = maxOf(currentChapters ?: 0, chapters.maxOfOrNull { it.number ?: 0 } ?: 0)
         .coerceAtLeast(chapters.size)
     val segments = MutableList(count) { 0f }
     chapters.forEach { chapter ->

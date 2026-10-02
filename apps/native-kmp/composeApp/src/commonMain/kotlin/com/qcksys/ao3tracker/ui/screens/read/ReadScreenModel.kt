@@ -103,7 +103,7 @@ class ReadScreenModel(
         }
         screenModelScope.launch {
             combine(appSettings.browsingPreferences, savedSearchRepository.observeLive()) { preferences, searches ->
-                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms)
+                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp)
             }.collect { state ->
                 browsingUrl?.let { emitBrowsingState(it, state) }
             }
@@ -252,7 +252,7 @@ class ReadScreenModel(
             }
             is WebViewMessage.SetWorkHidden -> {
                 if (!isTrustedAo3Url(message.event.url) || message.event.url != browsingUrl) return
-                appSettings.setWorkHidden(message.event.workId, message.event.hidden)
+                appSettings.setWorkHidden(message.event.workId, message.event.hidden, message.event.title ?: repository.getWorkByIdOnce(message.event.workId)?.title)
             }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
@@ -280,7 +280,7 @@ class ReadScreenModel(
                         "Added to tracked works"
                     }
                     is ReaderLinkAction.BlockWork -> {
-                        appSettings.setWorkHidden(action.workId, true)
+                        appSettings.setWorkHidden(action.workId, true, action.title ?: repository.getWorkByIdOnce(action.workId)?.title)
                         "Work added to blocklist"
                     }
                     is ReaderLinkAction.BlockTag -> {
@@ -357,7 +357,7 @@ class ReadScreenModel(
     private suspend fun refreshBrowsingState(url: String) {
         val preferences = appSettings.browsingPreferences.value
         val searches = savedSearchRepository.observeLive().first()
-        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms))
+        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp))
     }
 
     private suspend fun emitBrowsingState(url: String, state: BrowsingState) {

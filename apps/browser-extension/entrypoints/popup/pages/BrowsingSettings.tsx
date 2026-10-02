@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Link } from "react-router";
+import type { PopupToBackground } from "@/lib/messaging";
 import { normalizeHiddenTags } from "@qcksys/ao3tracker-core/dom";
 import languages from "@qcksys/ao3tracker-core/languages";
 import { browsingPreferencesSchema } from "@qcksys/ao3tracker-core/schemas";
@@ -10,7 +12,7 @@ import { usePopupState } from "~popup/lib/state";
 
 export function BrowsingSettings() {
   const { state, dispatch } = usePopupState();
-  const [draft, setDraft] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [fandomDraft, setFandomDraft] = useState<string | null>(null);
   const [languageDraft, setLanguageDraft] = useState<{
     searchLanguage: string;
@@ -58,20 +60,13 @@ export function BrowsingSettings() {
     }
   };
 
-  const save = async (workId?: number): Promise<void> => {
+  const save = async (message: PopupToBackground, clearDraft = false): Promise<void> => {
     setSaving(true);
     setError(null);
     try {
-      const result = await dispatch(
-        workId === undefined
-          ? {
-              kind: "setHiddenTags",
-              hiddenTags: normalizeHiddenTags([draft ?? preferences.hiddenTags.join("\n")]),
-            }
-          : { kind: "unhideWork", workId },
-      );
+      const result = await dispatch(message);
       if (!result.ok) setError(result.error);
-      else if (workId === undefined) setDraft(null);
+      else if (clearDraft) setDraft("");
     } catch {
       setError("Could not save search preferences. Please try again.");
     } finally {
@@ -170,43 +165,83 @@ export function BrowsingSettings() {
       >
         Save fandom limit
       </Button>
-      <Label htmlFor="hidden-tags">Default hidden tags</Label>
-      <textarea
-        id="hidden-tags"
-        className="border-input rounded-md border p-2"
-        rows={4}
-        value={draft ?? preferences.hiddenTags.join("\n")}
-        onChange={(event) => setDraft(event.target.value)}
-        aria-describedby="hidden-tags-help"
-      />
-      <p id="hidden-tags-help" className="text-muted-foreground text-xs">
-        One tag per line, or separated by commas. Added to every work and bookmark search.
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="hide-caught-up">Hide caught-up and finished works</Label>
+        <Button
+          id="hide-caught-up"
+          role="switch"
+          aria-checked={preferences.hideCaughtUp}
+          disabled={saving}
+          variant={preferences.hideCaughtUp ? "default" : "outline"}
+          onClick={() =>
+            void save({ kind: "setHideCaughtUp", hideCaughtUp: !preferences.hideCaughtUp })
+          }
+        >
+          {preferences.hideCaughtUp ? "On" : "Off"}
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Collapse these works in AO3 lists. Works with new chapters stay visible.
       </p>
-      <Button size="sm" disabled={saving || draft === null} onClick={() => void save()}>
-        Save hidden tags
-      </Button>
-      <p className="font-medium">Hidden works ({preferences.hiddenWorkIds.length})</p>
-      {preferences.hiddenWorkIds.length === 0 && (
-        <p className="text-muted-foreground text-xs">
-          Use “Hide work” on an AO3 result to hide it from lists.
-        </p>
-      )}
-      {preferences.hiddenWorkIds.map((workId) => (
-        <div key={workId} className="flex items-center justify-between gap-2">
-          <a href={`https://archiveofourown.org/works/${workId}`} target="_blank" rel="noreferrer">
-            Work {workId}
-          </a>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={saving}
-            onClick={() => void save(workId)}
-            aria-label={`Unhide work ${workId}`}
+      <p className="font-medium">Excluded tags</p>
+      <div className="flex flex-wrap gap-2">
+        {preferences.hiddenTags.map((tag) => (
+          <span
+            key={tag}
+            className="bg-secondary flex max-w-full items-center gap-1 rounded-full px-3 py-1 text-xs"
           >
-            Unhide
-          </Button>
-        </div>
-      ))}
+            <span className="break-words">{tag}</span>
+            <button
+              type="button"
+              aria-label={`Remove ${tag}`}
+              disabled={saving}
+              className="px-1"
+              onClick={() =>
+                void save({
+                  kind: "setHiddenTags",
+                  hiddenTags: preferences.hiddenTags.filter((value) => value !== tag),
+                })
+              }
+            >
+              ×
+            </button>
+          </span>
+        ))}
+      </div>
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!saving && draft.trim())
+            void save(
+              {
+                kind: "setHiddenTags",
+                hiddenTags: normalizeHiddenTags([...preferences.hiddenTags, draft]),
+              },
+              true,
+            );
+        }}
+      >
+        <input
+          id="hidden-tags"
+          aria-label="Add excluded tags"
+          placeholder="Add excluded tags"
+          className="border-input min-w-0 flex-1 rounded-md border p-2"
+          value={draft}
+          disabled={saving}
+          onChange={(event) => setDraft(event.target.value)}
+          aria-describedby="hidden-tags-help"
+        />
+        <Button size="sm" type="submit" disabled={saving || !draft.trim()}>
+          Add tags
+        </Button>
+      </form>
+      <p id="hidden-tags-help" className="text-muted-foreground text-xs">
+        Excluded from every work and bookmark search. Add one tag or paste comma-separated tags.
+      </p>
+      <Link className="text-primary font-medium underline" to="/settings/hidden-works">
+        Hidden works ({preferences.hiddenWorkIds.length})
+      </Link>
       {error && (
         <p role="alert" className="text-destructive text-xs">
           {error}
