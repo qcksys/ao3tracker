@@ -452,6 +452,104 @@ class NativeSyncRegressionTest {
     }
 
     @Test
+    fun `deleting a work uploads a tombstone and removes it from another device`() = runTest {
+        fixture { source ->
+            fixture { destination ->
+                for (f in listOf(source, destination)) {
+                    f.accounts.edit {
+                        f.db.workDao().upsertWork(work(1))
+                        f.db.chapterDao().upsertChapter(chapter())
+                    }
+                    f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, 1_000) }
+                }
+                source.works.deleteWork(1)
+                assertNull(source.db.workDao().getWorkById(1))
+                source.remote.onFetch = { Result.success(response(works = listOf(SyncWorkResponse(1, FIRST)))) }
+
+                assertIs<SyncResult.Success>(source.sync.sync())
+                val deletion = source.remote.sent.single().works.single()
+                assertTrue(deletion.deleted)
+                assertNull(source.db.workDao().getWorkById(1))
+
+                destination.remote.onFetch = { Result.success(response(
+                    works = listOf(SyncWorkResponse(1, deletion.lastReadAt, deleted = deletion.deleted)),
+                    chapters = listOf(SyncChapterResponse(1, 2, FIRST, readProgress = 1f))
+                )) }
+                assertIs<SyncResult.Success>(destination.sync.sync())
+                assertNull(destination.db.workDao().getWorkById(1))
+                assertTrue(destination.remote.sent.single().works.single().deleted)
+                assertTrue(destination.works.getWorkBadges(listOf(1)).isEmpty())
+
+                assertIs<SyncResult.Success>(destination.sync.sync(forceFull = true))
+                assertNull(destination.db.workDao().getWorkById(1))
+            }
+        }
+    }
+
+    @Test
+    fun `deleting a work with a future reading timestamp survives the next pull`() = runTest {
+        fixture { f ->
+            val future = "2099-01-01T00:00:00Z"
+            f.remote.onFetch = { Result.success(response(works = listOf(SyncWorkResponse(1, future)))) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val lastRead = f.db.workDao().getWorkById(1)!!.lastRead!!
+            f.remote.sent.clear()
+
+            f.works.deleteWork(1)
+            assertIs<SyncResult.Success>(f.sync.sync())
+
+            assertNull(f.db.workDao().getWorkById(1))
+            assertTrue(f.db.workDao().getWorkByIdIncludingDeleted(1)!!.lastRead!! > lastRead)
+            assertTrue(f.remote.sent.single().works.single().deleted)
+        }
+    }
+
+    @Test
+    fun `failed deletion upload retains the tombstone and retries without advancing cursors`() = runTest {
+        fixture { f ->
+            f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(FIRST, 1_000) }
+            f.works.deleteWork(1)
+            f.remote.onFetch = { Result.success(response(marker = SECOND, works = listOf(SyncWorkResponse(1, FIRST)))) }
+            f.remote.onSend = { Result.failure(Exception("Offline")) }
+
+            assertIs<SyncResult.Error>(f.sync.sync())
+            assertNull(f.db.workDao().getWorkById(1))
+            assertEquals(FIRST, f.accounts.active.value?.remoteCursor)
+            assertEquals(1_000L, f.accounts.active.value?.localCursor)
+            val failedDeletion = f.remote.sent.single().works.single()
+            assertTrue(failedDeletion.deleted)
+
+            f.remote.onSend = { Result.success(accepted()) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(failedDeletion, f.remote.sent.last().works.single())
+            assertNull(f.db.workDao().getWorkById(1))
+        }
+    }
+
+    @Test
+    fun `deleting a work during upload remains pending for the next sync`() = runTest {
+        fixture { f ->
+            f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+            f.remote.onSend = {
+                f.works.deleteWork(1)
+                Result.success(accepted())
+            }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val oldUpload = f.remote.sent.single().works.single()
+            assertFalse(oldUpload.deleted)
+            assertNull(f.db.workDao().getWorkById(1))
+
+            f.remote.onFetch = { Result.success(response(works = listOf(SyncWorkResponse(1, oldUpload.lastReadAt)))) }
+            f.remote.onSend = { Result.success(accepted()) }
+            f.remote.sent.clear()
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertTrue(f.remote.sent.single().works.single().deleted)
+            assertNull(f.db.workDao().getWorkById(1))
+        }
+    }
+
+    @Test
     fun `an older server tombstone cannot delete a newer local restore`() = runTest {
         fixture { f ->
             f.accounts.edit { f.db.workDao().upsertWork(work(1).copy(lastRead = 2_000_000_000_000)) }

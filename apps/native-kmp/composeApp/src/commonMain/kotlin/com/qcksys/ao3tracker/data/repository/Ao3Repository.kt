@@ -435,8 +435,10 @@ class Ao3Repository(private val accountData: AccountDataStore) {
     }
 
     suspend fun deleteWork(workId: Long) = accountData.edit {
+        val work = workDao.getWorkByIdIncludingDeleted(workId) ?: return@edit
         val now = getCurrentTimestamp()
-        workDao.softDeleteWork(workId, now, now)
+        val deletedAt = maxOf(now, (work.lastRead ?: 0L) + 1)
+        workDao.softDeleteWork(workId, deletedAt, now)
     }
 
     /**
