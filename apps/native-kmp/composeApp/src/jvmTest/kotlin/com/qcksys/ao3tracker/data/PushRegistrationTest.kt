@@ -37,7 +37,7 @@ class PushRegistrationTest {
     private suspend fun verifyLogoutAndRegistration(initialToken: String?, changeAccount: Boolean = false, changeEnvironment: Boolean = false) {
         val directory = Files.createTempDirectory("ao3tracker-push-test-")
         val accounts = createTestAccounts(directory)
-        val settings = AppSettings(null)
+        val settings = AppSettings(null, canSelectApiEnvironment = true)
         val service = object : AuthService(settings) {
             override suspend fun signIn(email: String, password: String, baseUrl: String) =
                 Result.success(SignInResponse("token-$email", User(email, email, email, true, createdAt = "2026-01-01", updatedAt = "2026-01-01")))

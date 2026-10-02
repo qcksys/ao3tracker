@@ -287,6 +287,7 @@ android {
         versionCode = releaseVersionCode
         versionName = releaseVersionName
 
+        buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "false")
         buildConfigField("String", "API_ENVIRONMENT", "\"PRODUCTION\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
         buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
@@ -314,6 +315,9 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "true")
+        }
         getByName("release") {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
@@ -330,6 +334,7 @@ android {
             initWith(getByName("release"))
             applicationIdSuffix = ".dev"
             matchingFallbacks += "release"
+            buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "true")
             buildConfigField("String", "API_ENVIRONMENT", "\"DEV\"")
             buildConfigField("String", "AUTH_BASE_URL", "\"https://dev.ao3tracker.com/auth\"")
             buildConfigField("String", "API_BASE_URL", "\"https://dev.ao3tracker.com/api\"")
@@ -338,11 +343,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    lint {
-        // DAL (Digital Asset Links) requires server-side assetlinks.json configuration.
-        // Credential Manager works without it; DAL is primarily for cross-app/website credential sharing.
-        disable += "CredManMissingDal"
     }
 }
 
