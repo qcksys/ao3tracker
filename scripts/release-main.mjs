@@ -28,6 +28,17 @@ export function isCurrentDevPush(event, branchSha, repositoryId) {
   );
 }
 
+export function isCurrentMainPush(event, branchSha, repositoryId) {
+  return (
+    event.ref === "refs/heads/main" &&
+    event.deleted !== true &&
+    Number.isSafeInteger(repositoryId) &&
+    event.repository?.id === repositoryId &&
+    /^[0-9a-f]{40}$/.test(event.after ?? "") &&
+    event.after === branchSha
+  );
+}
+
 export function assertCurrentSource(sourceRef, branchSha, branch = "main") {
   if (
     (branch !== "main" && branch !== "dev") ||
@@ -68,13 +79,16 @@ async function main() {
     return;
   }
   const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
-  // Direct dev calls rely on CI's needs gate for successful checks.
+  // Direct calls rely on CI's needs gates for successful checks and production tags.
   const devPush = process.env.GITHUB_EVENT_NAME === "push" && branch === "dev";
-  const eligible = devPush
-    ? isCurrentDevPush(event, ref.object?.sha, Number(process.env.GITHUB_REPOSITORY_ID))
-    : process.env.GITHUB_EVENT_NAME === "workflow_run" &&
-      isCurrentSuccessfulRun(event, ref.object?.sha, branch);
-  const sourceRef = devPush ? event.after : event.workflow_run?.head_sha;
+  const mainPush = process.env.GITHUB_EVENT_NAME === "push" && branch === "main";
+  const eligible = mainPush
+    ? isCurrentMainPush(event, ref.object?.sha, Number(process.env.GITHUB_REPOSITORY_ID))
+    : devPush
+      ? isCurrentDevPush(event, ref.object?.sha, Number(process.env.GITHUB_REPOSITORY_ID))
+      : process.env.GITHUB_EVENT_NAME === "workflow_run" &&
+        isCurrentSuccessfulRun(event, ref.object?.sha, branch);
+  const sourceRef = devPush || mainPush ? event.after : event.workflow_run?.head_sha;
   await appendFile(
     process.env.GITHUB_OUTPUT,
     `eligible=${eligible}\n${eligible ? `source_ref=${sourceRef}\n` : ""}`,

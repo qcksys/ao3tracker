@@ -10,6 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  changesets:
+    needs: [workspace, android]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/changesets.yml
+
+  release-main:
+    needs: changesets
+    if: needs.changesets.outputs.tagged == 'true'
+    uses: ./.github/workflows/release-main.yml
+    secrets: inherit
+    with:
+      source_ref: ${{ github.sha }}
+
   release-dev:
     needs: [workspace, android]
     if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
