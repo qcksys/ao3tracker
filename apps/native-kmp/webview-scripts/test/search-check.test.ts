@@ -21,6 +21,7 @@ describe("local saved search checks", () => {
       url,
       [],
       [4],
+      null,
       (message) => messages.push(message),
       load,
       pause,
@@ -46,12 +47,41 @@ describe("local saved search checks", () => {
       `${url}?page=3`,
       ["Angst"],
       [],
+      null,
       (message) => messages.push(message),
       load,
       pause,
     );
     expect(load).toHaveBeenCalledTimes(1);
     expect(messages.at(-1)).toMatchObject({ type: "searchCheckResult", works: [{ id: 1 }] });
+  });
+
+  it("applies the enabled language and includes it in the baseline context", async () => {
+    const messages: SearchCheckMessage[] = [];
+    const load = vi.fn(async (href: string) => {
+      expect(new URL(href).searchParams.get("work_search[language_id]")).toBe("fr");
+      return page([1]);
+    });
+    await checkSearch(
+      page([9]),
+      `${url}?work_search%5Blanguage_id%5D=en`,
+      [],
+      [],
+      "fr",
+      (message) => messages.push(message),
+      load,
+      pause,
+    );
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(messages.at(-1)).toMatchObject({
+      type: "searchCheckResult",
+      context: JSON.stringify([
+        JSON.stringify(["/works", [["work_search[language_id]", "fr"]]]),
+        "/users/reader",
+        [],
+      ]),
+      works: [{ id: 1 }],
+    });
   });
 
   it("never emits a completed result after a later page fails", async () => {
@@ -61,6 +91,7 @@ describe("local saved search checks", () => {
       url,
       [],
       [],
+      null,
       (message) => messages.push(message),
       async () => {
         throw new Error("AO3 returned 429");
@@ -78,6 +109,7 @@ describe("local saved search checks", () => {
       url,
       [],
       [],
+      null,
       (message) => messages.push(message),
       async () => page([2], undefined, "other"),
       pause,
@@ -92,6 +124,7 @@ describe("local saved search checks", () => {
       url,
       [],
       [],
+      null,
       (message) => messages.push(message),
       async () => page([2], "?page=2"),
       pause,

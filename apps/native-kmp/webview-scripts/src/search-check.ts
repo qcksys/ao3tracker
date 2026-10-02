@@ -1,4 +1,9 @@
-import { readSearchPage, savedSearchKey, withDefaultHiddenTags } from "@qcksys/ao3tracker-core/dom";
+import {
+  readSearchPage,
+  savedSearchKey,
+  withDefaultHiddenTags,
+  withSearchLanguage,
+} from "@qcksys/ao3tracker-core/dom";
 import type { SearchCheckMessage, SearchWork } from "@qcksys/ao3tracker-core/schemas";
 
 export async function checkSearch(
@@ -6,12 +11,15 @@ export async function checkSearch(
   initialUrl: string,
   hiddenTags: string[],
   hiddenWorkIds: number[],
+  language: string | null,
   post: (message: SearchCheckMessage) => void,
   load: (url: string) => Promise<Document> = loadPage,
   pause: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 1500)),
 ): Promise<void> {
   try {
-    const firstUrl = new URL(withDefaultHiddenTags(initialUrl, hiddenTags));
+    const firstUrl = new URL(
+      withSearchLanguage(withDefaultHiddenTags(initialUrl, hiddenTags), language),
+    );
     firstUrl.hash = "";
     for (const key of ["page", "work_search[page]", "bookmark_search[page]"])
       firstUrl.searchParams.delete(key);

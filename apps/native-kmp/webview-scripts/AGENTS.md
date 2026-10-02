@@ -4,19 +4,21 @@ Canonical guidance for AI coding agents (Claude Code, etc.) working in `apps/nat
 
 ## Project Overview
 
-TypeScript source for the JavaScript injected into the native KMP app's AO3 WebView. Two side-effect-only IIFE bundles are produced:
+TypeScript source for the JavaScript injected into the native KMP app's AO3 WebView. Three side-effect-only IIFE bundles are produced:
 
 | Output                       | Purpose                                                                                                                                                                                                                                      |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dist/ao3-tracking.min.js`   | Extracts work metadata + scroll progress and posts JSON messages back to the host platform (AndroidBridge / WKWebKit / desktop bridge). Renders list-page badges when native pushes payloads via `window.__ao3Tracker.applyListBadges(...)`. |
 | `dist/scroll-restore.min.js` | Reads the `scrollTo` query param and scrolls into `#chapters`. Clears the param.                                                                                                                                                             |
 
+`dist/search-check.min.js` runs independently in a separate WebView. It reads every saved-search result page with the device's hidden tags, hidden works and enabled language preference, then posts `SearchCheckMessage` progress/results/errors. It must not inject reading-tracker scripts or trigger sync/notifications; native stores snapshots and computes counts locally. The first success or a changed search context establishes a baseline.
+
 DOM logic lives in [`@qcksys/ao3tracker-core`](../../../packages/ao3-core) — this package is the **WebView entry layer** that wires those helpers to platform-specific `postMessage` channels.
 
 ## Commands
 
 ```bash
-vp run build              # vp build — produces both .min.js IIFE bundles
+vp run build              # produces all .min.js IIFE bundles
 vp run typecheck          # tsc --noEmit
 vp run test               # vp test run — vitest under happy-dom
 vp run test:watch         # vp test watch
@@ -52,7 +54,7 @@ After `vp run build`, the Gradle `generateWebviewScriptKotlin` task reads `dist/
 - **Formatting** uses workspace-root Oxfmt (`vp fmt`) with two-space indentation. Biome runs lint and import organization only, with its formatter disabled.
 - **Subpath imports only** from `@qcksys/ao3tracker-core`: use `/dom`, `/badges`, `/schemas`. Importing the root pulls zod into the IIFE bundle and inflates it from ~7.5 kB to ~330 kB.
 - **`~/` aliases are fine here** because this package is a leaf consumer — nothing else compiles our source. Use them for cross-directory imports (e.g. tests reference `~/ao3-tracking` and `~/fixtures`). Sibling barrels can still use `./`.
-- **No top-level side effects in modules that are only imported.** The two entry files own the IIFE side effects; everything else must be pure to keep tree-shaking honest.
+- **No top-level side effects in modules that are only imported.** The entry files own the IIFE side effects; everything else must be pure to keep tree-shaking honest.
 - **Bridge contract is sacred.** The shape of messages posted via `AndroidBridge.postMessage` / `webkit.messageHandlers.ao3Handler.postMessage` is the canonical `WebViewMessage` in `@qcksys/ao3tracker-core/schemas`. Don't add fields here without updating the schema and the Kotlin parser in lockstep.
 - **Bundle target is ES2018** (see `vite.config.ts`) so older Android WebView engines accept the output. Don't raise it without checking the lowest-supported Android version in the KMP build.
 
