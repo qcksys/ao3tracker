@@ -1,9 +1,35 @@
 package com.qcksys.ao3tracker.ui.screens.track
 
+import com.qcksys.ao3tracker.ui.components.formatWorkTimestamp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class WorkTimestampTest {
+    @Test
+    fun compactTimestampsFitMetadataRows() {
+        val now = 1_800_000_000_000L
+        val minute = 60_000L
+        val hour = 60 * minute
+        val day = 24 * hour
+        val cases = listOf(
+            -minute to "Now",
+            0L to "Now",
+            minute - 1 to "Now",
+            minute to "1m ago",
+            hour - 1 to "59m ago",
+            hour to "1h ago",
+            2 * hour to "2h ago",
+            day - 1 to "23h ago",
+            day to "1d ago",
+            2 * day to "2d ago",
+            365 * day to "365d ago"
+        )
+
+        for ((elapsed, expected) in cases) {
+            assertEquals(expected, formatWorkTimestamp(now - elapsed, now, compact = true), "Elapsed: $elapsed")
+        }
+    }
+
     @Test
     fun timestampsStayRelativeAcrossTimeBoundaries() {
         val now = 1_800_000_000_000L
