@@ -9,20 +9,22 @@ async function workflow(name) {
   );
 }
 
-test("Changesets maintains a dev version PR without publishing packages or deploying", async () => {
+test("Changesets maintains a main-only version PR without publishing packages or deploying", async () => {
   const config = await workflow("changesets");
-  assert.deepEqual(config.on.push.branches, ["dev"]);
+  assert.deepEqual(config.on.push.branches, ["main"]);
+  assert.ok(Object.hasOwn(config.on, "workflow_dispatch"));
+  assert.equal(config.concurrency.group, "changesets-main");
   assert.equal(config.concurrency["cancel-in-progress"], false);
   const job = config.jobs.version;
-  assert.equal(job.if, "github.ref == 'refs/heads/dev'");
+  assert.equal(job.if, "github.ref == 'refs/heads/main'");
   assert.deepEqual(job.permissions, { contents: "write", "pull-requests": "write" });
   const checkout = job.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
-  assert.equal(checkout.with.ref, "dev");
+  assert.equal(checkout.with.ref, "main");
   assert.equal(checkout.with["persist-credentials"], false);
   assert.equal(checkout.with["fetch-depth"], 0);
   const action = job.steps.find((step) => step.uses?.startsWith("changesets/action@"));
   assert.match(action.uses, /@[a-f0-9]{40}$/);
-  assert.equal(action.with["pr-base-branch"], "dev");
+  assert.equal(action.with["pr-base-branch"], "main");
   assert.equal(action.with["version-script"], "vp run version-packages");
   assert.equal(action.with["publish-script"], undefined);
   assert.equal(action.with["create-github-releases"], false);
@@ -34,6 +36,7 @@ test("Changesets maintains a dev version PR without publishing packages or deplo
   const changesets = JSON.parse(
     await readFile(new URL("../.changeset/config.json", import.meta.url), "utf8"),
   );
+  assert.equal(changesets.baseBranch, "main");
   assert.equal(changesets.format, false);
   assert.doesNotMatch(JSON.stringify(config), /deploy-api|release-android|release-chrome/);
 });
