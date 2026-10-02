@@ -31,7 +31,7 @@ ingestRouter.post("/", bodyLimit({ maxSize: 2048 }), async (c) => {
     // Construct the outbound request: never forward auth, cookies, IPs or arbitrary destinations.
     const response = await fetch(`https://${host}/i/v0/e/`, {
       method: "POST",
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(5000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

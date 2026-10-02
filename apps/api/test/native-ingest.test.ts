@@ -65,6 +65,21 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("native PostHog crash proxy", () => {
+  it("uses request options supported by the Workers runtime", async () => {
+    upstream.mockImplementation(async (input, init) => {
+      new Request(input, init);
+      return Response.json({ errorTracking: { autocaptureExceptions: true } });
+    });
+    const response = await request();
+    await expect(upstream.mock.results[0]?.value).resolves.toBeInstanceOf(Response);
+    expect(response.status).toBe(200);
+    const config = await worker.fetch(
+      new Request("https://dev.ao3tracker.com/ingest/native/array/client-queue-namespace/config"),
+      bindings,
+    );
+    expect(config.status).toBe(200);
+  });
+
   it("preserves crash identity, timestamp, stack and release while removing client credentials", async () => {
     const response = await request(undefined, {
       Authorization: "Bearer private",
@@ -92,7 +107,7 @@ describe("native PostHog crash proxy", () => {
     });
     expect(body.batch[0].properties).not.toHaveProperty("email");
     expect(body.batch[0].properties).not.toHaveProperty("$current_url");
-    expect(upstream.mock.calls[0]?.[1]?.redirect).toBe("error");
+    expect(upstream.mock.calls[0]?.[1]?.redirect).toBe("manual");
   });
 
   it("accepts gzip batches from native SDKs and bounds the decompressed body", async () => {
@@ -110,6 +125,23 @@ describe("native PostHog crash proxy", () => {
     ).toBe(413);
     expect(upstream).not.toHaveBeenCalled();
   });
+
+  it.each([301, 302, 307, 308])(
+    "rejects upstream redirects (%s) without following them",
+    async (status) => {
+      upstream.mockImplementation(async (input, init) => {
+        expect(new Request(input, init).redirect).toBe("manual");
+        return new Response(null, { status, headers: { Location: "https://example.com" } });
+      });
+      expect((await request()).status).toBe(503);
+      const config = await worker.fetch(
+        new Request("https://dev.ao3tracker.com/ingest/native/array/client-queue-namespace/config"),
+        bindings,
+      );
+      expect(config.status).toBe(503);
+      expect(upstream).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it("returns retryable failures for upstream errors, rate limits, and missing configuration", async () => {
     upstream.mockRejectedValueOnce(new Error("offline"));
