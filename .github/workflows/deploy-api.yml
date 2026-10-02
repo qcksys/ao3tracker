@@ -2,6 +2,11 @@ name: Deploy production API
 
 on:
   workflow_call:
+    outputs:
+      android_required:
+        value: ${{ jobs.deploy.outputs.android_required }}
+      chrome_required:
+        value: ${{ jobs.deploy.outputs.chrome_required }}
     inputs:
       source_ref:
         description: Exact commit SHA that passed CI
@@ -14,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: api-production
@@ -23,6 +29,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-24.04
+    outputs:
+      android_required: ${{ steps.changes.outputs.android }}
+      chrome_required: ${{ steps.changes.outputs.chrome }}
     timeout-minutes: 20
     environment: api-production
     steps:
@@ -38,11 +47,17 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
           version-file: pnpm-workspace.yaml
           run-install: false
       - run: vp install --frozen-lockfile
+      - name: Check store build inputs
+        id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: vp node scripts/ci-native-changes.mjs stores
       - name: Download built API
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:

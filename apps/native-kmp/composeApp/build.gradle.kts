@@ -27,13 +27,15 @@ val desktopVersion = "1.0.0"
 
 val generateAppBuildInfo by tasks.registering {
     val version = desktopVersion
+    val buildTimeOverride = providers.environmentVariable("APP_BUILD_TIME_UTC")
     inputs.property("desktopVersion", version)
+    inputs.property("buildTimeOverride", buildTimeOverride.orElse(""))
     val outputFile = generatedBuildInfoDir.get().file("GeneratedAppBuildInfo.kt").asFile
     outputs.file(outputFile)
-    // Capture this build's time even when Gradle reuses its configuration.
-    outputs.upToDateWhen { false }
+    // CI validation uses stable metadata; local and signed builds retain their actual time.
+    outputs.upToDateWhen { buildTimeOverride.isPresent }
     doLast {
-        val buildTimeUtc = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'")
+        val buildTimeUtc = buildTimeOverride.orNull ?: DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'")
             .withZone(ZoneOffset.UTC)
             .format(Instant.now())
         outputFile.parentFile.mkdirs()
@@ -42,7 +44,7 @@ val generateAppBuildInfo by tasks.registering {
             |
             |internal object GeneratedAppBuildInfo {
             |    const val desktopVersion = "$version"
-            |    const val buildTimeUtc = "$buildTimeUtc"
+            |    const val buildTimeUtc = ${groovy.json.JsonOutput.toJson(buildTimeUtc).replace("$", "\\$")}
             |}
         """.trimMargin())
     }

@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # The caller holds its non-canceling release lock until every job here finishes.
 jobs:
@@ -26,6 +27,8 @@ jobs:
     timeout-minutes: 20
     environment: api-development
     outputs:
+      android_required: ${{ steps.changes.outputs.android }}
+      chrome_required: ${{ steps.changes.outputs.chrome }}
       eligible: ${{ steps.release.outputs.eligible }}
       source_ref: ${{ steps.release.outputs.source_ref }}
     env:
@@ -35,6 +38,7 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
           version-file: pnpm-workspace.yaml
@@ -46,6 +50,12 @@ jobs:
         run: vp node scripts/release-main.mjs
       - if: steps.release.outputs.eligible == 'true'
         run: vp install --frozen-lockfile
+      - name: Check store build inputs
+        if: steps.release.outputs.eligible == 'true'
+        id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: vp node scripts/ci-native-changes.mjs stores
       - name: Download built API
         if: steps.release.outputs.eligible == 'true'
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
@@ -103,7 +113,7 @@ jobs:
 
   android:
     needs: deploy
-    if: needs.deploy.outputs.eligible == 'true'
+    if: needs.deploy.outputs.eligible == 'true' && needs.deploy.outputs.android_required == 'true'
     uses: ./.github/workflows/release-android.yml
     secrets: inherit
     with:
@@ -113,7 +123,7 @@ jobs:
 
   chrome:
     needs: deploy
-    if: needs.deploy.outputs.eligible == 'true'
+    if: needs.deploy.outputs.eligible == 'true' && needs.deploy.outputs.chrome_required == 'true'
     uses: ./.github/workflows/release-chrome.yml
     secrets: inherit
     with:

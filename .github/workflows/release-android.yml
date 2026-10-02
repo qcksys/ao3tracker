@@ -119,8 +119,9 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: native-gradle-v1-${{ runner.os }}-${{ runner.arch }}-jdk21-dev-${{ inputs.source_ref || github.sha }}
+          key: native-gradle-v1-${{ runner.os }}-${{ runner.arch }}-jdk21-checks-${{ inputs.source_ref || github.sha }}
           restore-keys: |
+            native-gradle-v1-${{ runner.os }}-${{ runner.arch }}-jdk21-checks-
             native-gradle-v1-${{ runner.os }}-${{ runner.arch }}-jdk21-dev-
 
       - name: Install workspace dependencies

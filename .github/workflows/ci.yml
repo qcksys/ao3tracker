@@ -2,12 +2,14 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   push:
     branches: [main, dev]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   changesets:
@@ -34,15 +36,16 @@ jobs:
     with:
       source_ref: ${{ github.sha }}
 
-  native-changes:
-    name: Detect native changes
+  workspace:
+    name: Workspace checks
     concurrency:
-      group: ci-native-changes-${{ github.event_name }}-${{ github.ref }}
+      group: ci-workspace-${{ github.event_name }}-${{ github.ref }}
       cancel-in-progress: ${{ github.run_attempt == 1 }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     outputs:
-      required: ${{ steps.changes.outputs.required }}
+      native_required: ${{ steps.changes.outputs.required }}
+      native_matrix: ${{ steps.changes.outputs.matrix }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -52,27 +55,12 @@ jobs:
         with:
           version-file: pnpm-workspace.yaml
           run-install: false
-          cache: false
+          cache: true
       - name: Check native build inputs
         id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: vp node scripts/ci-native-changes.mjs
-
-  workspace:
-    name: Workspace checks
-    concurrency:
-      group: ci-workspace-${{ github.event_name }}-${{ github.ref }}
-      cancel-in-progress: ${{ github.run_attempt == 1 }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
-        with:
-          version-file: pnpm-workspace.yaml
-          run-install: false
-          cache: true
       - run: vp install --frozen-lockfile
       - name: Validate GitHub Actions workflows
         run: |
@@ -102,20 +90,15 @@ jobs:
     concurrency:
       group: ci-native-${{ matrix.target }}-${{ github.event_name }}-${{ github.ref }}
       cancel-in-progress: ${{ github.run_attempt == 1 }}
-    needs: native-changes
-    if: needs.native-changes.outputs.required == 'true'
+    needs: workspace
+    if: needs.workspace.outputs.native_required == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      APP_BUILD_TIME_UTC: "2020-01-01 00:00:00 UTC"
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - target: checks
-            name: JVM tests and Android Debug
-            tasks: :composeApp:jvmTest :composeApp:assembleDebug
-          - target: dev
-            name: Android Dev build
-            tasks: :composeApp:assembleDev
+      matrix: ${{ fromJSON(needs.workspace.outputs.native_matrix) }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -192,15 +175,15 @@ jobs:
 
   android:
     name: Android and JVM checks
-    needs: [native-changes, native]
+    needs: [workspace, native]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Verify native results
         env:
-          CHANGES_RESULT: ${{ needs.native-changes.result }}
-          NATIVE_REQUIRED: ${{ needs.native-changes.outputs.required }}
+          CHANGES_RESULT: ${{ needs.workspace.result }}
+          NATIVE_REQUIRED: ${{ needs.workspace.outputs.native_required }}
           NATIVE_RESULT: ${{ needs.native.result }}
         run: |
           if [[ "$CHANGES_RESULT" == "success" ]]; then

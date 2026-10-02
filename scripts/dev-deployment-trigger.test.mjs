@@ -34,14 +34,14 @@ test("new CI runs can cancel checks without cancelling a protected release", asy
   const ci = await workflow("ci");
   assert.equal(ci.concurrency, undefined);
   const groups = new Set();
-  for (const name of ["native-changes", "workspace", "native"]) {
+  for (const name of ["workspace", "native"]) {
     const concurrency = ci.jobs[name].concurrency;
     assert.equal(concurrency["cancel-in-progress"], "${{ github.run_attempt == 1 }}");
     assert.match(concurrency.group, /github.event_name/);
     assert.match(concurrency.group, /github.ref/);
     groups.add(concurrency.group);
   }
-  assert.equal(groups.size, 3);
+  assert.equal(groups.size, 2);
   assert.match(ci.jobs.native.concurrency.group, /matrix.target/);
   assert.equal(ci.jobs["release-dev"].concurrency, undefined);
   const release = await workflow("deploy-dev-api");
