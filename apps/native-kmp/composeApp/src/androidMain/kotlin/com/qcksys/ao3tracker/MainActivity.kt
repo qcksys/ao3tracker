@@ -16,8 +16,7 @@ import com.qcksys.ao3tracker.data.auth.getAndroidCredentialHelper
 import com.qcksys.ao3tracker.data.auth.initializeCredentialHelper
 import com.qcksys.ao3tracker.data.auth.initializeTokenStorage
 import com.qcksys.ao3tracker.data.database.initializeDatabase
-import com.qcksys.ao3tracker.data.push.initializePushTokenStorage
-import com.qcksys.ao3tracker.data.settings.initializeSettingsStorage
+import com.qcksys.ao3tracker.data.push.notificationWorkId
 import com.qcksys.ao3tracker.push.Ao3FirebaseMessagingService
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.util.initializeShareHelper
@@ -43,17 +42,11 @@ class MainActivity : ComponentActivity() {
         // Initialize token storage with context
         initializeTokenStorage(applicationContext)
 
-        // Initialize settings storage with context
-        initializeSettingsStorage(applicationContext)
-
         // Initialize credential helper with context
         initializeCredentialHelper(applicationContext)
 
         // Initialize share helper with context
         initializeShareHelper(applicationContext)
-
-        // Initialize push token storage with context
-        initializePushTokenStorage(applicationContext)
 
         // Request notification permission (Android 13+)
         requestNotificationPermissionIfNeeded()
@@ -88,8 +81,11 @@ class MainActivity : ComponentActivity() {
             NavigationState.navigateToExternalAo3Url(intent.dataString)
         }
         if (intent?.action == Ao3FirebaseMessagingService.ACTION_OPEN_WORK) {
-            val workId = intent.getLongExtra(Ao3FirebaseMessagingService.EXTRA_WORK_ID, -1)
-            if (workId > 0) {
+            val workId = notificationWorkId(
+                remoteWorkId = intent.getStringExtra("workId"),
+                localWorkId = intent.getLongExtra(Ao3FirebaseMessagingService.EXTRA_WORK_ID, -1)
+            )
+            if (workId != null) {
                 Napier.d("Notification deep link: opening work $workId")
                 NavigationState.navigateToRead(
                     url = "https://archiveofourown.org/works/$workId",

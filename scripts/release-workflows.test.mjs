@@ -9,6 +9,64 @@ async function workflow(name) {
   );
 }
 
+test("Changesets maintains a dev version PR without publishing packages or deploying", async () => {
+  const config = await workflow("changesets");
+  assert.deepEqual(config.on.push.branches, ["dev"]);
+  assert.equal(config.concurrency["cancel-in-progress"], false);
+  const job = config.jobs.version;
+  assert.equal(job.if, "github.ref == 'refs/heads/dev'");
+  assert.deepEqual(job.permissions, { contents: "write", "pull-requests": "write" });
+  const checkout = job.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+  assert.equal(checkout.with.ref, "dev");
+  assert.equal(checkout.with["persist-credentials"], false);
+  assert.equal(checkout.with["fetch-depth"], 0);
+  const action = job.steps.find((step) => step.uses?.startsWith("changesets/action@"));
+  assert.match(action.uses, /@[a-f0-9]{40}$/);
+  assert.equal(action.with["pr-base-branch"], "dev");
+  assert.equal(action.with["version-script"], "vp run version-packages");
+  assert.equal(action.with["publish-script"], undefined);
+  assert.equal(action.with["create-github-releases"], false);
+  assert.equal(action.with["push-git-tags"], false);
+  const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(pkg.scripts["version-packages"], /vp exec changeset version/);
+  assert.match(pkg.scripts["version-packages"], /vp install --lockfile-only --ignore-scripts/);
+  assert.match(pkg.scripts["version-packages"], /--no-frozen-lockfile && vp fmt$/);
+  const changesets = JSON.parse(
+    await readFile(new URL("../.changeset/config.json", import.meta.url), "utf8"),
+  );
+  assert.equal(changesets.format, false);
+  assert.doesNotMatch(JSON.stringify(config), /deploy-api|release-android|release-chrome/);
+});
+
+test("both store channels and build-only runs save notes from the exact release source", async () => {
+  for (const [store, directory] of [
+    ["android", "native-kmp"],
+    ["chrome", "browser-extension"],
+  ]) {
+    const { steps } = (await workflow(`release-${store}`)).jobs.release;
+    const checkout = steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+    assert.equal(checkout.with.ref, "${{ inputs.source_ref || github.sha }}");
+    const install = steps.find((step) => step.run === "vp install --frozen-lockfile");
+    const generate = steps.find((step) => step.run?.includes("scripts/release-notes.mjs"));
+    assert.ok(steps.indexOf(generate) > steps.indexOf(install));
+    assert.equal(generate.if, undefined);
+    assert.doesNotMatch(generate.run, /changeset status|changeset version/);
+    assert.ok(generate.run.includes(`apps/${directory}`));
+    const artifact = steps.find((step) => step.with?.name?.startsWith(`${store}-notes-`));
+    assert.ok(steps.indexOf(artifact) > steps.indexOf(generate));
+    assert.equal(artifact.if, undefined);
+    assert.equal(artifact.with["if-no-files-found"], "error");
+    if (store === "android") {
+      const upload = steps.find((step) => step.uses?.startsWith("r0adkll/upload-google-play@"));
+      assert.equal(
+        upload.with.whatsNewDirectory,
+        "${{ runner.temp }}/android-release-notes/whatsnew",
+      );
+      assert.ok(steps.indexOf(upload) > steps.indexOf(generate));
+    }
+  }
+});
+
 for (const [branch, entry, protectedWorkflow, releaseGroup] of [
   ["main", "release-main", "release-main-apps", "release-main"],
   ["dev", "deploy-dev-api", "release-dev-apps", "api-development"],
@@ -97,7 +155,7 @@ test("preparation builds without deployment credentials and exports an immutable
   assert.equal(build.environment, undefined);
   assert.doesNotMatch(
     text,
-    /secrets\.|wrangler deploy|deploy:prod|deploy:dev|release-android|release-chrome/,
+    /secrets\.|wrangler deploy|deploy:prod|deploy:dev|release-android|release-chrome|scripts\/migrate\.mjs|db:migrate/,
   );
   const buildStep = build.steps.find((step) => step.run?.includes(" build --mode"));
   assert.ok(buildStep);
@@ -136,7 +194,7 @@ for (const [name, environment, database, token, url] of [
     "https://dev.ao3tracker.com/ping",
   ],
 ]) {
-  test(`${environment}: deploy the prepared artifact only after database and current-source checks`, async () => {
+  test(`${environment}: migrate the target database before readiness and artifact deployment`, async () => {
     const config = await workflow(name);
     const { deploy } = config.jobs;
     assert.equal(deploy.environment, environment);
@@ -145,13 +203,33 @@ for (const [name, environment, database, token, url] of [
     assert.equal(download.with["artifact-ids"], "${{ inputs.api_artifact_id }}");
     assert.equal(download.with.path, "apps/api/dist/");
     assert.equal(download.with["run-id"], undefined);
+    const migrations = steps.find((step) => step.run?.includes("apps/api/scripts/migrate.mjs"));
+    assert.ok(migrations, "deployment must apply pending migrations");
+    assert.equal(migrations.env.DATABASE_URL, `\${{ secrets.${database} }}`);
     const readiness = steps.find((step) => step.run?.includes("scripts/check-api-migrations.mjs"));
-    assert.equal(readiness.env.DATABASE_URL, `\${{ secrets.${database} }}`);
-    const current = steps.find((step) => step.run?.includes("assert-current-source"));
+    assert.equal(readiness.env.DATABASE_URL, migrations.env.DATABASE_URL);
+    const guards = steps.filter((step) => step.run?.includes("assert-current-source"));
+    assert.equal(
+      guards.length,
+      2,
+      "reject stale sources before migrations and again before deploy",
+    );
+    const [beforeMigrations, current] = guards;
+    assert.equal(beforeMigrations.env.RELEASE_SOURCE_REF, current.env.RELEASE_SOURCE_REF);
     const upload = steps.find((step) => step.run?.includes("wrangler deploy"));
     assert.equal(upload.env.CLOUDFLARE_API_TOKEN, token);
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
+    assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));
+    assert.equal(steps.indexOf(beforeMigrations) + 1, steps.indexOf(migrations));
+    assert.equal(steps.indexOf(migrations) + 1, steps.indexOf(readiness));
     assert.ok(steps.indexOf(readiness) < steps.indexOf(current));
+    for (const step of [beforeMigrations, migrations, readiness, current, upload]) {
+      assert.equal(step["continue-on-error"], undefined);
+      assert.equal(
+        step.if,
+        environment === "api-development" ? "steps.release.outputs.eligible == 'true'" : undefined,
+      );
+    }
     assert.equal(steps.indexOf(current) + 1, steps.indexOf(upload));
     assert.match(upload.run, /wrangler deploy --config dist\/ssr\/wrangler.json/);
     assert.doesNotMatch(JSON.stringify(steps), /deploy:prod|deploy:dev| build --mode/);

@@ -19,6 +19,7 @@ import com.qcksys.ao3tracker.data.database.getDatabaseBuilder
 import com.qcksys.ao3tracker.data.push.PushRepository
 import com.qcksys.ao3tracker.data.push.PushTokenService
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
+import com.qcksys.ao3tracker.data.push.PushTokenStore
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
@@ -80,7 +81,7 @@ val appModule = module {
     single(createdAtStart = true) { SyncTriggers(get()) }
 
     // Push notifications
-    single { getPushTokenStorage() }
+    single<PushTokenStore> { getPushTokenStorage() }
     single { PushTokenService(get(), get()) }
     single { PushRepository(get(), get(), get(), get()) }
 

@@ -21,6 +21,10 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+function nextReadAt(previous: string | undefined): string {
+  return new Date(Math.max(Date.now(), previous ? Date.parse(previous) + 1 : 0)).toISOString();
+}
+
 function parseChapterIdFromUrl(url: string): number | null {
   const match = new URL(url).pathname.match(/\/chapters\/(\d+)/);
   if (!match?.[1]) return null;
@@ -75,7 +79,8 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
     case "workInfo": {
       const works = await loadWorks();
       const work = ensureWork(works, workId);
-      work.lastReadAt = nowIso();
+      work.lastReadAt = nextReadAt(work.lastReadAt);
+      work.deleted = false;
       work.private = message.isPrivate;
       work.pendingSync = true;
       await saveWork(works);
@@ -89,7 +94,7 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
         chapters[key] = {
           workId,
           chapterId,
-          lastReadAt: nowIso(),
+          lastReadAt: nextReadAt(existing?.lastReadAt),
           markedCompleteAt: existing?.markedCompleteAt ?? null,
           readProgress: existing?.readProgress ?? 0,
           pendingSync: true,
@@ -112,7 +117,7 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
       chapters[key] = {
         workId,
         chapterId,
-        lastReadAt: nowIso(),
+        lastReadAt: nextReadAt(existing?.lastReadAt),
         markedCompleteAt: existing?.markedCompleteAt ?? null,
         readProgress: progress,
         pendingSync: true,
@@ -121,7 +126,8 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
 
       const works = await loadWorks();
       const work = ensureWork(works, workId);
-      work.lastReadAt = nowIso();
+      work.lastReadAt = nextReadAt(work.lastReadAt);
+      work.deleted = false;
       work.pendingSync = true;
       await saveWork(works);
       return [workId];

@@ -143,9 +143,10 @@ class AuthRepository(
 
     suspend fun signInWithSavedCredentials(): CredentialResult {
         val helper = credentialHelper ?: return CredentialResult.NotSupported
+        val operation = beginOperation(loading = false)
 
         // Get passkey options from server (for passkey sign-in)
-        val passkeyOptions = authService.getPasskeyAuthenticateOptions()
+        val passkeyOptions = authService.getPasskeyAuthenticateOptions(baseUrl = operation.environment.authBaseUrl)
             .getOrNull()
 
         val passkeyJson = passkeyOptions?.let {
@@ -156,7 +157,9 @@ class AuthRepository(
             )
         }
 
-        return when (val result = helper.getCredential(passkeyJson)) {
+        val result = helper.getCredential(passkeyJson)
+        if (!isCurrent(operation)) return CredentialResult.Error("Account or API environment changed")
+        return when (result) {
             is CredentialResult.Password -> {
                 // Sign in with the saved password
                 signIn(result.credential.email, result.credential.password)
@@ -164,7 +167,7 @@ class AuthRepository(
             }
             is CredentialResult.Passkey -> {
                 // Sign in with passkey
-                val operation = beginOperation()
+                if (!complete(operation) { _authState.value = AuthState.Loading }) return CredentialResult.Cancelled
                 authService.verifyPasskeyAuthentication(result.credential.responseJson, operation.environment.authBaseUrl)
                     .onSuccess { response ->
                         acceptSession(operation, response.user, response.session.token)
@@ -182,9 +185,10 @@ class AuthRepository(
         val helper = credentialHelper ?: return CredentialResult.NotSupported
         val currentState = _authState.value as? AuthState.Authenticated
             ?: return CredentialResult.Error("Must be signed in to register a passkey")
+        val environment = appSettings.apiEnvironment.value
 
         // Get registration options from server
-        val options = authService.getPasskeyRegisterOptions(currentState.token)
+        val options = authService.getPasskeyRegisterOptions(currentState.token, environment.authBaseUrl)
             .getOrElse { return CredentialResult.Error(it.message ?: "Failed to get passkey options") }
 
         val optionsJson = kotlinx.serialization.json.Json.encodeToString(
@@ -194,10 +198,14 @@ class AuthRepository(
 
         return when (val result = helper.createPasskey(optionsJson)) {
             is CredentialResult.Passkey -> {
+                if (environment != appSettings.apiEnvironment.value || !isCurrentToken(currentState.token)) {
+                    return CredentialResult.Error("Account or API environment changed")
+                }
                 // Verify registration with server
                 authService.verifyPasskeyRegistration(
                     currentState.token,
-                    result.credential.responseJson
+                    result.credential.responseJson,
+                    baseUrl = environment.authBaseUrl
                 ).onFailure {
                     return CredentialResult.Error(it.message ?: "Failed to verify passkey")
                 }

@@ -35,7 +35,7 @@ Both clients (browser extension and native KMP app) ingest AO3 pages and sync to
 - **Branch from `dev` by default.** Fetch `origin/dev` before creating a new feature or fix branch, and start from that updated ref. Use the `tom-alle-codex/` branch prefix unless the user specifies another name or starting point.
 - **Target PRs at `dev` by default.** Set the base explicitly (`gh pr create --base dev`) rather than relying on GitHub's default branch. Use `main` for deliberate production promotions, or another target when the user requests it.
 - **Merges can deploy and release apps.** Successful push CI on the current `dev` commit runs `Release dev`: check the dev database, deploy and smoke-test the dev API, then release the separate Android Dev app to internal testing and submit the Chrome Beta extension for review. Successful push CI on current `main` runs `Release main`: check and deploy the production API, then release the production Android package to internal testing and upload a production Chrome draft.
-- **PR checks do not deploy.** Automatic releases require successful push CI from the same repository and reject superseded commits. Failed API readiness or deployment checks block the dependent store releases. Database readiness checks are read-only; schema migrations are handled separately.
+- **PR checks do not deploy.** Automatic releases require successful push CI from the same repository and reject superseded commits. Protected deployment jobs apply pending database migrations, then run read-only readiness checks before deploying the API. Migration, readiness, or deployment failures block the dependent store releases.
 - **Cancel only before deployment.** Keep API builds cancellable per branch and protect the full API/Android/Chrome release chain once its deployment lock is acquired. Preserve artifact handoff and stale-source retry checks; see [release concurrency](docs/store-releases.md) before changing these boundaries.
 - **Dev releases run inside CI.** After workspace and Android/JVM checks pass on a `dev` push, CI calls the reusable `Release dev` workflow from the same commit. Merging this setup into `dev` activates it without a matching change on `main`. Keep cancellation on individual check/build jobs so an active deployment can finish. Production's `Release main` still uses `workflow_run` and must exist on GitHub's default branch, currently `main`.
 
@@ -66,6 +66,8 @@ For app-specific commands (running dev servers, deploying, building a single pla
 
 Versioning and changelog generation use [Changesets](https://github.com/changesets/changesets). Config lives in [.changeset/config.json](.changeset/config.json) — `commit: false` (you commit the changeset with your PR), `access: restricted` (no npm auto-publish, all packages are private/internal), `baseBranch: main`.
 
+Pushes to `dev` create or update a version PR that consumes pending changesets, bumps package versions, and generates package `CHANGELOG.md` files. Write user-facing summaries in changesets; Android and Chrome workflows use them for patch-note artifacts, and Android uploads shortened notes to Google Play. Merge the version PR to record the changelogs before promoting `dev` to `main`. For setup, note selection, and local previews, see [automatic patch notes](docs/store-releases.md#automatic-patch-notes).
+
 ### When to write one
 
 Add a changeset for any user-visible change to a tracked package:
@@ -94,7 +96,7 @@ From the repo root:
 ```bash
 vp exec changeset           # Interactive: pick packages, bump type, summary
 vp exec changeset status    # Show which packages have pending changesets
-vp exec changeset version   # Apply pending changesets — bumps versions + writes CHANGELOG.md (release time only)
+vp run version-packages     # Consume changesets, update versions/lockfile and format changelogs (release time only)
 ```
 
 `vp exec changeset` writes a markdown file under [.changeset/](.changeset/) with a random slug like `chilly-rats-clap.md`. Commit it with the PR that introduces the change.

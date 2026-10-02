@@ -17,7 +17,7 @@ import io.ktor.http.isSuccess
 /**
  * Service for registering and unregistering push notification tokens with the server.
  */
-class PushTokenService(
+open class PushTokenService(
     private val appSettings: AppSettings,
     private val authService: AuthService
 ) {
@@ -38,7 +38,7 @@ class PushTokenService(
      * @param deviceId A unique device identifier
      * @param authToken The user's authentication token
      */
-    suspend fun registerToken(
+    open suspend fun registerToken(
         fcmToken: String,
         platform: String,
         deviceId: String,
@@ -75,7 +75,7 @@ class PushTokenService(
      * @param deviceId The device identifier to unregister
      * @param authToken The user's authentication token
      */
-    suspend fun unregisterToken(deviceId: String, authToken: String): Result<Unit> {
+    open suspend fun unregisterToken(deviceId: String, authToken: String): Result<Unit> {
         return try {
             val response: HttpResponse = client.delete("$baseUrl/push/token/$deviceId") {
                 header("Authorization", "Bearer $authToken")

@@ -126,6 +126,17 @@ jobs:
       - name: Install workspace dependencies
         run: vp install --frozen-lockfile
 
+      - name: Generate patch notes from Changesets
+        run: vp node scripts/release-notes.mjs apps/native-kmp "$RUNNER_TEMP/android-release-notes"
+
+      - name: Save Android patch notes
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-notes-${{ inputs.channel }}-${{ steps.version.outputs.android_version_code }}
+          path: ${{ runner.temp }}/android-release-notes/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Test shared extraction and WebView scripts
         if: ${{ !inputs.ci_verified }}
         run: |
@@ -192,6 +203,7 @@ jobs:
           tracks: internal
           status: ${{ inputs.status }}
           releaseName: ${{ inputs.channel }}-${{ steps.version.outputs.android_version_name }}
+          whatsNewDirectory: ${{ runner.temp }}/android-release-notes/whatsnew
           mappingFile: apps/native-kmp/composeApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
 
       - name: Remove temporary signing credentials

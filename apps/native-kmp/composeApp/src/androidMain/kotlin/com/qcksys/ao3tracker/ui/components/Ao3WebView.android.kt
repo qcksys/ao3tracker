@@ -131,6 +131,7 @@ actual fun Ao3WebView(
                 }
 
                 webChromeClient = WebChromeClient()
+                installLinkContextMenu()
 
                 if (isTrustedAo3Url(url)) loadUrl(url)
             }.also { webViewRef = it }

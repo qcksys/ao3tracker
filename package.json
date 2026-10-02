@@ -6,10 +6,12 @@
   "scripts": {
     "ready": "vp fmt && vp lint && vp run -r test && vp run -r build",
     "dev": "vp run --filter @qcksys/ao3tracker-api dev",
+    "version-packages": "vp exec changeset version && vp install --lockfile-only --ignore-scripts --no-frozen-lockfile && vp fmt",
     "prepare": "vp config"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@changesets/get-release-plan": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "yaml": "catalog:"

@@ -127,7 +127,7 @@ export async function checkDatabaseReadiness(connection, manifest) {
 export async function main(env = process.env) {
   if (!env.DATABASE_URL) {
     throw new ReadinessError(
-      "Set DATABASE_URL to a read-only connection to the deployment target's database.",
+      "Set DATABASE_URL to a connection to the deployment target's database.",
     );
   }
   const manifest = await readMigrationManifest();

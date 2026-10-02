@@ -111,6 +111,12 @@ describe("FCM delivery failures", () => {
       invalidTokensRemoved: 1,
     });
     expect(send.mock.calls.map(([tokens]) => tokens)).toEqual([["b"], ["b"]]);
+    expect(send.mock.calls[0][3]).toMatchObject({
+      notification: {
+        channel_id: "ao3_work_updates",
+        click_action: "com.qcksys.ao3tracker.OPEN_WORK",
+      },
+    });
     expect(invalidateToken).toHaveBeenCalledWith(db, "b");
   });
 });
