@@ -18,7 +18,7 @@ Fix cross-device synchronization and local data safety:
 - Add a native Settings action to copy guest works, progress, favourite tags and saved searches into the signed-in account. Preserve existing account entries and the guest library, and keep imported data ready for sync. Signing out keeps local account data for the next sign-in.
 - Preserve edits made during GET/POST requests, acknowledge only uploaded versions, merge partial tag metadata, and retain the first pagination watermark.
 - Use server mutation timestamps with bounded replay for incremental sync, atomic last-write-wins updates, and persistent deletion tombstones. Apply API migration `0011_sync-mutation-cursors` before deploying the new server.
-- Preserve native deletions during metadata refresh, synchronize mark-unread resets, use server values on timestamp ties, and clear local data only after a successful sync with no intervening edits.
+- Preserve native deletions during metadata refresh and when another device's clock is ahead, synchronize mark-unread resets, use server values on timestamp ties, and clear local data only after a successful sync with no intervening edits.
 - Report the chapter identified in the page DOM when tracking scroll progress on a work's root URL.
 - Restore a deleted extension work when reading resumes, while retaining deletion for flag-only edits.
 - Batch native favourite tags and saved searches at the API's 500-row limit, including uploads containing only those collections.
