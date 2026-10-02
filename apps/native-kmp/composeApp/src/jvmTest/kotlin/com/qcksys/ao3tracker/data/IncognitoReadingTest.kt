@@ -24,6 +24,7 @@ import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
+import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
 import java.nio.file.Files
 import kotlin.test.Test
@@ -52,6 +53,87 @@ import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
+    @Test
+    fun `explicit link actions track unread works and update blocklists in incognito`() = runTest {
+        fixture { f ->
+            val pageUrl = "https://archiveofourown.org/works/search"
+            val scripts = mutableListOf<String>()
+            val messages = mutableListOf<String>()
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.jsInjectionFlow.collect { scripts.add(it) }
+            }
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+                f.model.linkActionMessage.collect { messages.add(it) }
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            f.settings.setHiddenTags("Angst")
+            f.model.updateCurrentUrl(pageUrl)
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$pageUrl"}""")
+            advanceUntilIdle()
+
+            f.model.handleLinkAction(ReaderLinkAction.TrackWork(123, "A new work"))
+            advanceUntilIdle()
+            val work = assertNotNull(f.db.workDao().getWorkById(123))
+            assertEquals("A new work", work.title)
+            assertTrue(work.subscribed)
+            assertNotNull(work.lastRead)
+            assertTrue(f.db.chapterDao().getAllChaptersIncludingDeletedOnce().isEmpty())
+            assertEquals("not-started", f.repository.getWorkBadges(listOf(123)).single().status)
+            assertTrue(scripts.any { it.contains("applyListBadges") && it.contains("not-started") })
+            assertEquals(pageUrl, f.model.currentUrl.value)
+
+            f.model.handleLinkAction(ReaderLinkAction.BlockTag("Alice/Bob"))
+            f.model.handleLinkAction(ReaderLinkAction.BlockTag("alice/bob"))
+            f.model.handleLinkAction(ReaderLinkAction.BlockWork(123))
+            f.model.handleLinkAction(ReaderLinkAction.BlockWork(123))
+            advanceUntilIdle()
+            assertEquals(listOf("Angst", "Alice/Bob"), f.settings.browsingPreferences.value.hiddenTags)
+            assertEquals(listOf(123L), f.settings.browsingPreferences.value.hiddenWorkIds)
+            assertTrue(scripts.any { it.contains("applyBrowsingState") && it.contains("Alice/Bob") })
+            assertEquals(work, f.db.workDao().getWorkById(123))
+            assertEquals("Added to tracked works", messages.first())
+        }
+    }
+
+    @Test
+    fun `adding an existing work preserves metadata flags and progress`() = runTest {
+        fixture { f ->
+            f.seedTrackedWork()
+            val work = f.db.workDao().getWorkById(1)
+            val chapters = f.db.chapterDao().getAllChaptersIncludingDeletedOnce()
+            val tags = f.db.tagDao().getAll()
+            f.repository.addTrackedWork(1, "Another link title")
+            assertEquals(work, f.db.workDao().getWorkById(1))
+            assertEquals(chapters, f.db.chapterDao().getAllChaptersIncludingDeletedOnce())
+            assertEquals(tags, f.db.tagDao().getAll())
+        }
+    }
+
+    @Test
+    fun `tracking a deleted work restores it with a newer sync clock`() = runTest {
+        fixture { f ->
+            f.seedTrackedWork()
+            f.repository.deleteWork(1)
+            val deleted = assertNotNull(f.db.workDao().getWorkByIdIncludingDeleted(1))
+            f.repository.addTrackedWork(1, "Another link title")
+            val restored = assertNotNull(f.db.workDao().getWorkById(1))
+            assertNull(restored.rowDeletedAt)
+            assertTrue(assertNotNull(restored.lastRead) > assertNotNull(deleted.lastRead))
+            assertEquals("Original", restored.title)
+            assertEquals(0.25f, f.db.chapterDao().getChapterById(11, 1)?.readProgress)
+        }
+    }
+
+    @Test
+    fun `queued link tracking cannot write to a replacement account`() = runTest {
+        fixture { f ->
+            f.model.handleLinkAction(ReaderLinkAction.TrackWork(123, "Old account"))
+            f.accounts.activate("other-account")
+            advanceUntilIdle()
+            assertNull(f.db.workDao().getWorkById(123))
+        }
+    }
+
     @Test
     fun `browsing controls work while incognito and push preference and saved search changes`() = runTest {
         fixture { f ->

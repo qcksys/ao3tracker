@@ -9,9 +9,10 @@ import { needsNativeChecks } from "./ci-native-changes.mjs";
 
 async function repository(t) {
   const cwd = await mkdtemp(join(tmpdir(), "ao3tracker-ci-"));
-  t.after(() => rm(cwd, { recursive: true, force: true }));
+  t.after(() => rm(cwd, { recursive: true, force: true, maxRetries: 3 }));
   const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
   git("init", "--quiet");
+  git("config", "maintenance.auto", "false");
   git("config", "user.name", "CI test");
   git("config", "user.email", "ci@example.invalid");
   git("config", "commit.gpgsign", "false");

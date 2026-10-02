@@ -36,10 +36,24 @@ actual fun Ao3WebView(
     onLoadingStateChange: (isLoading: Boolean) -> Unit,
     onBackAtRoot: () -> Unit,
     jsInjectionFlow: SharedFlow<String>?,
-    pageScript: String?
+    pageScript: String?,
+    onLinkAction: (ReaderLinkAction) -> Unit
 ) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var selectedLink by remember { mutableStateOf<ReaderLink?>(null) }
     val onBackAtRootState by rememberUpdatedState(onBackAtRoot)
+
+    LaunchedEffect(url) { selectedLink = null }
+
+    selectedLink?.let { link ->
+        ReaderLinkSheet(
+            link = link,
+            onDismiss = { selectedLink = null },
+            onCopy = { webViewRef?.copyLink(link) },
+            onOpenInBrowser = { webViewRef?.openLinkInBrowser(link) },
+            onAction = onLinkAction
+        )
+    }
 
     // Always handle back: WebView goes back if possible, otherwise notify caller
     BackHandler(enabled = pageScript == null) {
@@ -134,7 +148,7 @@ actual fun Ao3WebView(
                 }
 
                 webChromeClient = WebChromeClient()
-                installLinkContextMenu()
+                installLinkContextMenu { selectedLink = it }
 
                 if (isTrustedAo3Url(url)) loadUrl(url)
             }.also { webViewRef = it }

@@ -21,6 +21,7 @@ import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.util.JsonConfig
+import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -54,6 +55,9 @@ class ReadScreenModel(
     // naming dialog and clears this on confirm/cancel.
     private val _pendingSaveSearch = MutableStateFlow<SaveSearchEvent?>(null)
     val pendingSaveSearch: StateFlow<SaveSearchEvent?> = _pendingSaveSearch.asStateFlow()
+
+    private val _linkActionMessage = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val linkActionMessage: SharedFlow<String> = _linkActionMessage.asSharedFlow()
 
     private val _canGoBack = MutableStateFlow(false)
     val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
@@ -237,6 +241,39 @@ class ReadScreenModel(
             }
             is WebViewMessage.Unknown -> {
                 // Already logged in parseWebViewMessage
+            }
+        }
+    }
+
+    fun handleLinkAction(action: ReaderLinkAction) {
+        val accountGeneration = accountData.generation
+        val pageUrl = currentUrl.value
+        screenModelScope.launch {
+            if (accountData.generation != accountGeneration) return@launch
+            try {
+                val message = when (action) {
+                    is ReaderLinkAction.TrackWork -> {
+                        repository.addTrackedWork(action.workId, action.title) {
+                            accountData.generation == accountGeneration
+                        }
+                        handleListWorks(ListWorksEvent(url = pageUrl, workIds = listOf(action.workId)))
+                        "Added to tracked works"
+                    }
+                    is ReaderLinkAction.BlockWork -> {
+                        appSettings.setWorkHidden(action.workId, true)
+                        "Work added to blocklist"
+                    }
+                    is ReaderLinkAction.BlockTag -> {
+                        appSettings.setHiddenTags((appSettings.browsingPreferences.value.hiddenTags + action.tag).joinToString("\n"))
+                        "Tag added to blocklist"
+                    }
+                }
+                _linkActionMessage.emit(message)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.e("Failed to apply reader link action", TAG, e)
+                _linkActionMessage.emit("Could not save this change. Please try again.")
             }
         }
     }

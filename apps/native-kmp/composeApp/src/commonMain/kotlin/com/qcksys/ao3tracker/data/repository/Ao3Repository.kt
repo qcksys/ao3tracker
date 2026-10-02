@@ -225,6 +225,30 @@ class Ao3Repository(private val accountData: AccountDataStore) {
         it.tagDao().getDistinctTagsByType(type.id)
     }
 
+    suspend fun addTrackedWork(
+        workId: Long,
+        title: String?,
+        isCurrentOperation: () -> Boolean = { true }
+    ) = accountData.edit(isCurrentOperation) {
+        if (workId <= 0) return@edit
+        val existing = workDao.getWorkByIdIncludingDeleted(workId)
+        if (existing != null && existing.rowDeletedAt == null) return@edit
+        val now = getCurrentTimestamp()
+        // A tracking event needs a reading clock for sync, but does not create chapter progress.
+        val trackingTime = maxOf(now, (existing?.lastRead ?: 0L) + 1)
+        val work = existing?.copy(lastRead = trackingTime, rowUpdatedAt = now, rowDeletedAt = null)
+            ?: WorkEntity(
+                id = workId,
+                title = title?.trim()?.takeIf { it.isNotEmpty() },
+                subscribed = true,
+                lastRead = trackingTime,
+                rowCreatedAt = now,
+                rowUpdatedAt = now
+            )
+        workDao.upsertWork(work)
+    }
+
+
     suspend fun saveWorkFromWebView(
         workInfo: WorkInfoEvent,
         workTags: WorkTagsEvent?,

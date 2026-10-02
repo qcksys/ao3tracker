@@ -42,7 +42,8 @@ actual fun Ao3WebView(
     onLoadingStateChange: (isLoading: Boolean) -> Unit,
     onBackAtRoot: () -> Unit,
     jsInjectionFlow: SharedFlow<String>?,
-    pageScript: String?
+    pageScript: String?,
+    onLinkAction: (ReaderLinkAction) -> Unit
 ) {
     var webViewRef by remember { mutableStateOf<WKWebView?>(null) }
 
