@@ -640,17 +640,17 @@ fun SettingsScreen() {
             DeveloperSection(
                 devModeEnabled = devModeEnabled,
                 onDevModeChanged = { enabled ->
-                    if (!enabled) {
-                        // Reset to production API when turning off dev mode
+                    if (!enabled && appSettings.canSelectApiEnvironment && apiEnvironment != defaultApiEnvironment()) {
                         scope.launch {
                             pushRepository.unregisterToken()
                             authRepository.signOut()
-                            appSettings.setApiEnvironment(ApiEnvironment.PRODUCTION)
+                            appSettings.setApiEnvironment(defaultApiEnvironment())
                         }
                     }
                     appSettings.setDevModeEnabled(enabled)
                 },
                 apiEnvironment = apiEnvironment,
+                canSelectApiEnvironment = appSettings.canSelectApiEnvironment,
                 onApiEnvironmentChanged = { env ->
                     if (env != apiEnvironment) {
                         // Auto logout when changing API environment
@@ -983,10 +983,11 @@ private fun AuthenticatedView(
 }
 
 @Composable
-private fun DeveloperSection(
+internal fun DeveloperSection(
     devModeEnabled: Boolean,
     onDevModeChanged: (Boolean) -> Unit,
     apiEnvironment: ApiEnvironment,
+    canSelectApiEnvironment: Boolean,
     onApiEnvironmentChanged: (ApiEnvironment) -> Unit,
     currentUserEmail: String? = null
 ) {
@@ -1013,7 +1014,7 @@ private fun DeveloperSection(
                 )
             }
 
-            if (devModeEnabled) {
+            if (devModeEnabled && canSelectApiEnvironment) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Text(
@@ -1071,7 +1072,9 @@ private fun DeveloperSection(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+            }
 
+            if (devModeEnabled) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                 Text(

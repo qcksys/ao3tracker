@@ -532,7 +532,7 @@ class NativeSyncRegressionTest {
     @Test
     fun `changing environment rejects the old endpoint sign in result`() = runTest {
         fixture { f ->
-            val settings = AppSettings(null)
+            val settings = AppSettings(null, canSelectApiEnvironment = true)
             val tokens = MemoryTokens()
             val service = FakeAuthService(settings)
             val auth = AuthRepository(service, tokens, f.accounts, settings)

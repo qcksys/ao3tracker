@@ -32,10 +32,11 @@ expect fun defaultApiEnvironment(): ApiEnvironment
 
 class AppSettings(
     private val settingsStorage: SettingsStorage?,
-    defaultEnvironment: ApiEnvironment = defaultApiEnvironment()
+    defaultEnvironment: ApiEnvironment = defaultApiEnvironment(),
+    val canSelectApiEnvironment: Boolean = supportsApiEnvironmentSelection()
 ) {
     private val _apiEnvironment = MutableStateFlow(
-        settingsStorage?.getApiEnvironment()?.let { name ->
+        settingsStorage?.getApiEnvironment()?.takeIf { canSelectApiEnvironment }?.let { name ->
             ApiEnvironment.entries.find { it.name == name }
         } ?: defaultEnvironment
     )
@@ -99,8 +100,10 @@ class AppSettings(
         !_incognitoModeEnabled.value && session == trackingGeneration.value
 
     fun setApiEnvironment(environment: ApiEnvironment) {
-        _apiEnvironment.value = environment
-        settingsStorage?.setApiEnvironment(environment.name)
+        if (canSelectApiEnvironment) {
+            _apiEnvironment.value = environment
+            settingsStorage?.setApiEnvironment(environment.name)
+        }
     }
 
     fun setDevModeEnabled(enabled: Boolean) {
