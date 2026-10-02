@@ -11,6 +11,8 @@ expect class SettingsStorage() {
     fun setAutoSyncOnOpenEnabled(enabled: Boolean)
     fun isIncognitoModeEnabled(): Boolean
     fun setIncognitoModeEnabled(enabled: Boolean)
+    fun isDiagnosticDataEnabled(): Boolean
+    fun setDiagnosticDataEnabled(enabled: Boolean)
     fun getNotificationPreferences(): String?
     fun setNotificationPreferences(preferences: String)
     fun getBrowsingPreferences(): String?

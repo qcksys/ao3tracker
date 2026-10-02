@@ -26,6 +26,9 @@ import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.repository.SearchCheckRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
+import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
+import com.qcksys.ao3tracker.diagnostics.DiagnosticsTransport
 import com.qcksys.ao3tracker.data.settings.getSettingsStorage
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.sync.SyncService
@@ -65,6 +68,11 @@ val appModule = module {
     // Settings
     single { getSettingsStorage() }
     single { AppSettings(get()) }
+    single { DiagnosticsTransport() }
+    single(createdAtStart = true) {
+        DiagnosticsClient(get(), get<PushTokenStore>().getPlatform(), get<DiagnosticsTransport>()::send)
+            .also(Diagnostics::install)
+    }
 
     // Favourite tag filters (Room-backed; synced via /api/track/sync's favouriteTags block)
     single { FavouriteTagRepository(get<AccountDataStore>()) }

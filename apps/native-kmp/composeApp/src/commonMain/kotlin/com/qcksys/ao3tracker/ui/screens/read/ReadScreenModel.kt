@@ -20,6 +20,7 @@ import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.util.AppLogger
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import com.qcksys.ao3tracker.util.JsonConfig
 import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
@@ -93,6 +94,11 @@ class ReadScreenModel(
 
     init {
         screenModelScope.launch {
+            appSettings.diagnosticSession.collect {
+                updateWebViewDiagnostics()
+            }
+        }
+        screenModelScope.launch {
             combine(appSettings.browsingPreferences, savedSearchRepository.observeLive()) { preferences, searches ->
                 BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms)
             }.collect { state ->
@@ -141,6 +147,7 @@ class ReadScreenModel(
         val owner = accountData.active.value?.owner
         val accountGeneration = accountData.generation
         val trackingSession = appSettings.captureTrackingSession()
+        val diagnosticSession = appSettings.captureDiagnosticSession()
         val canTrack = {
             trackingSession != null && appSettings.isTrackingSessionCurrent(trackingSession) &&
                 accountData.generation == accountGeneration && accountData.active.value?.owner == owner
@@ -149,6 +156,8 @@ class ReadScreenModel(
             if (accountData.generation != accountGeneration || accountData.active.value?.owner != owner) return@launch
             try {
                 val message = parseWebViewMessage(messageJson)
+                if (message is WebViewMessage.Diagnostic &&
+                    (diagnosticSession == null || diagnosticSession != appSettings.captureDiagnosticSession())) return@launch
                 processMessage(message, canTrack)
             } catch (e: CancellationException) {
                 throw e
@@ -167,6 +176,7 @@ class ReadScreenModel(
         val type = jsonElement.jsonObject["type"]?.jsonPrimitive?.content
 
         return when (type) {
+            "diagnostic" -> WebViewMessage.Diagnostic(jsonElement.jsonObject.getValue("data").jsonObject)
             "workInfo" -> WebViewMessage.WorkInfo(
                 JsonConfig.json.decodeFromString<WorkInfoEvent>(messageJson)
             )
@@ -207,6 +217,7 @@ class ReadScreenModel(
             cachedTrackingSession = currentSession
         }
         when (message) {
+            is WebViewMessage.Diagnostic -> Diagnostics.captureWebView(message.data)
             is WebViewMessage.WorkInfo -> {
                 if (!canTrack()) return
                 pendingWorkInfo = message.event
@@ -233,6 +244,7 @@ class ReadScreenModel(
             is WebViewMessage.BrowsingReady -> {
                 if (!isTrustedAo3Url(message.event.url)) return
                 browsingUrl = message.event.url
+                updateWebViewDiagnostics()
                 refreshBrowsingState(message.event.url)
             }
             is WebViewMessage.SetWorkHidden -> {
@@ -243,6 +255,11 @@ class ReadScreenModel(
                 // Already logged in parseWebViewMessage
             }
         }
+    }
+
+    private suspend fun updateWebViewDiagnostics() {
+        val enabled = appSettings.captureDiagnosticSession() != null
+        _jsInjectionFlow.emit("window.__ao3Tracker?.setDiagnosticsEnabled?.($enabled);")
     }
 
     fun handleLinkAction(action: ReaderLinkAction) {

@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./schemas": "./src/schemas/index.ts",
     "./notifications": "./src/schemas/notifications.ts",
+    "./diagnostics": "./src/schemas/diagnostics.ts",
     "./languages": "./src/languages.json",
     "./dom": "./src/dom/index.ts",
     "./badges": "./src/badges.ts"

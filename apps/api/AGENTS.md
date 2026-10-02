@@ -56,6 +56,12 @@ Next, `vp node scripts/check-api-migrations.mjs` reads the ledger and database c
 
 Review pending SQL before merging: migrations run before the new Worker is deployed and must remain compatible with the currently deployed code. DDL is not transactionally rolled back. If a migration fails or the database was changed outside Drizzle, inspect the live schema and reconcile its history only after confirming which changes are already applied; CI does not baseline history or skip mismatches. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
 
+### Native diagnostics
+
+`POST /ingest` is public and runs before auth/database middleware. It accepts only the strict `@qcksys/ao3tracker-core/diagnostics` schema, caps bodies at 2 KiB, and uses `DIAGNOSTICS_RATE_LIMITER` (120 requests per minute per IP). It constructs a PostHog Capture API request without forwarding client headers, credentials, IPs or arbitrary properties. Do not turn it into a general-purpose proxy or add reading data to the schema.
+
+`POSTHOG_PROJECT_TOKEN` is an encrypted Worker secret, provisioned separately for each environment; never put it in source or the native app. `POSTHOG_REGION=eu` selects EU ingestion. QckSys projects are `ao3tracker-dev` (291114) for `ao3tracker-api-dev`, and `ao3tracker` (69100) for `ao3tracker-api-prod`. Missing tokens disable forwarding. Local tests use inert tokens and mock fetch. For local live checks, supply a development token through the existing secret-loading mechanism. Native clients select `/ingest` on their current API origin and carry a random in-memory session ID; the Worker supplies the environment and disables person profiles and GeoIP. Deploy the Worker before releasing the native client; see [native diagnostics](../native-kmp/AGENTS.md#diagnostics).
+
 ### Framework Stack
 
 - **Hono** - Web framework with OpenAPI support via `@hono/zod-openapi`

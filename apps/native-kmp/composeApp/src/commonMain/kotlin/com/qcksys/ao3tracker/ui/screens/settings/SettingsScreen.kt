@@ -125,6 +125,7 @@ fun SettingsScreen() {
     val apiEnvironment by appSettings.apiEnvironment.collectAsState()
     val autoSyncOnOpen by appSettings.autoSyncOnOpenEnabled.collectAsState()
     val incognitoModeEnabled by appSettings.incognitoModeEnabled.collectAsState()
+    val diagnosticDataEnabled by appSettings.diagnosticDataEnabled.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val lastSyncResult by syncRepository.lastSyncResult.collectAsState()
@@ -345,6 +346,28 @@ fun SettingsScreen() {
             }
 
             BrowsingSettings(appSettings)
+
+            SettingsSection(
+                title = "Privacy",
+                summary = if (diagnosticDataEnabled) "Diagnostic data enabled" else "Diagnostic data disabled",
+                icon = Icons.Default.BugReport
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Send diagnostic data", modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = diagnosticDataEnabled,
+                            onCheckedChange = appSettings::setDiagnosticDataEnabled,
+                            modifier = Modifier.semantics { contentDescription = "Send diagnostic data" }
+                        )
+                    }
+                    Text(
+                        "Help improve AO3 Tracker with app and reader feature usage, error counts, and Sentry crash reports. " +
+                            "Usage events contain no reading content, work IDs, search terms, or account details. " +
+                            "Turning this off stops new diagnostic collection on this device."
+                    )
+                }
+            }
 
             SettingsSection(
                 title = "Sync",

@@ -145,6 +145,14 @@ TypeScript source is in `webview-scripts/src/`. The script imports its DOM extra
 
 **Incognito mode**: `AppSettings` persists this device preference on Android, iOS, and JVM. It pauses automatic work/tag/chapter writes, reading progress, and automatic chapter completion; it does not clear browser cookies/history or disable existing-library sync and explicit saved-search/library actions. `ReadScreenModel` captures a tracking generation when each bridge message arrives and resets metadata/previous-chapter caches between generations. Automatic repository writes pass their session guard through `AccountDataStore.edit`, which checks inside the transaction before and after the write so cancelled sessions roll back. Turning tracking back on requests a fresh current-page snapshot with `window.__ao3Tracker.reportReadingActivity()` rather than replaying buffered incognito events. Keep the reader's paused banner visible while enabled.
 
+### Diagnostics
+
+`DiagnosticsClient` sends allowlisted usage events and warning/error counts through the selected API origin's `POST /ingest`. The WebView uses the native bridge (`diagnostic` messages), never a direct PostHog request. The shared wire schema lives in `@qcksys/ao3tracker-core/diagnostics`; use a type-only import in WebView scripts to avoid bundling Zod. See the [Worker contract](../api/AGENTS.md#native-diagnostics) before changing events or configuration.
+
+Settings → Privacy → Send diagnostic data defaults on and persists through `SettingsStorage`. It controls both PostHog and Sentry, including startup initialization. Incognito additionally suppresses PostHog. Consent/environment changes invalidate queued events, cancel pending sends and rotate the anonymous session ID. The bounded queue is memory-only with no retries or disk persistence. Never include work IDs, reading content, URLs, search terms, account identity or raw log/error text in PostHog events. Sentry remains responsible for crash details. Session replay, autocapture, Sentry automatic sessions and failed-request capture are disabled.
+
+Native sends `window.__ao3Tracker.setDiagnosticsEnabled(boolean)` after `browsingReady` and whenever consent changes. WebView collection starts disabled; preserve its controller across reinjection and keep the native consent check authoritative. Regression tests cover opt-out, restart persistence, environment changes, incognito, bridge filtering and repeated injection.
+
 ### Data Flow
 
 1. WebView JS extracts AO3 page data → sends JSON message to native

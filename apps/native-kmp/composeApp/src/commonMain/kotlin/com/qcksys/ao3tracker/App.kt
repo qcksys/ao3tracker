@@ -5,6 +5,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import cafe.adriel.voyager.navigator.Navigator
@@ -15,6 +16,9 @@ import com.qcksys.ao3tracker.data.push.PushRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.di.appModule
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
+import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
+import com.qcksys.ao3tracker.diagnostics.DiagnosticsTransport
 import com.qcksys.ao3tracker.ui.navigation.MainScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.KoinApplication
@@ -27,6 +31,16 @@ fun App() {
         // Initialize auth state once at app startup
         val authRepository = koinInject<AuthRepository>()
         val pushRepository = koinInject<PushRepository>()
+        val diagnostics = koinInject<DiagnosticsClient>()
+        val diagnosticsTransport = koinInject<DiagnosticsTransport>()
+        DisposableEffect(diagnostics) {
+            diagnostics.capture("app_opened")
+            onDispose {
+                Diagnostics.uninstall(diagnostics)
+                diagnostics.close()
+                diagnosticsTransport.close()
+            }
+        }
 
         LaunchedEffect(Unit) {
             authRepository.initialize()

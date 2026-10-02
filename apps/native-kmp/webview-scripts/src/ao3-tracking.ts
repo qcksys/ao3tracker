@@ -40,14 +40,17 @@ import type {
   ScrollProgressMessage,
   SetWorkHiddenMessage,
 } from "@qcksys/ao3tracker-core/schemas";
+import { installDiagnostics } from "./diagnostics";
 
 declare global {
   interface Window {
     __ao3TrackerInitialized?: boolean;
+    __ao3TrackerDiagnostics?: ReturnType<typeof installDiagnostics>;
     __ao3Tracker?: {
       applyListBadges(payloadJson: string): void;
       reportReadingActivity(): void;
       applyBrowsingState(payloadJson: string): void;
+      setDiagnosticsEnabled(enabled: boolean): void;
     };
     AndroidBridge?: {
       postMessage(msg: string): void;
@@ -76,6 +79,16 @@ function postMessage(msg: string): void {
 function updateScrollAndPost(): void {
   const message = publishScrollPercentage(document, window);
   if (message) postMessage(JSON.stringify(message));
+}
+
+let diagnostics: ReturnType<typeof installDiagnostics> | undefined;
+if (typeof window !== "undefined") {
+  window.__ao3TrackerDiagnostics ??= installDiagnostics(postMessage);
+  diagnostics = window.__ao3TrackerDiagnostics;
+}
+
+function setDiagnosticsEnabled(enabled: boolean): void {
+  diagnostics?.setEnabled(enabled);
 }
 
 let browsingState: BrowsingState = {
@@ -110,6 +123,7 @@ export function applyBrowsingState(payloadJson: string): void {
     browsingState.maxFandoms,
   );
   applyHiddenWorks(document, browsingState.hiddenWorkIds, (workId, hidden) => {
+    diagnostics?.capture({ event: "webview_action", action: hidden ? "hide_work" : "show_work" });
     postMessage(
       JSON.stringify({
         type: "setWorkHidden",
@@ -179,6 +193,7 @@ function init(): void {
   consumeScrollToParam(document, window);
 
   injectSaveSearchButton(document, window.location, (url) => {
+    diagnostics?.capture({ event: "webview_action", action: "save_search" });
     const message: SaveSearchMessage = {
       type: "saveSearch",
       url,
@@ -215,10 +230,12 @@ if (typeof window !== "undefined") {
     applyListBadges,
     reportReadingActivity,
     applyBrowsingState,
+    setDiagnosticsEnabled,
   };
   window.__ao3Tracker.applyListBadges = applyListBadges;
   window.__ao3Tracker.reportReadingActivity = reportReadingActivity;
   window.__ao3Tracker.applyBrowsingState = applyBrowsingState;
+  window.__ao3Tracker.setDiagnosticsEnabled = setDiagnosticsEnabled;
 }
 
 if (typeof window !== "undefined" && !window.__ao3TrackerInitialized) {

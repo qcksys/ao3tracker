@@ -13,8 +13,8 @@ export const PrivacyPage: FC = () => (
         <section>
           <h2 class="mb-3 text-2xl font-semibold">Scope and purpose</h2>
           <p>
-            This policy covers the AO3 Tracker browser extension, AO3 Tracker Beta and their
-            associated account and synchronization service, operated by QckSys. The extension
+            This policy covers the AO3 Tracker browser extension, AO3 Tracker Beta, native apps and
+            their associated account and synchronization service, operated by QckSys. AO3 Tracker
             remembers your reading progress on Archive of Our Own (AO3) and lets you sync it across
             your devices. AO3 Tracker is independent of AO3 and the Organization for Transformative
             Works.
@@ -67,6 +67,25 @@ export const PrivacyPage: FC = () => (
             unrelated to the extension's single purpose, or use it for creditworthiness or lending
             decisions. Transfers are limited to providing and securing the service, complying with
             legal obligations, or with your consent.
+          </p>
+        </section>
+        <section>
+          <h2 class="mb-3 text-2xl font-semibold">Native app diagnostics</h2>
+          <p>
+            Native apps send optional diagnostic data to help us improve reliability: app launches,
+            screen names, sync outcomes, reader feature usage and error counts. These events go
+            through AO3 Tracker's service to PostHog in the EU. They use a random session identifier
+            rather than your account identity and exclude reading content, work IDs, search terms,
+            raw error messages, credentials and IP addresses. We do not record reader sessions or
+            automatically capture page content or clicks.
+          </p>
+          <p class="mt-4">
+            Sentry separately receives crash reports, which can include stack traces, exception
+            messages and device information. Diagnostic data is enabled by default. You can disable
+            both PostHog events and Sentry collection on this device under Settings → Privacy → Send
+            diagnostic data. The choice is saved across restarts. Incognito mode also pauses PostHog
+            events. Unsent PostHog events are kept only in memory and discarded when you opt out or
+            close the app; opting out does not delete reports already received by either provider.
           </p>
         </section>
         <section>
