@@ -299,7 +299,7 @@ test("automatic Android releases reuse CI tests for the same source commit", asy
 
 test("Android releases restore CI task outputs without publishing signed build caches", async () => {
   const ci = (await workflow("ci")).jobs.native;
-  assert.ok(ci.strategy.matrix.include.some((entry) => entry.target === "dev"));
+  assert.equal(ci.strategy.matrix, "${{ fromJSON(needs.workspace.outputs.native_matrix) }}");
   const ciCache = ci.steps.find((step) => step.uses?.startsWith("actions/cache/restore@"));
   const { steps } = (await workflow("release-android")).jobs.release;
   const checkout = steps.find((step) => step.uses?.startsWith("actions/checkout@"));
@@ -309,12 +309,12 @@ test("Android releases restore CI task outputs without publishing signed build c
   assert.equal(
     cache.with.key,
     ciCache.with.key
-      .replace("${{ matrix.target }}", "dev")
+      .replace("${{ matrix.target }}", "checks")
       .replace("${{ github.sha }}", checkout.with.ref),
   );
   assert.equal(
-    cache.with["restore-keys"],
-    ciCache.with["restore-keys"].replace("${{ matrix.target }}", "dev"),
+    cache.with["restore-keys"].split("\n")[0],
+    ciCache.with["restore-keys"].replace("${{ matrix.target }}", "checks").trim(),
   );
   assert.notEqual(cache.with["fail-on-cache-miss"], true);
   assert.ok(!steps.some((step) => /^actions\/cache(?:@|\/save@)/.test(step.uses ?? "")));

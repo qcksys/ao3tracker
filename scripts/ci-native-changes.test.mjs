@@ -148,5 +148,16 @@ test("CLI writes the decision to the GitHub Actions output file", async (t) => {
       },
     },
   );
-  assert.equal(await readFile(outputPath, "utf8"), "required=false\n");
+  const output = await readFile(outputPath, "utf8");
+  assert.match(output, /^required=false\n/);
+  const matrix = JSON.parse(
+    output
+      .split("\n")
+      .find((line) => line.startsWith("matrix="))
+      .slice(7),
+  );
+  assert.deepEqual(
+    matrix.include.map((entry) => entry.target),
+    ["checks"],
+  );
 });

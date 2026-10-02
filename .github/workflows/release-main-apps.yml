@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # The caller holds its non-canceling release lock until every job here finishes.
 jobs:
@@ -26,6 +27,7 @@ jobs:
 
   android:
     needs: api
+    if: needs.api.outputs.android_required == 'true'
     uses: ./.github/workflows/release-android.yml
     secrets: inherit
     with:
@@ -34,6 +36,7 @@ jobs:
 
   chrome:
     needs: api
+    if: needs.api.outputs.chrome_required == 'true'
     uses: ./.github/workflows/release-chrome.yml
     secrets: inherit
     with:
