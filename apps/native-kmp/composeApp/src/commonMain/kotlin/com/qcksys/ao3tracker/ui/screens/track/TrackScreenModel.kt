@@ -12,10 +12,8 @@ import com.qcksys.ao3tracker.data.model.SyncState
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
-import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
-import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.sync.SyncRepository
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -48,24 +46,11 @@ class TrackScreenModel(
     private val repository: Ao3Repository,
     private val syncRepository: SyncRepository,
     private val favouriteTagRepository: FavouriteTagRepository,
-    private val syncTriggers: SyncTriggers,
-    private val savedSearchRepository: SavedSearchRepository
+    private val syncTriggers: SyncTriggers
 ) : ScreenModel {
 
     private val _filterState = MutableStateFlow(FilterState())
     val filterState: StateFlow<FilterState> = _filterState.asStateFlow()
-
-    // Saved searches (named AO3 filter URLs), synced via /api/track/sync.
-    val savedSearches: StateFlow<List<SavedSearchEntity>> = savedSearchRepository
-        .observeLive()
-        .stateIn(
-            scope = screenModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
-    private val _isSavedSearchSheetVisible = MutableStateFlow(false)
-    val isSavedSearchSheetVisible: StateFlow<Boolean> = _isSavedSearchSheetVisible.asStateFlow()
 
     val favouriteTagFilters: StateFlow<Set<String>> = favouriteTagRepository
         .observeFavourites()
@@ -379,28 +364,4 @@ class TrackScreenModel(
     }
 
     private fun favouriteKey(tagType: TagType, tag: String): String = "${tagType.id}\t$tag"
-
-    fun showSavedSearchSheet() {
-        _isSavedSearchSheetVisible.value = true
-    }
-
-    fun hideSavedSearchSheet() {
-        _isSavedSearchSheetVisible.value = false
-    }
-
-    fun renameSavedSearch(id: String, name: String) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        screenModelScope.launch {
-            savedSearchRepository.rename(id, trimmed)
-            syncTriggers.notifySavedSearchChanged()
-        }
-    }
-
-    fun deleteSavedSearch(id: String) {
-        screenModelScope.launch {
-            savedSearchRepository.delete(id)
-            syncTriggers.notifySavedSearchChanged()
-        }
-    }
 }

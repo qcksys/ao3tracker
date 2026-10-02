@@ -35,13 +35,14 @@ actual fun Ao3WebView(
     onMessage: (String) -> Unit,
     onLoadingStateChange: (isLoading: Boolean) -> Unit,
     onBackAtRoot: () -> Unit,
-    jsInjectionFlow: SharedFlow<String>?
+    jsInjectionFlow: SharedFlow<String>?,
+    pageScript: String?
 ) {
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     val onBackAtRootState by rememberUpdatedState(onBackAtRoot)
 
     // Always handle back: WebView goes back if possible, otherwise notify caller
-    BackHandler {
+    BackHandler(enabled = pageScript == null) {
         val view = webViewRef
         if (view != null && view.canGoBack()) {
             view.goBack()
@@ -113,10 +114,12 @@ actual fun Ao3WebView(
                             onNavigationStateChange(it.canGoBack(), it.canGoForward())
                             // Only inject scripts on real AO3 pages
                             if (isTrustedAo3Url(url)) {
-                                // Inject tracking script
-                                it.evaluateJavascript(Ao3TrackingScript.script, null)
-                                // Inject scroll restore script (reads scrollTo from URL param)
-                                it.evaluateJavascript(ScrollRestoreScriptGenerated.script, null)
+                                if (pageScript != null) {
+                                    it.evaluateJavascript(guardAo3Script(pageScript), null)
+                                } else {
+                                    it.evaluateJavascript(Ao3TrackingScript.script, null)
+                                    it.evaluateJavascript(ScrollRestoreScriptGenerated.script, null)
+                                }
                             }
                         }
                     }
@@ -137,6 +140,13 @@ actual fun Ao3WebView(
             }.also { webViewRef = it }
         },
         modifier = modifier,
+        onRelease = { webView ->
+            if (pageScript != null) {
+                webView.stopLoading()
+                webView.removeJavascriptInterface("AndroidBridge")
+                webView.destroy()
+            }
+        },
         update = { webView ->
             if (webView.url != url && isTrustedAo3Url(url)) {
                 webView.loadUrl(url)

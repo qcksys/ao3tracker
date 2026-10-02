@@ -98,6 +98,24 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("""
+            CREATE TABLE IF NOT EXISTS search_check (
+                searchId TEXT NOT NULL PRIMARY KEY,
+                url TEXT NOT NULL,
+                context TEXT NOT NULL,
+                worksJson TEXT NOT NULL,
+                checkedAt INTEGER NOT NULL,
+                previousCheckedAt INTEGER,
+                newWorks INTEGER NOT NULL,
+                updatedWorks INTEGER NOT NULL,
+                FOREIGN KEY(searchId) REFERENCES saved_search(id) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+        """.trimIndent())
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("CREATE TABLE IF NOT EXISTS active_account (id INTEGER NOT NULL PRIMARY KEY, owner TEXT NOT NULL, remoteCursor TEXT, localCursor INTEGER)")

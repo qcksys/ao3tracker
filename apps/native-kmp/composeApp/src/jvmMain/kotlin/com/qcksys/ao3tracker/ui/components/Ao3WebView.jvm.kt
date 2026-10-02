@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,8 +19,15 @@ actual fun Ao3WebView(
     onMessage: (String) -> Unit,
     onLoadingStateChange: (isLoading: Boolean) -> Unit,
     onBackAtRoot: () -> Unit,
-    jsInjectionFlow: SharedFlow<String>?
+    jsInjectionFlow: SharedFlow<String>?,
+    pageScript: String?
 ) {
+    if (pageScript != null) {
+        LaunchedEffect(pageScript) {
+            onMessage("""{"type":"searchCheckError","error":"Search checks are available on Android and iOS."}""")
+        }
+        return
+    }
     // Desktop JVM doesn't have native WebView support in Compose
     // Users can use the external browser instead
     Box(

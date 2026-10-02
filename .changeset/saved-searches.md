@@ -10,7 +10,9 @@ Add saved searches: name and save an AO3 filter/search URL from a "Save this sea
 
 - **Browser extension**: on-page save button and a "Searches" popup tab to open/rename/delete. Both clients show "Saved search" when viewing saved filters, including subsequent result pages. Suggested names list the applied filters, excluding pagination and current results, and remain editable.
 - **Both clients**: add Hide work/Unhide controls to AO3 lists and device-local search preferences in Settings. Default hidden tags start empty and are merged into every AO3 work/bookmark search; Settings also restores hidden works. Choose a language from the AO3 language list and enable automatic filtering for every work and bookmark search, including saved searches. The language setting starts disabled and stays local to each device.
-- **Native (KMP)**: on-page save button in the WebView with a naming dialog (Read tab), and a saved-searches bottom sheet to open/rename/delete (Track tab); new `saved_search` Room table (DB v6) + repository + sync wiring.
+- **Native (KMP)**: on-page save button in the WebView with a naming dialog (Read tab), and a dedicated "Searches" tab to open, rename, or delete saved searches. Rename the "Track" tab to "Works". Includes a new `saved_search` Room table (DB v6) + repository + sync wiring.
+
+On Android and iOS, show the number of new and updated works for each saved search since its previous successful check. Check when opening Searches or refresh manually. Establish a baseline on the first check and keep previous counts if AO3 cannot be checked. Counts and check history stay on this device and do not trigger sync or notifications.
 
 Fix cross-device synchronization and local data safety:
 

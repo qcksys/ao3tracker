@@ -19,6 +19,11 @@ interface Entry {
 
 const entries: Entry[] = [
   {
+    entry: "./src/search-check-entry.ts",
+    name: "Ao3SearchCheck",
+    fileName: "search-check.min.js",
+  },
+  {
     entry: "./src/ao3-tracking.ts",
     name: "Ao3TrackerWebView",
     fileName: "ao3-tracking.min.js",

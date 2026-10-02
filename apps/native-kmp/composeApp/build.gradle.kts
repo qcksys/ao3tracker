@@ -100,13 +100,17 @@ val generateWebviewScriptKotlin by tasks.registering {
     dependsOn(compileWebviewScripts)
 
     val trackingJsFile = webviewScriptsDir.resolve("dist/ao3-tracking.min.js")
+    val searchCheckJsFile = webviewScriptsDir.resolve("dist/search-check.min.js")
     val scrollRestoreJsFile = webviewScriptsDir.resolve("dist/scroll-restore.min.js")
     val trackingOutputFile = generatedKotlinDir.get().file("Ao3TrackingScriptGenerated.kt").asFile
     val scrollRestoreOutputFile = generatedKotlinDir.get().file("ScrollRestoreScriptGenerated.kt").asFile
 
     inputs.file(trackingJsFile)
+    inputs.file(searchCheckJsFile)
     inputs.file(scrollRestoreJsFile)
     outputs.file(trackingOutputFile)
+    val searchCheckOutputFile = generatedKotlinDir.get().file("SearchCheckScriptGenerated.kt").asFile
+    outputs.file(searchCheckOutputFile)
     outputs.file(scrollRestoreOutputFile)
 
     doLast {
@@ -128,6 +132,17 @@ val generateWebviewScriptKotlin by tasks.registering {
 
         trackingOutputFile.parentFile.mkdirs()
         trackingOutputFile.writeText(trackingKotlinContent)
+
+        val searchCheckContent = searchCheckJsFile.readText().replace("$", "\${'$'}")
+        searchCheckOutputFile.writeText("""
+            |package com.qcksys.ao3tracker.webview
+            |
+            |object SearchCheckScriptGenerated {
+            |    val script: String = ${"\"\"\""}
+            |$searchCheckContent
+            |${"\"\"\""}
+            |}
+        """.trimMargin())
 
         // Generate scroll restore script
         val scrollRestoreJsContent = scrollRestoreJsFile.readText()
