@@ -209,6 +209,9 @@ kotlin {
             implementation(libs.kotlinx.coroutinesSwing)
             implementation(libs.ktor.client.java)
         }
+        jvmTest.dependencies {
+            implementation(compose.desktop.uiTestJUnit4)
+        }
     }
 }
 
