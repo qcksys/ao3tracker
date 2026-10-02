@@ -32,6 +32,7 @@ import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsTransport
 import com.qcksys.ao3tracker.data.settings.getSettingsStorage
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.sync.SyncService
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
@@ -92,8 +93,15 @@ val appModule = module {
     // Sync
     single<SyncRemote> { SyncService(get(), get()) }
     single { SyncRepository(get(), get(), get(), get(), get()) }
-    // Eager so the favourites subscriber is wired before the first user action.
-    single(createdAtStart = true) { SyncTriggers(get()) }
+    single {
+        val auth = get<AuthRepository>()
+        val push = get<PushRepository>()
+        SyncCoordinator(get(), auth, get(), signOut = { isCurrentSession ->
+            push.unregisterToken(isCurrentSession)
+            auth.signOut(isCurrentSession)
+        })
+    }
+    single { SyncTriggers(get()) }
 
     // Push notifications
     single<PushTokenStore> { getPushTokenStorage() }

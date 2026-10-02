@@ -17,6 +17,7 @@ import com.qcksys.ao3tracker.data.model.SyncPostRequest
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.SyncSavedSearchItem
 import com.qcksys.ao3tracker.data.model.SyncState
+import com.qcksys.ao3tracker.data.model.SyncDebugEntry
 import com.qcksys.ao3tracker.data.model.SyncTagMetadata
 import com.qcksys.ao3tracker.data.model.SyncWorkMetadata
 import com.qcksys.ao3tracker.data.model.SyncWorkRequest
@@ -37,6 +38,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -56,7 +58,7 @@ class SyncRepository(
     private val chapterDao get() = accountData.database.chapterDao()
     private val tagDao get() = accountData.database.tagDao()
 
-    // Repository-owned scope that survives screen lifecycle changes
+    // Observe account cursors independently of the screens displaying sync status.
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val syncMutex = Mutex()
 
@@ -65,13 +67,10 @@ class SyncRepository(
     )
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
 
-    private val _lastSyncResult = MutableStateFlow<SyncResult?>(null)
-    val lastSyncResult: StateFlow<SyncResult?> = _lastSyncResult.asStateFlow()
-
     init {
         repositoryScope.launch {
             accountData.active.collect { account ->
-                _syncState.value = _syncState.value.copy(lastSyncedAt = account?.remoteCursor)
+                _syncState.update { it.copy(lastSyncedAt = account?.remoteCursor) }
             }
         }
     }
@@ -80,6 +79,7 @@ class SyncRepository(
         private const val TAG = "SyncRepository"
         private const val MAX_WORKS_PER_BATCH = 50
         private const val MAX_ROWS_PER_BATCH = 500
+        private const val MAX_DEBUG_ENTRIES = 100
         private val NUMERIC_ENTITY_REGEX = Regex("&#(\\d+);")
         private val HEX_ENTITY_REGEX = Regex("&#x([0-9a-fA-F]+);")
     }
@@ -92,8 +92,13 @@ class SyncRepository(
      * 2. Merge server data into local database
      * 3. POST local changes since the previous local sync snapshot
      */
-    suspend fun sync(forceFull: Boolean = false, clearOnSuccess: Boolean = false): SyncResult = syncMutex.withLock {
-        runSync(forceFull, clearOnSuccess).also { result ->
+    internal suspend fun sync(
+        forceFull: Boolean = false,
+        clearOnSuccess: Boolean = false,
+        isCurrentOperation: () -> Boolean = { true }
+    ): SyncResult = syncMutex.withLock {
+        if (!isCurrentOperation()) return@withLock SyncResult.NotAuthenticated
+        runSync(forceFull, clearOnSuccess, isCurrentOperation).also { result ->
             val outcome = when (result) {
                 is SyncResult.Success -> "success"
                 is SyncResult.Error -> "error"
@@ -103,9 +108,11 @@ class SyncRepository(
         }
     }
 
-    private suspend fun runSync(forceFull: Boolean, clearOnSuccess: Boolean): SyncResult {
+    private suspend fun runSync(forceFull: Boolean, clearOnSuccess: Boolean, isCurrentOperation: () -> Boolean): SyncResult {
         if (!authRepository.prepareSession()) return SyncResult.NotAuthenticated
-        _syncState.value = _syncState.value.copy(isSyncing = true, statusMessage = "Starting sync...", error = null)
+        if (!isCurrentOperation()) return SyncResult.NotAuthenticated
+        _syncState.update { SyncState(lastSyncedAt = it.lastSyncedAt, isSyncing = true) }
+        updateProgress("Starting sync...", if (forceFull) "Starting full sync" else "Starting incremental sync")
         AppLogger.d("Starting sync operation", TAG)
 
         // Get token from auth state
@@ -114,11 +121,7 @@ class SyncRepository(
         val owner = authRepository.currentOwner()
         if (token == null || owner == null) {
             AppLogger.w("Sync failed: Not authenticated", TAG)
-            _syncState.value = _syncState.value.copy(
-                isSyncing = false,
-                statusMessage = null,
-                error = "Please sign in to sync"
-            )
+            finishSync("Authentication required", error = "Please sign in to sync")
             return SyncResult.NotAuthenticated
         }
 
@@ -129,7 +132,7 @@ class SyncRepository(
             val lastSyncedAt = if (forceFull) null else account?.remoteCursor
             AppLogger.d("Last sync timestamp: ${lastSyncedAt ?: "none (full sync)"}", TAG)
 
-            _syncState.value = _syncState.value.copy(statusMessage = "Fetching data from server...")
+            updateProgress("Fetching data from server...", "Download cursor: ${lastSyncedAt ?: "none (full download)"}")
             val fetchResult = fetchAllServerData(token, lastSyncedAt, owner, generation)
             if (fetchResult.isFailure) {
                 return handleSyncError(fetchResult.exceptionOrNull()!!, token, owner, generation)
@@ -140,7 +143,7 @@ class SyncRepository(
             AppLogger.d("Server latestWorkLastReadAt: ${serverData.latestWorkLastReadAt ?: "null (no server tracks)"}", TAG)
 
             // Order matters: apply tracking data first (lastReadAt), then layer metadata on top.
-            _syncState.value = _syncState.value.copy(statusMessage = "Applying server changes...")
+            updateProgress("Applying server changes...", "Applying ${serverData.works.size} works, ${serverData.chapters.size} chapters, ${serverData.favouriteTags.size} favourites, ${serverData.savedSearches.size} saved searches")
             val pending = accountData.forAccount(owner, { authRepository.isCurrentSession(token, owner) && accountData.generation == generation }) {
                 applyServerWorkChanges(serverData.works)
                 applyServerWorkMetadata(serverData.workMetadata)
@@ -173,7 +176,7 @@ class SyncRepository(
                     )
                 }
 
-                _syncState.value = _syncState.value.copy(statusMessage = "Preparing local changes...")
+                updateProgress("Preparing local changes...")
                 val lastSyncTimestamp = if (forceFull) null else account?.localCursor
                 val localWorks = getLocalWorkChanges(lastSyncTimestamp)
                 val localChapters = getLocalChapterChanges(lastSyncTimestamp)
@@ -205,9 +208,7 @@ class SyncRepository(
             )
 
             if (localWorks.isNotEmpty() || localChapters.isNotEmpty() || pendingFavouriteTags.isNotEmpty() || pendingSavedSearches.isNotEmpty()) {
-                _syncState.value = _syncState.value.copy(
-                    statusMessage = "Sending ${localWorks.size} works, ${localChapters.size} chapters, ${pendingFavouriteTags.size} favourites..."
-                )
+                updateProgress("Sending local changes...", "Pending upload: ${localWorks.size} works, ${localChapters.size} chapters, ${pendingFavouriteTags.size} favourites, ${pendingSavedSearches.size} saved searches")
                 val postResult = sendLocalChanges(
                     token,
                     owner,
@@ -224,6 +225,7 @@ class SyncRepository(
                 // server ignored just means our row was stale; either way local
                 // matches server now via applyRemote in a later pull).
             }
+            updateProgress(if (clearOnSuccess) "Clearing synced local data..." else "Saving sync cursors...")
             accountData.forAccount(owner, { authRepository.isCurrentSession(token, owner) && accountData.generation == generation }) {
                 check(!clearOnSuccess || accountData.localRevision == pending.localRevision) {
                     "Local data changed during sync. Please retry before clearing it."
@@ -238,12 +240,8 @@ class SyncRepository(
                 else accountData.saveSyncCursors(serverLastUpdated, syncStartedAt)
             }
 
-            _syncState.value = _syncState.value.copy(
-                lastSyncedAt = if (clearOnSuccess) null else serverLastUpdated,
-                isSyncing = false,
-                statusMessage = null,
-                error = null
-            )
+            _syncState.update { it.copy(lastSyncedAt = if (clearOnSuccess) null else serverLastUpdated) }
+            finishSync("Sync completed: ${serverData.works.size} works and ${serverData.chapters.size} chapters downloaded; ${localWorks.size} works and ${localChapters.size} chapters uploaded")
 
             AppLogger.d("Sync completed: ${serverData.works.size} works, ${serverData.chapters.size} chapters from server; ${localWorks.size} works, ${localChapters.size} chapters to server", TAG)
             SyncResult.Success(
@@ -254,40 +252,33 @@ class SyncRepository(
                 syncedAt = serverLastUpdated
             )
         } catch (e: CancellationException) {
-            _syncState.value = _syncState.value.copy(isSyncing = false, statusMessage = null)
+            finishSync("Sync cancelled")
             currentCoroutineContext().ensureActive()
             SyncResult.NotAuthenticated
         } catch (e: Exception) {
             AppLogger.e("Sync exception: ${e.message}", TAG, e)
-            _syncState.value = _syncState.value.copy(
-                isSyncing = false,
-                statusMessage = null,
-                error = e.message
-            )
+            finishSync("Sync failed", error = e.message ?: "Sync failed")
             SyncResult.Error(e.message ?: "Sync failed")
         }
     }
 
-    /**
-     * Forces a full sync by clearing the last sync timestamp.
-     * Launches in repository scope to survive screen lifecycle changes.
-     */
-    fun forceFullSync() {
-        if (_syncState.value.isSyncing) {
-            AppLogger.d("Sync already in progress, skipping", TAG)
-            return
-        }
-        repositoryScope.launch {
-            val result = sync(forceFull = true)
-            _lastSyncResult.value = result
+    private fun updateProgress(message: String, detail: String = message) {
+        val entry = SyncDebugEntry(Clock.System.now().toString(), detail)
+        _syncState.update {
+            it.copy(statusMessage = message, debugEntries = (it.debugEntries + entry).takeLast(MAX_DEBUG_ENTRIES))
         }
     }
 
-    /**
-     * Clears the last sync result after it has been consumed by the UI.
-     */
-    fun clearLastSyncResult() {
-        _lastSyncResult.value = null
+    private fun finishSync(message: String, error: String? = null) {
+        val entry = SyncDebugEntry(Clock.System.now().toString(), message)
+        _syncState.update {
+            it.copy(
+                isSyncing = false,
+                statusMessage = null,
+                error = error,
+                debugEntries = (it.debugEntries + entry).takeLast(MAX_DEBUG_ENTRIES)
+            )
+        }
     }
 
     /**
@@ -310,9 +301,12 @@ class SyncRepository(
         var hasMore = true
         var serverLastUpdated: String? = null
         var latestWorkLastReadAt: String? = null
+        var page = 0
 
         while (hasMore) {
             ensureCurrentSession(token, owner, generation)
+            page++
+            updateProgress("Fetching server page $page...", "Requesting page $page (work cursor: ${workCursor ?: "start"}, limit: $MAX_WORKS_PER_BATCH)")
             val result = syncService.fetchSyncData(
                 token = token,
                 lastSyncedAt = lastSyncedAt,
@@ -325,6 +319,8 @@ class SyncRepository(
             }
 
             val response = result.getOrThrow()
+            ensureCurrentSession(token, owner, generation)
+            updateProgress("Received server page $page", "Downloaded page $page: ${response.works.size} works, ${response.chapters.size} chapters, ${response.favouriteTags.orEmpty().size} favourites, ${response.savedSearches.orEmpty().size} saved searches; more pages: ${response.hasMore}")
             allWorks.addAll(response.works)
             allChapters.addAll(response.chapters)
             allWorkMetadata.addAll(response.workMetadata)
@@ -387,7 +383,11 @@ class SyncRepository(
                 savedSearches = savedSearchBatches.getOrNull(batchIndex)
             )
             batchIndex++
-            return syncService.sendSyncData(token, request).map { }
+            updateProgress("Sending batch $batchIndex...", "Uploading batch $batchIndex: ${request.works.size} works, ${request.chapters.size} chapters, ${request.favouriteTags.orEmpty().size} favourites, ${request.savedSearches.orEmpty().size} saved searches")
+            val result = syncService.sendSyncData(token, request)
+            ensureCurrentSession(token, owner, generation)
+            if (result.isSuccess) updateProgress("Sent batch $batchIndex", "Upload batch $batchIndex acknowledged")
+            return result.map { }
         }
 
         // Send works in batches of MAX_WORKS_PER_BATCH with their chapters
@@ -455,20 +455,12 @@ class SyncRepository(
             is UnauthorizedException -> {
                 AppLogger.w("Sync failed: Not authenticated", TAG)
                 authRepository.invalidateSession()
-                _syncState.value = _syncState.value.copy(
-                    isSyncing = false,
-                    statusMessage = null,
-                    error = "Please sign in to sync"
-                )
+                finishSync("Authentication required", error = "Please sign in to sync")
                 SyncResult.NotAuthenticated
             }
             else -> {
                 AppLogger.e("Sync failed: ${error.message}", TAG, error)
-                _syncState.value = _syncState.value.copy(
-                    isSyncing = false,
-                    statusMessage = null,
-                    error = error.message
-                )
+                finishSync("Sync failed", error = error.message ?: "Sync failed")
                 SyncResult.Error(error.message ?: "Sync failed")
             }
         }
