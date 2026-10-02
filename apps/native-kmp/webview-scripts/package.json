@@ -1,6 +1,6 @@
 {
   "name": "ao3tracker-webview-scripts",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "WebView scripts for AO3 Tracker (native KMP app)",
   "type": "module",
