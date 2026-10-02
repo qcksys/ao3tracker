@@ -489,11 +489,6 @@ class Ao3Repository(private val accountData: AccountDataStore) {
         workDao.updateAllSubscriptions(subscribed, now, now)
     }
 
-    suspend fun deleteChapter(chapterId: Long, workId: Long) = accountData.edit {
-        val now = getCurrentTimestamp()
-        chapterDao.softDeleteChapter(chapterId, workId, now, now)
-    }
-
     suspend fun markChapterAsRead(
         chapterId: Long,
         workId: Long,

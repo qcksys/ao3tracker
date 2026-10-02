@@ -47,12 +47,6 @@ class WorkDetailScreenModel(
         _navigateToChapter.value = null
     }
 
-    fun deleteChapter(chapterId: Long) {
-        screenModelScope.launch {
-            repository.deleteChapter(chapterId, workId)
-        }
-    }
-
     fun deleteWork() {
         screenModelScope.launch {
             repository.deleteWork(workId)

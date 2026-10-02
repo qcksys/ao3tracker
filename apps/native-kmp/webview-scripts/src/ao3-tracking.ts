@@ -171,9 +171,11 @@ function reportPageMetadata(): void {
   }
 }
 
+let restoringScroll = false;
+
 export function reportReadingActivity(): void {
   reportPageMetadata();
-  if (!classifyAo3Url(window.location.href).isWork) return;
+  if (restoringScroll || !classifyAo3Url(window.location.href).isWork) return;
 
   const percentage = computeChapterScrollPercentage(document, window);
   if (percentage === null || Number.isNaN(percentage)) return;
@@ -193,11 +195,14 @@ export function reportReadingActivity(): void {
 
 function init(): void {
   reportPageMetadata();
-  if (classifyAo3Url(window.location.href).isWork) {
-    observeChapterProgress(document, window, (message) => postMessage(JSON.stringify(message)));
-  }
-
-  consumeScrollToParam(document, window);
+  const startProgressTracking = (): void => {
+    restoringScroll = false;
+    if (classifyAo3Url(window.location.href).isWork) {
+      observeChapterProgress(document, window, (message) => postMessage(JSON.stringify(message)));
+    }
+  };
+  restoringScroll = consumeScrollToParam(document, window, startProgressTracking);
+  if (!restoringScroll) startProgressTracking();
 
   injectSaveSearchButton(document, window.location, (url) => {
     diagnostics?.capture({ event: "webview_action", action: "save_search" });

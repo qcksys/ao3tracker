@@ -130,6 +130,8 @@ Sync uploads batch at most 50 works, 500 favourite tags and 500 saved searches p
 
 ### WebView Integration
 
+Opening the reader from Work Details or another native navigation action resets cached chapter-navigation state so it cannot complete the previously open chapter. Work Details supports marking chapters read or unread, without chapter deletion. The WebView restores an explicit scroll position before publishing progress; keep that ordering when changing the injected scripts.
+
 The app embeds AO3 in a WebView and injects JavaScript to:
 
 - Extract work metadata, chapters, and tags

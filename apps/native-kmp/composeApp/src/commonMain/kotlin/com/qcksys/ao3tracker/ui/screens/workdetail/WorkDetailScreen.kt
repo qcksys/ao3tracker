@@ -96,7 +96,6 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
     val tabNavigator = LocalTabNavigator.current
     val work by screenModel.work.collectAsState()
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var chapterToDelete by remember { mutableStateOf<Chapter?>(null) }
     var showDebugDialog by remember { mutableStateOf(false) }
 
     // JSON formatter for debug output
@@ -237,8 +236,7 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
                             chapter = chapter,
                             onClick = { navigateToRead(buildChapterUrl(workData.id, chapter.id), chapter.readProgress ?: 0f) },
                             onMarkAsRead = { screenModel.markChapterAsRead(chapter.id) },
-                            onMarkAsUnread = { screenModel.markChapterAsUnread(chapter.id) },
-                            onDelete = { chapterToDelete = chapter }
+                            onMarkAsUnread = { screenModel.markChapterAsUnread(chapter.id) }
                         )
                     }
                 }
@@ -274,30 +272,6 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Delete chapter dialog
-    chapterToDelete?.let { chapter ->
-        AlertDialog(
-            onDismissRequest = { chapterToDelete = null },
-            title = { Text("Delete Chapter") },
-            text = { Text("Are you sure you want to delete the progress for \"${chapter.displayTitle}\"?") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        screenModel.deleteChapter(chapter.id)
-                        chapterToDelete = null
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { chapterToDelete = null }) {
                     Text("Cancel")
                 }
             }
@@ -666,8 +640,7 @@ private fun ChapterCard(
     chapter: Chapter,
     onClick: () -> Unit,
     onMarkAsRead: () -> Unit,
-    onMarkAsUnread: () -> Unit,
-    onDelete: () -> Unit
+    onMarkAsUnread: () -> Unit
 ) {
     val progress = chapter.readProgress ?: 0f
     val hasStarted = progress > 0f
@@ -751,15 +724,6 @@ private fun ChapterCard(
                             contentDescription = "Mark as unread",
                             modifier = Modifier.size(20.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete chapter progress",
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 }

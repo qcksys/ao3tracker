@@ -436,6 +436,9 @@ class ReadScreenModel(
         val generation = accountData.generation
         val destination = navigation.workId?.let { repository.getWorkByIdOnce(it)?.readNavigation() } ?: navigation
         if (accountData.generation != generation) return
+        pendingWorkInfo = null
+        pendingWorkTags = null
+        previousChapter = null
         if (destination.scrollProgress == null) {
             navigateToExternalUrl(destination.url)
         } else {
