@@ -4,7 +4,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import com.qcksys.ao3tracker.data.settings.AppSettings
@@ -15,6 +17,22 @@ import org.junit.Test
 class BrowsingSettingsTest {
     @get:Rule
     val rule = createComposeRule()
+
+    @Test
+    fun selectsLanguageAndTogglesFiltering() {
+        val settings = AppSettings(null)
+        rule.setContent { MaterialTheme { BrowsingSettings(settings) } }
+        rule.onNodeWithText("Search preferences").performClick()
+        rule.onNodeWithText("English").performClick()
+        rule.onNodeWithText("Français").performScrollTo().performClick()
+        assertEquals("fr", settings.browsingPreferences.value.searchLanguage)
+        assertEquals(false, settings.browsingPreferences.value.languageFilterEnabled)
+        rule.onNodeWithContentDescription("Filter searches by language").performClick()
+        assertEquals(true, settings.browsingPreferences.value.languageFilterEnabled)
+        rule.onNodeWithContentDescription("Filter searches by language").performClick()
+        assertEquals(false, settings.browsingPreferences.value.languageFilterEnabled)
+        assertEquals("fr", settings.browsingPreferences.value.searchLanguage)
+    }
 
     @Test
     fun preservesDraftWhileCollapsedAndRestoresHiddenWorks() {

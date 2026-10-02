@@ -90,7 +90,7 @@ class ReadScreenModel(
     init {
         screenModelScope.launch {
             combine(appSettings.browsingPreferences, savedSearchRepository.observeLive()) { preferences, searches ->
-                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url })
+                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage)
             }.collect { state ->
                 browsingUrl?.let { emitBrowsingState(it, state) }
             }
@@ -282,7 +282,7 @@ class ReadScreenModel(
     private suspend fun refreshBrowsingState(url: String) {
         val preferences = appSettings.browsingPreferences.value
         val searches = savedSearchRepository.observeLive().first()
-        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }))
+        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage))
     }
 
     private suspend fun emitBrowsingState(url: String, state: BrowsingState) {

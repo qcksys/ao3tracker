@@ -24,7 +24,12 @@ import {
 import { runSync, StaleSyncSessionError } from "@/lib/sync";
 import { initializeAccount, setApiEndpoint, setAuthSession } from "@/lib/account-state";
 import { withLocalState } from "@/lib/local-state";
-import { getBrowsingState, setHiddenTags, setWorkHidden } from "@/lib/browsing-repo";
+import {
+  getBrowsingState,
+  setHiddenTags,
+  setSearchLanguage,
+  setWorkHidden,
+} from "@/lib/browsing-repo";
 import { browsingPreferencesItem } from "@/lib/storage";
 import {
   buildBadgePayloads,
@@ -155,9 +160,15 @@ async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToP
   switch (msg.kind) {
     case "unhideWork":
     case "setHiddenTags":
+    case "setSearchLanguage":
       return withLocalState(async () => {
         if (msg.kind === "unhideWork") await setWorkHidden(msg.workId, false);
-        else await setHiddenTags(msg.hiddenTags);
+        else if (msg.kind === "setHiddenTags") await setHiddenTags(msg.hiddenTags);
+        else
+          await setSearchLanguage({
+            languageFilterEnabled: msg.languageFilterEnabled,
+            searchLanguage: msg.searchLanguage,
+          });
         return { kind: "state", state: await getPopupState() };
       });
     case "getState":

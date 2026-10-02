@@ -9,7 +9,7 @@
 Add saved searches: name and save an AO3 filter/search URL from a "Save this search" button injected on AO3 list pages, then open, rename, or delete them later. Saved searches sync across devices via `/api/track/sync` (new optional `savedSearches` array, per-row LWW keyed by a client-generated uuid, tombstone deletes) backed by a new `user_saved_search` table.
 
 - **Browser extension**: on-page save button and a "Searches" popup tab to open/rename/delete. Both clients show "Saved search" when viewing saved filters, including subsequent result pages. Suggested names list the applied filters, excluding pagination and current results, and remain editable.
-- **Both clients**: add Hide work/Unhide controls to AO3 lists and device-local search preferences in Settings. Default hidden tags start empty and are merged into every AO3 work/bookmark search; Settings also restores hidden works.
+- **Both clients**: add Hide work/Unhide controls to AO3 lists and device-local search preferences in Settings. Default hidden tags start empty and are merged into every AO3 work/bookmark search; Settings also restores hidden works. Choose a language from the AO3 language list and enable automatic filtering for every work and bookmark search, including saved searches. The language setting starts disabled and stays local to each device.
 - **Native (KMP)**: on-page save button in the WebView with a naming dialog (Read tab), and a saved-searches bottom sheet to open/rename/delete (Track tab); new `saved_search` Room table (DB v6) + repository + sync wiring.
 
 Fix cross-device synchronization and local data safety:

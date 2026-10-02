@@ -80,6 +80,11 @@ class AppSettings(
         setBrowsingPreferences(_browsingPreferences.value.copy(hiddenTags = tags))
     }
 
+    fun setSearchLanguage(language: String, enabled: Boolean) {
+        require(Ao3Languages.options.any { it.first == language }) { "Unknown AO3 language" }
+        setBrowsingPreferences(_browsingPreferences.value.copy(searchLanguage = language, languageFilterEnabled = enabled))
+    }
+
     fun setWorkHidden(workId: Long, hidden: Boolean) {
         if (workId <= 0) return
         val ids = _browsingPreferences.value.hiddenWorkIds.toMutableSet()

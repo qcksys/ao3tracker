@@ -49,6 +49,10 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   setWorkHiddenSchema.pick({ workId: true }).extend({ kind: z.literal("unhideWork") }),
   browsingPreferencesSchema.pick({ hiddenTags: true }).extend({ kind: z.literal("setHiddenTags") }),
+  browsingPreferencesSchema
+    .pick({ languageFilterEnabled: true, searchLanguage: true })
+    .required()
+    .extend({ kind: z.literal("setSearchLanguage") }),
   z.object({ kind: z.literal("getState") }),
   z.object({ kind: z.literal("syncNow") }),
   z.object({

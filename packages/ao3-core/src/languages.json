@@ -1,0 +1,674 @@
+[
+  {
+    "code": "so",
+    "label": "af Soomaali"
+  },
+  {
+    "code": "afr",
+    "label": "Afrikaans"
+  },
+  {
+    "code": "akk",
+    "label": "𒀝𒅗𒁺𒌑"
+  },
+  {
+    "code": "ar",
+    "label": "العربية"
+  },
+  {
+    "code": "ase",
+    "label": "American Sign Language"
+  },
+  {
+    "code": "egy",
+    "label": "𓂋𓏺𓈖 𓆎𓅓𓏏𓊖"
+  },
+  {
+    "code": "grc",
+    "label": "Ἑλληνικὴ φωνή"
+  },
+  {
+    "code": "oji",
+    "label": "Anishinaabemowin"
+  },
+  {
+    "code": "arc",
+    "label": "ܐܪܡܝܐ | ארמיא"
+  },
+  {
+    "code": "hy",
+    "label": "հայերեն"
+  },
+  {
+    "code": "ast",
+    "label": "asturianu"
+  },
+  {
+    "code": "ain",
+    "label": "Aynu itak | アイヌ イタㇰ"
+  },
+  {
+    "code": "azj",
+    "label": "Azərbaycan dili | آذربایجان دیلی"
+  },
+  {
+    "code": "id",
+    "label": "Bahasa Indonesia"
+  },
+  {
+    "code": "ms",
+    "label": "Bahasa Malaysia"
+  },
+  {
+    "code": "bg",
+    "label": "Български"
+  },
+  {
+    "code": "bn",
+    "label": "বাংলা"
+  },
+  {
+    "code": "jv",
+    "label": "Basa Jawa"
+  },
+  {
+    "code": "sun",
+    "label": "ᮘᮞ ᮞᮥᮔ᮪ᮓ | Basa Sunda"
+  },
+  {
+    "code": "ba",
+    "label": "Башҡорт теле"
+  },
+  {
+    "code": "be",
+    "label": "беларуская"
+  },
+  {
+    "code": "bar",
+    "label": "Boarisch"
+  },
+  {
+    "code": "bos",
+    "label": "Bosanski"
+  },
+  {
+    "code": "br",
+    "label": "Brezhoneg"
+  },
+  {
+    "code": "bfi",
+    "label": "British Sign Language"
+  },
+  {
+    "code": "bua",
+    "label": "Буряад хэлэн | ᠪᠤᠷᠢᠶᠠᠳ ᠮᠣᠩᠭᠣᠯ ᠬᠡᠯᠡ"
+  },
+  {
+    "code": "ca",
+    "label": "Català"
+  },
+  {
+    "code": "ceb",
+    "label": "Cebuano"
+  },
+  {
+    "code": "cs",
+    "label": "Čeština"
+  },
+  {
+    "code": "chn",
+    "label": "Chinuk Wawa"
+  },
+  {
+    "code": "chv",
+    "label": "Чӑваш чӗлхи"
+  },
+  {
+    "code": "gyn",
+    "label": "Creolese"
+  },
+  {
+    "code": "cy",
+    "label": "Cymraeg"
+  },
+  {
+    "code": "da",
+    "label": "Dansk"
+  },
+  {
+    "code": "de",
+    "label": "Deutsch"
+  },
+  {
+    "code": "div",
+    "label": "ދިވެހި,"
+  },
+  {
+    "code": "et",
+    "label": "eesti keel"
+  },
+  {
+    "code": "el",
+    "label": "Ελληνικά"
+  },
+  {
+    "code": "sux",
+    "label": "𒅴𒂠"
+  },
+  {
+    "code": "ang",
+    "label": "Eald Englisċ"
+  },
+  {
+    "code": "en",
+    "label": "English"
+  },
+  {
+    "code": "es",
+    "label": "Español"
+  },
+  {
+    "code": "eo",
+    "label": "Esperanto"
+  },
+  {
+    "code": "eu",
+    "label": "Euskara"
+  },
+  {
+    "code": "fa",
+    "label": "فارسی"
+  },
+  {
+    "code": "fil",
+    "label": "Filipino"
+  },
+  {
+    "code": "cha",
+    "label": "Finuʼ Chamorro"
+  },
+  {
+    "code": "nld",
+    "label": "Vlaams Nederlands"
+  },
+  {
+    "code": "fr",
+    "label": "Français"
+  },
+  {
+    "code": "frr",
+    "label": "Friisk"
+  },
+  {
+    "code": "fry",
+    "label": "Frysk"
+  },
+  {
+    "code": "fur",
+    "label": "Furlan"
+  },
+  {
+    "code": "ga",
+    "label": "Gaeilge"
+  },
+  {
+    "code": "gd",
+    "label": "Gàidhlig"
+  },
+  {
+    "code": "gl",
+    "label": "Galego"
+  },
+  {
+    "code": "got",
+    "label": "𐌲𐌿𐍄𐌹𐍃𐌺𐌰"
+  },
+  {
+    "code": "ko",
+    "label": "한국어"
+  },
+  {
+    "code": "hau",
+    "label": "Hausa | هَرْشَن هَوْسَ"
+  },
+  {
+    "code": "hi",
+    "label": "हिन्दी"
+  },
+  {
+    "code": "mww",
+    "label": "Hmoob dawb"
+  },
+  {
+    "code": "hr",
+    "label": "Hrvatski"
+  },
+  {
+    "code": "haw",
+    "label": "ʻŌlelo Hawaiʻi"
+  },
+  {
+    "code": "ia",
+    "label": "Interlingua"
+  },
+  {
+    "code": "zu",
+    "label": "isiZulu"
+  },
+  {
+    "code": "is",
+    "label": "Íslenska"
+  },
+  {
+    "code": "it",
+    "label": "Italiano"
+  },
+  {
+    "code": "he",
+    "label": "עברית"
+  },
+  {
+    "code": "kal",
+    "label": "Kalaallisut"
+  },
+  {
+    "code": "xal",
+    "label": "Хальмг Өөрдин келн"
+  },
+  {
+    "code": "moh",
+    "label": "Kanienʼkéha"
+  },
+  {
+    "code": "kan",
+    "label": "ಕನ್ನಡ"
+  },
+  {
+    "code": "kat",
+    "label": "ქართული"
+  },
+  {
+    "code": "cor",
+    "label": "Kernewek"
+  },
+  {
+    "code": "khm",
+    "label": "ភាសាខ្មែរ"
+  },
+  {
+    "code": "qkz",
+    "label": "Khuzdul"
+  },
+  {
+    "code": "sw",
+    "label": "Kiswahili"
+  },
+  {
+    "code": "ht",
+    "label": "kreyòl ayisyen"
+  },
+  {
+    "code": "ku",
+    "label": "Kurdî | کوردی"
+  },
+  {
+    "code": "kir",
+    "label": "Кыргызча"
+  },
+  {
+    "code": "lad",
+    "label": "Ladino / לאדינו"
+  },
+  {
+    "code": "fcs",
+    "label": "Langue des signes québécoise"
+  },
+  {
+    "code": "lv",
+    "label": "Latviešu valoda"
+  },
+  {
+    "code": "lb",
+    "label": "Lëtzebuergesch"
+  },
+  {
+    "code": "lt",
+    "label": "Lietuvių kalba"
+  },
+  {
+    "code": "la",
+    "label": "Lingua latina"
+  },
+  {
+    "code": "hu",
+    "label": "Magyar"
+  },
+  {
+    "code": "mk",
+    "label": "македонски"
+  },
+  {
+    "code": "ml",
+    "label": "മലയാളം"
+  },
+  {
+    "code": "mt",
+    "label": "Malti"
+  },
+  {
+    "code": "mnc",
+    "label": "ᠮᠠᠨᠵᡠ ᡤᡳᠰᡠᠨ"
+  },
+  {
+    "code": "qmd",
+    "label": "Mando'a"
+  },
+  {
+    "code": "mr",
+    "label": "मराठी"
+  },
+  {
+    "code": "mic",
+    "label": "Mi'kmaq"
+  },
+  {
+    "code": "enm",
+    "label": "Middel Englisch"
+  },
+  {
+    "code": "mik",
+    "label": "Mikisúkî"
+  },
+  {
+    "code": "hnj",
+    "label": "Moob leeg"
+  },
+  {
+    "code": "mon",
+    "label": "ᠮᠣᠩᠭᠣᠯ ᠪᠢᠴᠢᠭ᠌ | Монгол Кирилл үсэг"
+  },
+  {
+    "code": "my",
+    "label": "မြန်မာဘာသာ"
+  },
+  {
+    "code": "qnv",
+    "label": "Lìʼfya leNaʼvi"
+  },
+  {
+    "code": "nah",
+    "label": "Nāhuatl"
+  },
+  {
+    "code": "ppl",
+    "label": "Nawat"
+  },
+  {
+    "code": "nl",
+    "label": "Nederlands"
+  },
+  {
+    "code": "ja",
+    "label": "日本語"
+  },
+  {
+    "code": "no",
+    "label": "Norsk"
+  },
+  {
+    "code": "ce",
+    "label": "Нохчийн мотт"
+  },
+  {
+    "code": "ood",
+    "label": "O’odham Ñiok"
+  },
+  {
+    "code": "ota",
+    "label": "لسان عثمانى"
+  },
+  {
+    "code": "ps",
+    "label": "پښتو"
+  },
+  {
+    "code": "pdc",
+    "label": "Pennsilfaanisch Deitsch"
+  },
+  {
+    "code": "nds",
+    "label": "Plattdüütsch"
+  },
+  {
+    "code": "pl",
+    "label": "Polski"
+  },
+  {
+    "code": "ptBR",
+    "label": "Português brasileiro"
+  },
+  {
+    "code": "ptPT",
+    "label": "Português europeu"
+  },
+  {
+    "code": "fuc",
+    "label": "Pulaar"
+  },
+  {
+    "code": "pa",
+    "label": "ਪੰਜਾਬੀ"
+  },
+  {
+    "code": "kaz",
+    "label": "qazaqşa | қазақша"
+  },
+  {
+    "code": "qya",
+    "label": "Quenya"
+  },
+  {
+    "code": "ro",
+    "label": "Română"
+  },
+  {
+    "code": "rom",
+    "label": "RRomani Ćhib"
+  },
+  {
+    "code": "ru",
+    "label": "Русский"
+  },
+  {
+    "code": "smi",
+    "label": "Sámi"
+  },
+  {
+    "code": "sah",
+    "label": "саха тыла"
+  },
+  {
+    "code": "sco",
+    "label": "Scots"
+  },
+  {
+    "code": "sq",
+    "label": "Shqip"
+  },
+  {
+    "code": "sjn",
+    "label": "Sindarin"
+  },
+  {
+    "code": "si",
+    "label": "සිංහල"
+  },
+  {
+    "code": "sk",
+    "label": "Slovenčina"
+  },
+  {
+    "code": "slv",
+    "label": "Slovenščina"
+  },
+  {
+    "code": "sla",
+    "label": "Slověnьskъ Językъ"
+  },
+  {
+    "code": "gem",
+    "label": "Sprēkō Þiudiskō"
+  },
+  {
+    "code": "sr",
+    "label": "Српски"
+  },
+  {
+    "code": "fi",
+    "label": "suomi"
+  },
+  {
+    "code": "sv",
+    "label": "Svenska"
+  },
+  {
+    "code": "ta",
+    "label": "தமிழ்"
+  },
+  {
+    "code": "mri",
+    "label": "te reo Māori"
+  },
+  {
+    "code": "tel",
+    "label": "తెలుగు"
+  },
+  {
+    "code": "tir",
+    "label": "ትግርኛ"
+  },
+  {
+    "code": "th",
+    "label": "ไทย"
+  },
+  {
+    "code": "tqx",
+    "label": "Thermian"
+  },
+  {
+    "code": "bod",
+    "label": "བོད་སྐད་"
+  },
+  {
+    "code": "vi",
+    "label": "Tiếng Việt"
+  },
+  {
+    "code": "cop",
+    "label": "ϯⲙⲉⲧⲣⲉⲙⲛ̀ⲭⲏⲙⲓ"
+  },
+  {
+    "code": "tlh",
+    "label": "tlhIngan-Hol"
+  },
+  {
+    "code": "tpi",
+    "label": "Tok Pisin"
+  },
+  {
+    "code": "tok",
+    "label": "toki pona"
+  },
+  {
+    "code": "trf",
+    "label": "Trinidadian Creole"
+  },
+  {
+    "code": "tsd",
+    "label": "τσακώνικα"
+  },
+  {
+    "code": "chr",
+    "label": "ᏣᎳᎩ ᎦᏬᏂᎯᏍᏗ"
+  },
+  {
+    "code": "tr",
+    "label": "Türkçe"
+  },
+  {
+    "code": "uk",
+    "label": "Українська"
+  },
+  {
+    "code": "ale",
+    "label": "Unangam Tunuu"
+  },
+  {
+    "code": "qlq",
+    "label": "Uncategorized Constructed Languages"
+  },
+  {
+    "code": "urd",
+    "label": "اُردُو"
+  },
+  {
+    "code": "uig",
+    "label": "ئۇيغۇر تىلى"
+  },
+  {
+    "code": "uzb",
+    "label": "O'zbekcha"
+  },
+  {
+    "code": "vol",
+    "label": "Volapük"
+  },
+  {
+    "code": "wln",
+    "label": "Walon"
+  },
+  {
+    "code": "yi",
+    "label": "יידיש"
+  },
+  {
+    "code": "yua",
+    "label": "maayaʼ tʼàan"
+  },
+  {
+    "code": "crh",
+    "label": "къырымтатар тили | qırımtatar tili"
+  },
+  {
+    "code": "tat",
+    "label": "татар теле"
+  },
+  {
+    "code": "myv",
+    "label": "Эрзянь кель"
+  },
+  {
+    "code": "amh",
+    "label": "አማርኛ"
+  },
+  {
+    "code": "wuu",
+    "label": "中文-吴语"
+  },
+  {
+    "code": "hak",
+    "label": "中文-客家话"
+  },
+  {
+    "code": "yue",
+    "label": "中文-广东话 粵語"
+  },
+  {
+    "code": "zh",
+    "label": "中文-普通话 國語"
+  },
+  {
+    "code": "nan",
+    "label": "中文-闽南话 臺語"
+  }
+]

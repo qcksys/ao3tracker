@@ -15,7 +15,12 @@ import {
 export const browsingPreferencesItem = storage.defineItem<BrowsingPreferences>(
   "local:browsingPreferences",
   {
-    fallback: { hiddenWorkIds: [], hiddenTags: [] },
+    fallback: {
+      hiddenWorkIds: [],
+      hiddenTags: [],
+      languageFilterEnabled: false,
+      searchLanguage: "en",
+    },
   },
 );
 
