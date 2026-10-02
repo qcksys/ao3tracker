@@ -12,6 +12,7 @@ import Searches from "~popup/pages/Searches";
 import Settings from "~popup/pages/Settings";
 import Tracker from "~popup/pages/Tracker";
 import Works from "~popup/pages/Works";
+import HiddenWorks from "~popup/pages/HiddenWorks";
 
 const NAV_ITEMS = [
   { to: "/", label: "Tracker", icon: BookmarkIcon, end: true },
@@ -45,6 +46,7 @@ function App() {
               <Route path="searches" element={<Searches />} />
               <Route path="lists" element={<Lists />} />
               <Route path="settings" element={<Settings />} />
+              <Route path="settings/hidden-works" element={<HiddenWorks />} />
               <Route path="login" element={<Login />} />
               <Route path="register" element={<Register />} />
               <Route path="forgot-password" element={<ForgotPassword />} />

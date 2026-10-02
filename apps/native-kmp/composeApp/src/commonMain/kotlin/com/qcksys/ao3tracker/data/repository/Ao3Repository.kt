@@ -618,7 +618,8 @@ class Ao3Repository(private val accountData: AccountDataStore) {
             id = work.id,
             status = status,
             progressPercent = (work.readProgress * 100).toInt().coerceIn(0, 100),
-            favourite = work.favourite
+            favourite = work.favourite,
+            currentChapters = currentChapters
         )
     }
 

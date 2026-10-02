@@ -31,12 +31,13 @@ import { initializeAccount, setApiEndpoint, setAuthSession } from "@/lib/account
 import { withLocalState } from "@/lib/local-state";
 import {
   getBrowsingState,
+  setHideCaughtUp,
   setHiddenTags,
   setSearchLanguage,
   setMaxFandoms,
   setWorkHidden,
 } from "@/lib/browsing-repo";
-import { browsingPreferencesItem } from "@/lib/storage";
+
 import {
   buildBadgePayloads,
   currentWorkSummary,
@@ -118,7 +119,7 @@ async function getPopupState(): Promise<PopupState> {
     currentWorkSummary(),
     trackedWorkCount(),
     getNotificationPreferences(),
-    browsingPreferencesItem.getValue(),
+    getBrowsingState(),
   ]);
   return {
     // Coerce so the popup's "Active" endpoint matches what requests actually
@@ -143,7 +144,7 @@ async function handleContentMessage(
     case "getBrowsingState":
       return { kind: "browsingState", state: await getBrowsingState() };
     case "setWorkHidden":
-      await setWorkHidden(msg.workId, msg.hidden);
+      await setWorkHidden(msg.workId, msg.hidden, msg.title);
       return { kind: "browsingState", state: await getBrowsingState() };
     case "pageEvent": {
       const affected = await ingestPageEvent(msg.payload);
@@ -173,10 +174,12 @@ async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToP
     case "setHiddenTags":
     case "setSearchLanguage":
     case "setMaxFandoms":
+    case "setHideCaughtUp":
       return withLocalState(async () => {
         if (msg.kind === "unhideWork") await setWorkHidden(msg.workId, false);
         else if (msg.kind === "setHiddenTags") await setHiddenTags(msg.hiddenTags);
         else if (msg.kind === "setMaxFandoms") await setMaxFandoms(msg.maxFandoms);
+        else if (msg.kind === "setHideCaughtUp") await setHideCaughtUp(msg.hideCaughtUp);
         else
           await setSearchLanguage({
             languageFilterEnabled: msg.languageFilterEnabled,

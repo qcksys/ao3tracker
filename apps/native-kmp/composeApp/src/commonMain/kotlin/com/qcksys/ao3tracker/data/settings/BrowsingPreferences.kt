@@ -8,7 +8,9 @@ data class BrowsingPreferences(
     val hiddenTags: List<String> = emptyList(),
     val languageFilterEnabled: Boolean = false,
     val searchLanguage: String = "en",
-    val maxFandoms: Int? = null
+    val maxFandoms: Int? = null,
+    val hiddenWorkTitles: Map<Long, String> = emptyMap(),
+    val hideCaughtUp: Boolean = false
 )
 
 @Serializable
@@ -18,5 +20,6 @@ data class BrowsingState(
     val savedSearchUrls: List<String>,
     val languageFilterEnabled: Boolean,
     val searchLanguage: String,
-    val maxFandoms: Int?
+    val maxFandoms: Int?,
+    val hideCaughtUp: Boolean
 )

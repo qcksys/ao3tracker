@@ -92,7 +92,7 @@ data class SaveSearchEvent(
 data class BrowsingReadyEvent(val url: String)
 
 @Serializable
-data class SetWorkHiddenEvent(val url: String, val workId: Long, val hidden: Boolean)
+data class SetWorkHiddenEvent(val url: String, val workId: Long, val hidden: Boolean, val title: String? = null)
 
 /**
  * Payload sent back to the WebView to render a tracker badge on a list page.
@@ -103,5 +103,6 @@ data class WorkBadgePayload(
     val id: Long,
     val status: String,
     val progressPercent: Int,
-    val favourite: Boolean
+    val favourite: Boolean,
+    val currentChapters: Int? = null
 )

@@ -86,15 +86,21 @@ export function deriveStatus(
   metadata: SyncWorkMetadata | undefined,
   chapters: TrackedChapter[],
 ): { status: WorkBadgeStatus; progressPercent: number } {
+  chapters = chapters.filter((chapter) => !chapter.deleted);
   const hasAnyProgress = chapters.some((c) => c.readProgress > 0);
+  const published = metadata?.currentChapters ?? chapters.length;
   const allComplete =
-    chapters.length > 0 && chapters.every((c) => c.readProgress >= COMPLETE_THRESHOLD);
-  const maxProgress = chapters.reduce((acc, c) => Math.max(acc, c.readProgress), 0);
-  const progressPercent = Math.round(maxProgress * 100);
+    published > 0 &&
+    chapters.filter((c) => c.markedCompleteAt !== null || c.readProgress >= COMPLETE_THRESHOLD)
+      .length >= published;
+  const progress = chapters.reduce((sum, c) => sum + Math.min(1, Math.max(0, c.readProgress)), 0);
+  const progressPercent =
+    published > 0 ? Math.min(100, Math.round((progress / published) * 100)) : 0;
 
   let status: WorkBadgeStatus = "not-started";
   if (work.private) status = "private";
-  else if (work.markedCompleteAt !== null) status = "finished";
+  else if (allComplete && metadata?.totalChapters != null && published >= metadata.totalChapters)
+    status = "finished";
   else if (
     metadata?.currentChapters != null &&
     chapters.length < metadata.currentChapters &&

@@ -41,6 +41,44 @@ beforeEach(() => {
 });
 
 describe("browsing state bridge", () => {
+  it("combines preferences and badges regardless of response order and sends titles when hiding", () => {
+    const url = "https://archiveofourown.org/works";
+    mockLocation(url);
+    const post = vi.fn();
+    window.AndroidBridge = { postMessage: post };
+    const state = { hiddenWorkIds: [], hiddenTags: [], savedSearchUrls: [], hideCaughtUp: true };
+    const entries = [
+      { id: 123, status: "caught-up", progressPercent: 100, favourite: false, currentChapters: 2 },
+    ];
+    try {
+      for (const badgesFirst of [true, false]) {
+        document.body.innerHTML =
+          '<ol><li id="work_123"><h4 class="heading"><a href="/works/123">A story</a></h4><dd class="chapters">2/5</dd></li></ol>';
+        applyBrowsingState(JSON.stringify({ ...state, hideCaughtUp: false }));
+        applyListBadges("[]");
+        if (badgesFirst) applyListBadges(JSON.stringify(entries));
+        applyBrowsingState(JSON.stringify(state));
+        if (!badgesFirst) applyListBadges(JSON.stringify(entries));
+        expect(document.querySelector(".ao3-tracker-hidden-work")?.textContent).toContain(
+          "A story · Hidden - caught up",
+        );
+        applyBrowsingState(JSON.stringify({ ...state, hideCaughtUp: false }));
+        document.querySelector<HTMLButtonElement>(".ao3-tracker-hide-work")?.click();
+        expect(post).toHaveBeenLastCalledWith(
+          JSON.stringify({
+            type: "setWorkHidden",
+            url,
+            workId: 123,
+            hidden: true,
+            title: "A story",
+          }),
+        );
+      }
+    } finally {
+      delete window.AndroidBridge;
+    }
+  });
+
   it("updates saved searches and hidden works after each native response", () => {
     const url = "https://archiveofourown.org/tags/Test/works";
     const loc = mockLocation(url);

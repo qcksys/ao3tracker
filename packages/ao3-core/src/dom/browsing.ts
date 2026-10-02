@@ -241,9 +241,11 @@ export function applyFandomLimit(doc: Document, maxFandoms: number | null = null
 export function applyHiddenWorks(
   doc: Document,
   hiddenWorkIds: number[],
-  onChange: (workId: number, hidden: boolean) => void,
+  onChange: (workId: number, hidden: boolean, title?: string) => void,
+  options: { hideCaughtUp?: boolean; badges?: import("../badges").WorkBadgeData[] } = {},
 ): void {
   const hidden = new Set(hiddenWorkIds);
+  const badges = new Map(options.badges?.map((badge) => [badge.id, badge]));
   if (!doc.getElementById("ao3-tracker-hidden-style")) {
     const style = doc.createElement("style");
     style.id = "ao3-tracker-hidden-style";
@@ -274,11 +276,25 @@ export function applyHiddenWorks(
         blurb.appendChild(button);
       }
     }
-    button.onclick = () => onChange(workId, true);
+    const title =
+      blurb.querySelector('h4.heading a[href*="/works/"]')?.textContent?.trim() || `Work ${workId}`;
+    button.onclick = () => onChange(workId, true, title);
+    const badge = badges.get(workId);
+    const published = Number(blurb.querySelector("dd.chapters")?.textContent?.trim().split("/")[0]);
+    const hasNewChapters = badge?.currentChapters != null && published > badge.currentChapters;
+    const reason =
+      options.hideCaughtUp &&
+      !hasNewChapters &&
+      (badge?.status === "caught-up" || badge?.status === "finished")
+        ? badge.status
+        : null;
+    const automaticallyHidden =
+      reason !== null && blurb.dataset.ao3TrackerRevealedStatus !== reason;
+    const isHidden = hidden.has(workId) || automaticallyHidden;
     const next = blurb.nextElementSibling;
     let placeholder = next?.classList.contains("ao3-tracker-hidden-work") ? next : null;
-    blurb.classList.toggle("ao3-tracker-work-hidden", hidden.has(workId));
-    if (!hidden.has(workId)) {
+    blurb.classList.toggle("ao3-tracker-work-hidden", isHidden);
+    if (!isHidden) {
       placeholder?.remove();
       continue;
     }
@@ -289,9 +305,25 @@ export function applyHiddenWorks(
     }
     const restore = doc.createElement("button");
     restore.type = "button";
-    restore.textContent = "Unhide";
-    restore.setAttribute("aria-label", `Unhide work ${workId}`);
-    restore.onclick = () => onChange(workId, false);
-    placeholder.replaceChildren(doc.createTextNode("Hidden work · "), restore);
+    const manuallyHidden = hidden.has(workId);
+    restore.textContent = manuallyHidden ? "Unhide" : "Show";
+    restore.setAttribute("aria-label", `${restore.textContent} ${title}`);
+    restore.onclick = () => {
+      if (manuallyHidden) onChange(workId, false);
+      else {
+        blurb.dataset.ao3TrackerRevealedStatus = reason!;
+        blurb.classList.remove("ao3-tracker-work-hidden");
+        placeholder?.remove();
+      }
+    };
+    const link = doc.createElement("a");
+    link.href = `https://archiveofourown.org/works/${workId}`;
+    link.textContent = title;
+    const label = manuallyHidden
+      ? "Hidden"
+      : reason === "finished"
+        ? "Hidden - finished"
+        : "Hidden - caught up";
+    placeholder.replaceChildren(link, doc.createTextNode(` · ${label} · `), restore);
   }
 }

@@ -67,7 +67,7 @@ internal fun ReaderLinkSheet(
                 DropdownMenuItem(
                     text = { Text("Hide / add to blocklist") },
                     leadingIcon = { Icon(Icons.Default.VisibilityOff, contentDescription = null) },
-                    onClick = { select { onAction(ReaderLinkAction.BlockWork(workId)) } }
+                    onClick = { select { onAction(ReaderLinkAction.BlockWork(workId, link.title)) } }
                 )
             }
             link.tag?.let { tag ->

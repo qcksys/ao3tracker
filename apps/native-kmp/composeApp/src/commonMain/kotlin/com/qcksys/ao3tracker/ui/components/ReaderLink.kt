@@ -24,6 +24,6 @@ data class ReaderLink(val url: String, val title: String? = null) {
 
 sealed interface ReaderLinkAction {
     data class TrackWork(val workId: Long, val title: String?) : ReaderLinkAction
-    data class BlockWork(val workId: Long) : ReaderLinkAction
+    data class BlockWork(val workId: Long, val title: String? = null) : ReaderLinkAction
     data class BlockTag(val tag: String) : ReaderLinkAction
 }
