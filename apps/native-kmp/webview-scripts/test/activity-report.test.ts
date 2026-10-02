@@ -33,17 +33,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("restores a cleared chapter to the start before reporting reading progress", async () => {
+it("restores a chapter to the body start before reporting reading progress", async () => {
   vi.useFakeTimers();
   document.body.innerHTML = workPageHtml;
   window.history.replaceState({}, "", "/works/10828137/chapters/24029673?scrollTo=0&_t=1#chapters");
   const chapters = required(document.getElementById("chapters"));
   const bounds = vi
     .spyOn(chapters, "getBoundingClientRect")
-    .mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
-  vi.spyOn(chapters, "offsetTop", "get").mockReturnValue(window.innerHeight);
+    .mockReturnValue(new DOMRect(0, -window.innerHeight * 9, 100, window.innerHeight * 10));
+  vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 10);
   const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {
-    bounds.mockReturnValue(new DOMRect(0, window.innerHeight, 100, window.innerHeight));
+    bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight * 10));
     window.dispatchEvent(new Event("scroll"));
   });
   const postMessage = vi.fn<(message: string) => void>();
@@ -57,12 +57,12 @@ it("restores a cleared chapter to the start before reporting reading progress", 
   );
 
   await vi.advanceTimersByTimeAsync(150);
-  expect(scrollTo).toHaveBeenCalledWith(0, 0);
+  expect(scrollTo).toHaveBeenCalledWith(0, window.innerHeight);
   expect(
     postMessage.mock.calls
       .map(([raw]) => JSON.parse(raw))
       .filter((message) => message.type === "scrollProgress"),
-  ).toEqual([expect.objectContaining({ chapterId: "24029673", scrollPercentage: 0 })]);
+  ).toEqual([expect.objectContaining({ chapterId: "24029673", scrollPercentage: 10 })]);
 });
 
 it("marks a short chapter fully read on load when its bottom Next Chapter button is visible", async () => {

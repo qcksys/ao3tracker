@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { computeChapterScrollPercentage, getWorkInfo } from "../src/dom/extract";
-import { observeChapterProgress, publishScrollPercentage } from "../src/dom/scroll";
+import {
+  consumeScrollToParam,
+  observeChapterProgress,
+  publishScrollPercentage,
+} from "../src/dom/scroll";
 import { scrollProgressMessageSchema } from "../src/schemas/messages";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -11,6 +16,52 @@ afterEach(() => {
 beforeEach(() => {
   document.body.innerHTML = "";
   window.history.replaceState({}, "", "/works/123/chapters/456");
+});
+
+it.each([0, 500])(
+  "opens zero progress at the chapter body after scrolling %s pixels",
+  (scrollY) => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '<div id="chapters"></div>';
+    window.history.replaceState({}, "", "/works/123/chapters/456?scrollTo=0&_t=1#chapters");
+    vi.spyOn(document, "readyState", "get").mockReturnValue("complete");
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+    vi.spyOn(window, "scrollY", "get").mockReturnValue(scrollY);
+    const chapters = document.getElementById("chapters")!;
+    vi.spyOn(chapters, "offsetTop", "get").mockReturnValue(600);
+    vi.spyOn(chapters, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 600 - scrollY, 600, 4000),
+    );
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    const onRestored = vi.fn(() => expect(scrollTo).toHaveBeenCalledWith(0, 600));
+
+    expect(consumeScrollToParam(document, window, onRestored)).toBe(true);
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(onRestored).not.toHaveBeenCalled();
+    vi.runAllTimers();
+
+    expect(onRestored).toHaveBeenCalledOnce();
+    expect(window.location.search).toBe("");
+    expect(window.location.hash).toBe("#chapters");
+  },
+);
+
+it.each([50, 100])("restores saved progress of %s percent at the viewport bottom", (progress) => {
+  vi.useFakeTimers();
+  document.body.innerHTML = '<div id="chapters"></div>';
+  window.history.replaceState({}, "", `/works/123/chapters/456?scrollTo=${progress}#chapters`);
+  vi.spyOn(document, "readyState", "get").mockReturnValue("complete");
+  vi.spyOn(window, "innerHeight", "get").mockReturnValue(800);
+  vi.spyOn(window, "scrollY", "get").mockReturnValue(500);
+  const chapters = document.getElementById("chapters")!;
+  vi.spyOn(chapters, "offsetTop", "get").mockReturnValue(600);
+  vi.spyOn(chapters, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 100, 600, 4000));
+  const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+
+  consumeScrollToParam(document, window);
+  vi.runAllTimers();
+
+  expect(scrollTo).toHaveBeenCalledWith(0, 600 + (4000 * progress) / 100 - 800);
 });
 
 function chapterWithNextButton() {

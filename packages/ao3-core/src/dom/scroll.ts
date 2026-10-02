@@ -54,6 +54,7 @@ export function publishScrollPercentage(doc: Document, win: Window): ScrollProgr
 /**
  * Read the `scrollTo` query param, scroll to that percentage inside #chapters,
  * and clear the param. Returns true if the param was present, false otherwise.
+ * Zero aligns the chapter start with the viewport top; saved progress uses the bottom.
  */
 export function consumeScrollToParam(doc: Document, win: Window, onRestored?: () => void): boolean {
   const url = new URL(win.location.href);
@@ -70,10 +71,11 @@ export function consumeScrollToParam(doc: Document, win: Window, onRestored?: ()
   const performScroll = (): void => {
     const chaptersElement = doc.getElementById("chapters");
     if (chaptersElement) {
-      const height = chaptersElement.getBoundingClientRect().height;
+      const rect = chaptersElement.getBoundingClientRect();
+      const chapterTop = rect.top + (win.scrollY ?? 0);
       const viewportHeight = win.innerHeight ?? 0;
-      const targetBottom = chaptersElement.offsetTop + (height * scrollPercent) / 100;
-      const target = Math.max(0, targetBottom - viewportHeight);
+      const targetBottom = chapterTop + (rect.height * scrollPercent) / 100;
+      const target = scrollPercent === 0 ? chapterTop : Math.max(0, targetBottom - viewportHeight);
       win.scrollTo(0, target);
     }
     onRestored?.();

@@ -120,6 +120,8 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 
 ## Cross-app contract
 
+Zero-progress navigation, including automatic next-chapter selection, opens at the top of `#chapters` through shared `consumeScrollToParam`. Nonzero progress retains restoration at the viewport bottom.
+
 This extension consumes the API at `https://ao3tracker.com` ([apps/api/AGENTS.md](../api/AGENTS.md)). The wire schemas in `@qcksys/ao3tracker-core/schemas` mirror those in [apps/api/src/routes/api.track.ts](../api/src/routes/api.track.ts) — when the server contract changes, update both the api routes AND the schemas package in the same PR.
 
 The native KMP app ([apps/native-kmp/AGENTS.md](../native-kmp/AGENTS.md)) consumes the same DOM extraction + sync wire schemas via the shared workspace packages. Cross-platform changes to the WebViewMessage protocol or badge status enum need to land in `packages/ao3-core` and be verified against the native Kotlin code's `WorkBadgePayload` / `WebViewMessage` types.
