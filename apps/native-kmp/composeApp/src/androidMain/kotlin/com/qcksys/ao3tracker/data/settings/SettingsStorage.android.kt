@@ -86,6 +86,11 @@ actual class SettingsStorage {
     }
 
     actual fun getNotificationPreferences(): String? = prefs.getString("notification_preferences", null)
+    actual fun isDiagnosticDataEnabled(): Boolean = prefs.getBoolean("diagnostic_data_enabled", true)
+
+    actual fun setDiagnosticDataEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("diagnostic_data_enabled", enabled).commit()
+    }
 
     actual fun getBrowsingPreferences(): String? = prefs.getString("browsing_preferences", null)
 

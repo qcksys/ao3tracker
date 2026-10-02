@@ -55,6 +55,12 @@ actual class SettingsStorage {
     }
 
     actual fun getNotificationPreferences(): String? = userDefaults.stringForKey("notification_preferences")
+    actual fun isDiagnosticDataEnabled(): Boolean =
+        userDefaults.objectForKey("diagnostic_data_enabled") == null || userDefaults.boolForKey("diagnostic_data_enabled")
+
+    actual fun setDiagnosticDataEnabled(enabled: Boolean) {
+        userDefaults.setBool(enabled, "diagnostic_data_enabled")
+    }
 
     actual fun getBrowsingPreferences(): String? = userDefaults.stringForKey("browsing_preferences")
 

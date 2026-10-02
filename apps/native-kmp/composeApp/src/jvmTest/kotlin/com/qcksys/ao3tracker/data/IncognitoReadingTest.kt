@@ -54,6 +54,32 @@ import kotlinx.serialization.json.Json
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
     @Test
+    fun `diagnostic bridge discards messages queued before a consent change`() = runTest {
+        fixture { f ->
+            val sent = mutableListOf<String>()
+            val client = com.qcksys.ao3tracker.diagnostics.DiagnosticsClient(
+                f.settings, "desktop", { _, request -> sent.add(request.data.toString()) }, backgroundScope
+            )
+            com.qcksys.ao3tracker.diagnostics.Diagnostics.install(client)
+            try {
+                runCurrent()
+                val event = """{"type":"diagnostic","data":{"event":"webview_ready"}}"""
+                f.model.handleWebViewMessage(event)
+                f.settings.setDiagnosticDataEnabled(false)
+                f.settings.setDiagnosticDataEnabled(true)
+                runCurrent()
+                assertTrue(sent.isEmpty())
+                f.model.handleWebViewMessage(event)
+                runCurrent()
+                assertEquals(1, sent.size)
+            } finally {
+                com.qcksys.ao3tracker.diagnostics.Diagnostics.uninstall(client)
+                client.close()
+            }
+        }
+    }
+
+    @Test
     fun `explicit link actions track unread works and update blocklists in incognito`() = runTest {
         fixture { f ->
             val pageUrl = "https://archiveofourown.org/works/search"
@@ -185,16 +211,17 @@ class IncognitoReadingTest {
             }
             f.settings.setIncognitoModeEnabled(true)
             advanceUntilIdle()
-            assertTrue(scripts.isEmpty())
+            assertEquals(listOf("window.__ao3Tracker?.setDiagnosticsEnabled?.(false);"), scripts)
+            scripts.clear()
 
             f.settings.setIncognitoModeEnabled(false)
             advanceUntilIdle()
-            assertEquals(1, scripts.size)
-            assertTrue(scripts.single().contains("reportReadingActivity"))
+            assertEquals(1, scripts.count { it.contains("reportReadingActivity") })
+            assertEquals(1, scripts.count { it.contains("setDiagnosticsEnabled?.(true)") })
 
             f.settings.setIncognitoModeEnabled(false)
             advanceUntilIdle()
-            assertEquals(1, scripts.size)
+            assertEquals(2, scripts.size)
         }
     }
 

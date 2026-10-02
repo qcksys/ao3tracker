@@ -2,6 +2,7 @@ package com.qcksys.ao3tracker.data.settings
 
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
 import com.qcksys.ao3tracker.util.JsonConfig
+import com.qcksys.ao3tracker.setSentryDiagnosticDataEnabled
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,8 @@ enum class ApiEnvironment(
 
 expect fun defaultApiEnvironment(): ApiEnvironment
 
+data class DiagnosticSession(val generation: Long, val enabled: Boolean, val apiBaseUrl: String)
+
 class AppSettings(
     private val settingsStorage: SettingsStorage?,
     defaultEnvironment: ApiEnvironment = defaultApiEnvironment(),
@@ -50,6 +53,30 @@ class AppSettings(
 
     private val _incognitoModeEnabled = MutableStateFlow(settingsStorage?.isIncognitoModeEnabled() ?: false)
     val incognitoModeEnabled: StateFlow<Boolean> = _incognitoModeEnabled.asStateFlow()
+    private val _diagnosticDataEnabled = MutableStateFlow(settingsStorage?.isDiagnosticDataEnabled() ?: true)
+    val diagnosticDataEnabled: StateFlow<Boolean> = _diagnosticDataEnabled.asStateFlow()
+    private val _diagnosticSession = MutableStateFlow(
+        DiagnosticSession(0, _diagnosticDataEnabled.value && !_incognitoModeEnabled.value, _apiEnvironment.value.apiBaseUrl)
+    )
+    val diagnosticSession: StateFlow<DiagnosticSession> = _diagnosticSession.asStateFlow()
+
+    private fun updateDiagnosticSession() {
+        _diagnosticSession.value = DiagnosticSession(
+            _diagnosticSession.value.generation + 1,
+            _diagnosticDataEnabled.value && !_incognitoModeEnabled.value,
+            _apiEnvironment.value.apiBaseUrl
+        )
+    }
+
+    fun setDiagnosticDataEnabled(enabled: Boolean) {
+        if (_diagnosticDataEnabled.value == enabled) return
+        _diagnosticDataEnabled.value = enabled
+        updateDiagnosticSession()
+        settingsStorage?.setDiagnosticDataEnabled(enabled)
+        setSentryDiagnosticDataEnabled(enabled)
+    }
+
+    fun captureDiagnosticSession(): DiagnosticSession? = _diagnosticSession.value.takeIf { it.enabled }
     private val _notificationPreferences = MutableStateFlow(
         settingsStorage?.getNotificationPreferences()?.let {
             JsonConfig.json.decodeFromString<NotificationPreferences>(it)
@@ -96,6 +123,7 @@ class AppSettings(
         if (_incognitoModeEnabled.value == enabled) return
         trackingGeneration.value++
         _incognitoModeEnabled.value = enabled
+        updateDiagnosticSession()
         settingsStorage?.setIncognitoModeEnabled(enabled)
     }
 
@@ -107,6 +135,7 @@ class AppSettings(
     fun setApiEnvironment(environment: ApiEnvironment) {
         if (canSelectApiEnvironment) {
             _apiEnvironment.value = environment
+            updateDiagnosticSession()
             settingsStorage?.setApiEnvironment(environment.name)
         }
     }

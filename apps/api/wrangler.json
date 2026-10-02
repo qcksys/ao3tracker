@@ -21,7 +21,8 @@
       "BETTER_AUTH_SECRET",
       "GOOGLE_ID",
       "GOOGLE_SECRET",
-      "FCM_SERVICE_ACCOUNT"
+      "FCM_SERVICE_ACCOUNT",
+      "POSTHOG_PROJECT_TOKEN"
     ]
   },
   "r2_buckets": [
@@ -32,6 +33,11 @@
     }
   ],
   "ratelimits": [
+    {
+      "name": "DIAGNOSTICS_RATE_LIMITER",
+      "namespace_id": "1003",
+      "simple": { "limit": 120, "period": 60 }
+    },
     {
       "name": "API_RATE_LIMITER",
       "namespace_id": "1001",
@@ -69,6 +75,7 @@
     ]
   },
   "vars": {
+    "POSTHOG_REGION": "eu",
     "BETTER_AUTH_URL": "https://qcksys-ao3tracker-api-local.ta2.dev",
     "ENVIRONMENT": "local",
     "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
@@ -86,7 +93,8 @@
           "BETTER_AUTH_SECRET",
           "GOOGLE_ID",
           "GOOGLE_SECRET",
-          "FCM_SERVICE_ACCOUNT"
+          "FCM_SERVICE_ACCOUNT",
+          "POSTHOG_PROJECT_TOKEN"
         ]
       },
       "r2_buckets": [
@@ -96,6 +104,11 @@
         }
       ],
       "ratelimits": [
+        {
+          "name": "DIAGNOSTICS_RATE_LIMITER",
+          "namespace_id": "1013",
+          "simple": { "limit": 120, "period": 60 }
+        },
         {
           "name": "API_RATE_LIMITER",
           "namespace_id": "1011",
@@ -146,6 +159,7 @@
         }
       },
       "vars": {
+        "POSTHOG_REGION": "eu",
         "BETTER_AUTH_URL": "https://dev.ao3tracker.com",
         "ENVIRONMENT": "dev",
         "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
@@ -160,7 +174,8 @@
           "BETTER_AUTH_SECRET",
           "GOOGLE_ID",
           "GOOGLE_SECRET",
-          "FCM_SERVICE_ACCOUNT"
+          "FCM_SERVICE_ACCOUNT",
+          "POSTHOG_PROJECT_TOKEN"
         ]
       },
       "r2_buckets": [
@@ -170,6 +185,11 @@
         }
       ],
       "ratelimits": [
+        {
+          "name": "DIAGNOSTICS_RATE_LIMITER",
+          "namespace_id": "1023",
+          "simple": { "limit": 120, "period": 60 }
+        },
         {
           "name": "API_RATE_LIMITER",
           "namespace_id": "1021",
@@ -220,6 +240,7 @@
         }
       },
       "vars": {
+        "POSTHOG_REGION": "eu",
         "BETTER_AUTH_URL": "https://ao3tracker.com",
         "ENVIRONMENT": "prod",
         "SYSTEM_EMAIL_ADDRESS": "hello@ao3tracker.com",

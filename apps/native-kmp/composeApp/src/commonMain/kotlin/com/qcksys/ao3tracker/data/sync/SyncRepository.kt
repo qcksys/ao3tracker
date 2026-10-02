@@ -27,6 +27,7 @@ import com.qcksys.ao3tracker.data.repository.RemoteFavouriteTag
 import com.qcksys.ao3tracker.data.repository.RemoteSavedSearch
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.util.AppLogger
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -92,7 +93,14 @@ class SyncRepository(
      * 3. POST local changes since the previous local sync snapshot
      */
     suspend fun sync(forceFull: Boolean = false, clearOnSuccess: Boolean = false): SyncResult = syncMutex.withLock {
-        runSync(forceFull, clearOnSuccess)
+        runSync(forceFull, clearOnSuccess).also { result ->
+            val outcome = when (result) {
+                is SyncResult.Success -> "success"
+                is SyncResult.Error -> "error"
+                else -> "unauthenticated"
+            }
+            Diagnostics.capture("sync_finished", "outcome" to outcome)
+        }
     }
 
     private suspend fun runSync(forceFull: Boolean, clearOnSuccess: Boolean): SyncResult {

@@ -24,6 +24,7 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.Tab
 import cafe.adriel.voyager.navigator.tab.TabNavigator
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
+import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import org.koin.compose.koinInject
 
 class MainScreen : Screen {
@@ -35,6 +36,15 @@ class MainScreen : Screen {
         TabNavigator(TrackTab) {
             val tabNavigator = LocalTabNavigator.current
             val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
+            LaunchedEffect(tabNavigator.current.key) {
+                val screen = when (tabNavigator.current) {
+                    ReadTab -> "read"
+                    TrackTab -> "works"
+                    SearchesTab -> "searches"
+                    else -> "settings"
+                }
+                Diagnostics.capture("screen_viewed", "screen" to screen)
+            }
 
             // Switch to the Read tab whenever an external trigger (notification,
             // Works or Searches tab click) sets a pending navigation. ReadScreen then consumes
