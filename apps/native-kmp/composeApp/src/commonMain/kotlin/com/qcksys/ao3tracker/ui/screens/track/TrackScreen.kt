@@ -132,11 +132,9 @@ fun TrackScreen() {
 
     // Show snackbar when sync completes
     LaunchedEffect(lastSyncResult) {
-        lastSyncResult?.let { result ->
-            // Clear immediately to prevent re-showing on tab switch
-            screenModel.clearSyncResult()
-
-            val message = when (result) {
+        lastSyncResult?.let { completion ->
+            val result = completion.result
+            val message = if (completion.signedOut) "Signed out and cleared local data" else when (result) {
                 is SyncResult.Success -> "Synced: ${result.worksFromServer}/${result.chaptersFromServer} from server, ${result.worksToServer}/${result.chaptersToServer} to server"
                 is SyncResult.Error -> "Sync failed: ${result.message}"
                 is SyncResult.NotAuthenticated -> "Please sign in to sync"
@@ -146,6 +144,7 @@ fun TrackScreen() {
                 message = message,
                 actionLabel = actionLabel
             )
+            screenModel.clearSyncResult(completion)
             if (snackbarResult == SnackbarResult.ActionPerformed) {
                 tabNavigator.current = SettingsTab
             }

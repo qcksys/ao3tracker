@@ -14,7 +14,9 @@ import com.qcksys.ao3tracker.data.settings.ApiEnvironment
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 
 class PushRegistrationTest {
@@ -34,7 +36,12 @@ class PushRegistrationTest {
         verifyLogoutAndRegistration(null, changeEnvironment = true)
     }
 
-    private suspend fun verifyLogoutAndRegistration(initialToken: String?, changeAccount: Boolean = false, changeEnvironment: Boolean = false) {
+    @Test
+    fun staleCleanupCannotUnregisterOrSignOutAReplacementAccount() = runTest {
+        verifyLogoutAndRegistration("device-fcm-token", staleCleanup = true)
+    }
+
+    private suspend fun verifyLogoutAndRegistration(initialToken: String?, changeAccount: Boolean = false, changeEnvironment: Boolean = false, staleCleanup: Boolean = false) {
         val directory = Files.createTempDirectory("ao3tracker-push-test-")
         val accounts = createTestAccounts(directory)
         val settings = AppSettings(null, canSelectApiEnvironment = true)
@@ -88,6 +95,16 @@ class PushRegistrationTest {
                 return
             }
             firstRegistration.getOrThrow()
+            if (staleCleanup) {
+                val owner = requireNotNull(auth.currentOwner())
+                val isCurrent = { auth.isCurrentSession("token-first", owner) }
+                auth.signIn("second", "password")
+                assertFailsWith<CancellationException> { push.unregisterToken(isCurrent) }
+                assertFailsWith<CancellationException> { auth.signOut(isCurrent) }
+                assertTrue(auth.isCurrentSession("token-second", requireNotNull(auth.currentOwner())))
+                assertTrue(unregistered.isEmpty())
+                return
+            }
             push.unregisterToken().getOrThrow()
             auth.signOut()
             assertEquals("device-fcm-token", storage.getFcmToken())

@@ -158,7 +158,9 @@ Native sends `window.__ao3Tracker.setDiagnosticsEnabled(boolean)` after `browsin
 1. WebView JS extracts AO3 page data → sends JSON message to native
 2. Native parses `WebViewMessage` → `Ao3Repository` persists to Room database
 3. UI observes Room `Flow`s for reactive updates
-4. `SyncService` synchronizes local data with remote API
+4. `SyncCoordinator` runs `SyncRepository`, which synchronizes Room with the remote API through `SyncService`.
+
+**Sync execution**: route manual, full, startup, favourite and saved-search sync through the singleton [SyncCoordinator](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/sync/SyncCoordinator.kt). Screens request work and observe its progress, result and sign-out state. The coordinator owns the coroutine scope and serializes requests, so leaving a screen or cancelling an awaiting caller preserves the job. `requestSignOut()` owns full sync, local clearing, push unregistration and sign-out together. Requests capture the session and account generation; cleanup checks them again inside the auth and push locks to protect replacement accounts. This is in-process execution; OS termination can interrupt it. Keep lifecycle, queued-account-change and cleanup regressions in `SyncCoordinatorTest`.
 
 ### List-page badges
 
@@ -183,7 +185,7 @@ Long-pressing a tag chip in the filter sheet pins it to the top of its section. 
 
 **Cross-device sync**: each row has its own `updatedAt`; sync is via the per-row `favouriteTags` block on `/api/track/sync` (see [api/AGENTS.md](../api/AGENTS.md)). Rows with local changes have `pendingSync = true` and are pushed on the next sync; the server LWW-merges and `FavouriteTagRepository.applyRemote` LWW-merges incoming rows locally. Server wins on tie.
 
-**Auto-sync trigger**: toggling a favourite calls `SyncTriggers.notifyFavouriteChanged()`, which fires `SyncRepository.sync()` straight away. Implemented in [SyncTriggers.kt](composeApp/src/commonMain/kotlin/com/qcksys/ao3tracker/data/sync/SyncTriggers.kt). `SyncTriggers` is a `createdAtStart = true` Koin singleton so the subscriber is wired before the first user action.
+**Auto-sync trigger**: toggling a favourite calls `SyncTriggers.notifyFavouriteChanged()`, which submits a silent request to `SyncCoordinator`. Saved-search edits use the same coordinator through `notifySavedSearchChanged()`.
 
 ### Saved searches
 

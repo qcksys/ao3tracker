@@ -58,7 +58,7 @@ class SyncRepository(
     private val chapterDao get() = accountData.database.chapterDao()
     private val tagDao get() = accountData.database.tagDao()
 
-    // Repository-owned scope that survives screen lifecycle changes
+    // Observe account cursors independently of the screens displaying sync status.
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val syncMutex = Mutex()
 
@@ -66,9 +66,6 @@ class SyncRepository(
         SyncState()
     )
     val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
-
-    private val _lastSyncResult = MutableStateFlow<SyncResult?>(null)
-    val lastSyncResult: StateFlow<SyncResult?> = _lastSyncResult.asStateFlow()
 
     init {
         repositoryScope.launch {
@@ -95,8 +92,13 @@ class SyncRepository(
      * 2. Merge server data into local database
      * 3. POST local changes since the previous local sync snapshot
      */
-    suspend fun sync(forceFull: Boolean = false, clearOnSuccess: Boolean = false): SyncResult = syncMutex.withLock {
-        runSync(forceFull, clearOnSuccess).also { result ->
+    internal suspend fun sync(
+        forceFull: Boolean = false,
+        clearOnSuccess: Boolean = false,
+        isCurrentOperation: () -> Boolean = { true }
+    ): SyncResult = syncMutex.withLock {
+        if (!isCurrentOperation()) return@withLock SyncResult.NotAuthenticated
+        runSync(forceFull, clearOnSuccess, isCurrentOperation).also { result ->
             val outcome = when (result) {
                 is SyncResult.Success -> "success"
                 is SyncResult.Error -> "error"
@@ -106,8 +108,9 @@ class SyncRepository(
         }
     }
 
-    private suspend fun runSync(forceFull: Boolean, clearOnSuccess: Boolean): SyncResult {
+    private suspend fun runSync(forceFull: Boolean, clearOnSuccess: Boolean, isCurrentOperation: () -> Boolean): SyncResult {
         if (!authRepository.prepareSession()) return SyncResult.NotAuthenticated
+        if (!isCurrentOperation()) return SyncResult.NotAuthenticated
         _syncState.update { SyncState(lastSyncedAt = it.lastSyncedAt, isSyncing = true) }
         updateProgress("Starting sync...", if (forceFull) "Starting full sync" else "Starting incremental sync")
         AppLogger.d("Starting sync operation", TAG)
@@ -276,28 +279,6 @@ class SyncRepository(
                 debugEntries = (it.debugEntries + entry).takeLast(MAX_DEBUG_ENTRIES)
             )
         }
-    }
-
-    /**
-     * Forces a full sync by clearing the last sync timestamp.
-     * Launches in repository scope to survive screen lifecycle changes.
-     */
-    fun forceFullSync() {
-        if (_syncState.value.isSyncing) {
-            AppLogger.d("Sync already in progress, skipping", TAG)
-            return
-        }
-        repositoryScope.launch {
-            val result = sync(forceFull = true)
-            _lastSyncResult.value = result
-        }
-    }
-
-    /**
-     * Clears the last sync result after it has been consumed by the UI.
-     */
-    fun clearLastSyncResult() {
-        _lastSyncResult.value = null
     }
 
     /**

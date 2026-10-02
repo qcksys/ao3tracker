@@ -79,7 +79,8 @@ class PushRepository(
      * Unregisters the device from push notifications.
      * Should be called before signing out.
      */
-    suspend fun unregisterToken(): Result<Unit> = registrationMutex.withLock {
+    suspend fun unregisterToken(isCurrentOperation: () -> Boolean = { true }): Result<Unit> = registrationMutex.withLock {
+        if (!isCurrentOperation()) throw CancellationException("Account changed")
         val authState = authRepository.authState.value
         val authToken = (authState as? AuthState.Authenticated)?.token
         if (authToken == null) {

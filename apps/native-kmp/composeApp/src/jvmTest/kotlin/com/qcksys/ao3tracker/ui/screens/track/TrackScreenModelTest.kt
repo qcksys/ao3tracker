@@ -17,6 +17,7 @@ import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import java.nio.file.Files
 import kotlin.test.Test
@@ -140,8 +141,9 @@ class TrackScreenModelTest {
                 ): Result<SyncPostResponse> = error("Filter tests must not send remote state")
             }
             val sync = SyncRepository(remote, auth, favourites, SavedSearchRepository(accounts), accounts)
+            val coordinator = SyncCoordinator(sync, auth, accounts, signOut = { error("Filter tests must not sign out") }, scope = backgroundScope)
             val model = ScreenModelStore.getOrPut(holder, null) {
-                TrackScreenModel(Ao3Repository(accounts), sync, favourites, SyncTriggers(sync))
+                TrackScreenModel(Ao3Repository(accounts), coordinator, favourites, SyncTriggers(coordinator))
             }
             block(model)
         } finally {

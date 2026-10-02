@@ -23,6 +23,7 @@ import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
@@ -475,8 +476,9 @@ class IncognitoReadingTest {
             ): Result<SyncPostResponse> = error("Reading tests must not send remote state")
         }
         private val sync = SyncRepository(remote, auth, favourites, searches, accounts)
+        private val coordinator = SyncCoordinator(sync, auth, accounts, signOut = { error("Reading tests must not sign out") })
         val model = ScreenModelStore.getOrPut(modelHolder, null) {
-            ReadScreenModel(repository, searches, SyncTriggers(sync), accounts, settings)
+            ReadScreenModel(repository, searches, SyncTriggers(coordinator), accounts, settings)
         }
 
         suspend fun seedTrackedWork() = accounts.edit {
