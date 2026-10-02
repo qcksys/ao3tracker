@@ -12,6 +12,9 @@ import {
   applyHiddenWorks,
   installDefaultSearchTags,
   installSearchLanguage,
+  installCrossoverLimit,
+  withCrossoverLimit,
+  applyFandomLimit,
   updateSavedSearchButton,
   withDefaultHiddenTags,
   withSearchLanguage,
@@ -37,13 +40,14 @@ export default defineContentScript({
       savedSearchUrls: [],
       languageFilterEnabled: false,
       searchLanguage: "en",
+      maxFandoms: null,
     };
     const applyBrowsingState = (state: BrowsingState): void => {
       browsingState = state;
       const language = state.languageFilterEnabled ? state.searchLanguage : null;
-      const filteredUrl = withSearchLanguage(
-        withDefaultHiddenTags(window.location.href, state.hiddenTags),
-        language,
+      const filteredUrl = withCrossoverLimit(
+        withSearchLanguage(withDefaultHiddenTags(window.location.href, state.hiddenTags), language),
+        state.maxFandoms,
       );
       if (filteredUrl !== window.location.href) {
         window.location.replace(filteredUrl);
@@ -55,6 +59,7 @@ export default defineContentScript({
         state.savedSearchUrls,
         state.hiddenTags,
         language,
+        state.maxFandoms,
       );
       applyHiddenWorks(document, state.hiddenWorkIds, (workId, hidden) => {
         void send({ kind: "setWorkHidden", workId, hidden })
@@ -64,6 +69,7 @@ export default defineContentScript({
           })
           .catch(() => window.alert("Could not update hidden works. Please try again."));
       });
+      applyFandomLimit(document, state.maxFandoms);
     };
     const refreshBrowsingState = async (): Promise<void> => {
       const response = await send({ kind: "getBrowsingState" });
@@ -76,6 +82,10 @@ export default defineContentScript({
       installSearchLanguage(document, window.location, () =>
         browsingState.languageFilterEnabled ? browsingState.searchLanguage : null,
       ),
+    );
+
+    ctx.onInvalidated(
+      installCrossoverLimit(document, window.location, () => browsingState.maxFandoms),
     );
 
     const postPageEvent = (payload: WebViewMessage): void => {

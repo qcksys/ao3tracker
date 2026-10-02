@@ -1,7 +1,7 @@
 import type { SearchWork } from "../schemas/search-check";
-import { savedSearchKey } from "./browsing";
+import { exceedsFandomLimit, savedSearchKey } from "./browsing";
 
-export function readSearchPage(doc: Document, href: string) {
+export function readSearchPage(doc: Document, href: string, maxFandoms: number | null = null) {
   const key = savedSearchKey(href);
   const results = doc.querySelector("#main ol.work.index, #main ol.bookmark.index");
   const emptySearch =
@@ -21,6 +21,7 @@ export function readSearchPage(doc: Document, href: string) {
 
   const works = new Map<number, SearchWork>();
   for (const blurb of results?.querySelectorAll('li[id^="work_"], li[id^="bookmark_"]') ?? []) {
+    if (exceedsFandomLimit(blurb, maxFandoms)) continue;
     const id = Number(
       blurb.id.match(/^work_(\d+)$/)?.[1] ??
         blurb

@@ -80,6 +80,11 @@ class AppSettings(
         setBrowsingPreferences(_browsingPreferences.value.copy(hiddenTags = tags))
     }
 
+    fun setMaxFandoms(maxFandoms: Int?) {
+        require(maxFandoms == null || maxFandoms > 0) { "Enter a positive whole number or leave blank." }
+        setBrowsingPreferences(_browsingPreferences.value.copy(maxFandoms = maxFandoms))
+    }
+
     fun setSearchLanguage(language: String, enabled: Boolean) {
         require(Ao3Languages.options.any { it.first == language }) { "Unknown AO3 language" }
         setBrowsingPreferences(_browsingPreferences.value.copy(searchLanguage = language, languageFilterEnabled = enabled))

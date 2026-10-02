@@ -123,6 +123,7 @@ describe("search language", () => {
       hiddenWorkIds: [123],
       searchLanguage: "en",
       languageFilterEnabled: false,
+      maxFandoms: null,
     });
     for (const { code } of languages) {
       expect(

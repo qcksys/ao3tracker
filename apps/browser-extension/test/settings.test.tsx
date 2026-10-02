@@ -27,6 +27,7 @@ vi.mock("~popup/lib/state", () => ({
         hiddenWorkIds: [123],
         languageFilterEnabled: false,
         searchLanguage: "en",
+        maxFandoms: null,
       },
     },
     dispatch: mocks.dispatch,
@@ -82,6 +83,40 @@ afterEach(async () => {
 });
 
 describe("settings sections", () => {
+  it("validates, saves and clears the fandom limit, retaining drafts after save failures", async () => {
+    await act(async () => button("Search preferences").click());
+    const input = container.querySelector<HTMLInputElement>("#max-fandoms")!;
+    const enter = async (value: string) =>
+      act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          input,
+          value,
+        );
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    expect(input.value).toBe("");
+    for (const invalid of ["0", "-1", "1.5"]) {
+      await enter(invalid);
+      expect(button("Save fandom limit").disabled).toBe(true);
+    }
+    await enter("3");
+    mocks.dispatch.mockResolvedValueOnce({ ok: false, error: "Save failed" });
+    await act(async () => button("Save fandom limit").click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setMaxFandoms", maxFandoms: 3 });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Save failed");
+    await act(async () => button("Search preferences").click());
+    await act(async () => button("Search preferences").click());
+    expect(input.value).toBe("3");
+    await act(async () => button("Save fandom limit").click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setMaxFandoms", maxFandoms: 3 });
+    await enter("1");
+    await act(async () => button("Save fandom limit").click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setMaxFandoms", maxFandoms: 1 });
+    await enter("3");
+    await enter("");
+    await act(async () => button("Save fandom limit").click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setMaxFandoms", maxFandoms: null });
+  });
   it("chooses and enables a language and retains the draft after a failed save", async () => {
     await act(async () => button("Search preferences").click());
     const select = container.querySelector<HTMLSelectElement>("#search-language")!;

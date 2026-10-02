@@ -1,8 +1,12 @@
 package com.qcksys.ao3tracker.ui.screens.settings
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextContains
-import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -18,10 +22,18 @@ class BrowsingSettingsTest {
     @get:Rule
     val rule = createComposeRule()
 
+    private fun showSettings(settings: AppSettings) {
+        rule.setContent {
+            MaterialTheme {
+                Column(Modifier.verticalScroll(rememberScrollState())) { BrowsingSettings(settings) }
+            }
+        }
+    }
+
     @Test
     fun selectsLanguageAndTogglesFiltering() {
         val settings = AppSettings(null)
-        rule.setContent { MaterialTheme { BrowsingSettings(settings) } }
+        showSettings(settings)
         rule.onNodeWithText("Search preferences").performClick()
         rule.onNodeWithText("English").performClick()
         rule.onNodeWithText("Français").performScrollTo().performClick()
@@ -35,22 +47,43 @@ class BrowsingSettingsTest {
     }
 
     @Test
+    fun validatesSavesAndClearsFandomLimits() {
+        val settings = AppSettings(null)
+        showSettings(settings)
+        rule.onNodeWithText("Search preferences").performClick()
+        val field = rule.onNodeWithText("Maximum fandoms per work")
+        field.performTextReplacement("0")
+        rule.onNodeWithText("Save fandom limit").assertIsNotEnabled()
+        field.performTextReplacement("1.5")
+        rule.onNodeWithText("Save fandom limit").assertIsNotEnabled()
+        field.performTextReplacement("3")
+        rule.onNodeWithText("Search preferences").performScrollTo().performClick()
+        rule.onNodeWithText("Search preferences").performClick()
+        field.assertTextContains("3")
+        rule.onNodeWithText("Save fandom limit").performScrollTo().performClick()
+        assertEquals(3, settings.browsingPreferences.value.maxFandoms)
+        field.performScrollTo().performTextReplacement("1")
+        rule.onNodeWithText("Save fandom limit").performScrollTo().performClick()
+        assertEquals(1, settings.browsingPreferences.value.maxFandoms)
+        field.performScrollTo().performTextReplacement("")
+        rule.onNodeWithText("Save fandom limit").performScrollTo().performClick()
+        assertEquals(null, settings.browsingPreferences.value.maxFandoms)
+    }
+
+    @Test
     fun preservesDraftWhileCollapsedAndRestoresHiddenWorks() {
         val settings = AppSettings(null)
         settings.setWorkHidden(123, true)
-        rule.setContent {
-            MaterialTheme { BrowsingSettings(settings) }
-        }
-
+        showSettings(settings)
         rule.onNodeWithText("Save hidden tags").assertDoesNotExist()
         rule.onNodeWithText("Search preferences").performClick()
-        rule.onNode(hasSetTextAction()).performTextReplacement("Angst\nFluff")
+        rule.onNodeWithText("Default hidden tags").performScrollTo().performTextReplacement("Angst\nFluff")
+        rule.onNodeWithText("Search preferences").performScrollTo().performClick()
         rule.onNodeWithText("Search preferences").performClick()
-        rule.onNodeWithText("Search preferences").performClick()
-        rule.onNode(hasSetTextAction()).assertTextContains("Angst\nFluff")
-        rule.onNodeWithText("Save hidden tags").performClick()
+        rule.onNodeWithText("Default hidden tags").assertTextContains("Angst\nFluff")
+        rule.onNodeWithText("Save hidden tags").performScrollTo().performClick()
         assertEquals(listOf("Angst", "Fluff"), settings.browsingPreferences.value.hiddenTags)
-        rule.onNodeWithText("Unhide").performClick()
+        rule.onNodeWithText("Unhide").performScrollTo().performClick()
         assertEquals(emptyList(), settings.browsingPreferences.value.hiddenWorkIds)
         rule.onNodeWithText("Hidden works (0)").assertExists()
     }

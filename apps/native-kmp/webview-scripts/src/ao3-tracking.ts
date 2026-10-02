@@ -10,6 +10,7 @@
  */
 import { applyListBadges as applyBadges, type WorkBadgeData } from "@qcksys/ao3tracker-core/badges";
 import {
+  applyFandomLimit,
   applyHiddenWorks,
   classifyAo3Url,
   computeChapterScrollPercentage,
@@ -21,11 +22,13 @@ import {
   getWorkInfo,
   getWorkTagInfo,
   injectSaveSearchButton,
+  installCrossoverLimit,
   installDefaultSearchTags,
   installSearchLanguage,
   publishScrollPercentage,
   suggestSavedSearchName,
   updateSavedSearchButton,
+  withCrossoverLimit,
   withDefaultHiddenTags,
   withSearchLanguage,
 } from "@qcksys/ao3tracker-core/dom";
@@ -81,14 +84,18 @@ let browsingState: BrowsingState = {
   savedSearchUrls: [],
   languageFilterEnabled: false,
   searchLanguage: "en",
+  maxFandoms: null,
 };
 
 export function applyBrowsingState(payloadJson: string): void {
   browsingState = JSON.parse(payloadJson) as BrowsingState;
   const language = browsingState.languageFilterEnabled ? browsingState.searchLanguage : null;
-  const filteredUrl = withSearchLanguage(
-    withDefaultHiddenTags(window.location.href, browsingState.hiddenTags),
-    language,
+  const filteredUrl = withCrossoverLimit(
+    withSearchLanguage(
+      withDefaultHiddenTags(window.location.href, browsingState.hiddenTags),
+      language,
+    ),
+    browsingState.maxFandoms,
   );
   if (filteredUrl !== window.location.href) {
     window.location.replace(filteredUrl);
@@ -100,6 +107,7 @@ export function applyBrowsingState(payloadJson: string): void {
     browsingState.savedSearchUrls,
     browsingState.hiddenTags,
     language,
+    browsingState.maxFandoms,
   );
   applyHiddenWorks(document, browsingState.hiddenWorkIds, (workId, hidden) => {
     postMessage(
@@ -111,6 +119,7 @@ export function applyBrowsingState(payloadJson: string): void {
       } satisfies SetWorkHiddenMessage),
     );
   });
+  applyFandomLimit(document, browsingState.maxFandoms);
 }
 
 export function applyListBadges(payloadJson: string): void {
@@ -179,6 +188,7 @@ function init(): void {
   });
 
   installDefaultSearchTags(document, window.location, () => browsingState.hiddenTags);
+  installCrossoverLimit(document, window.location, () => browsingState.maxFandoms);
   installSearchLanguage(document, window.location, () =>
     browsingState.languageFilterEnabled ? browsingState.searchLanguage : null,
   );

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { normalizeHiddenTags } from "@qcksys/ao3tracker-core/dom";
 import languages from "@qcksys/ao3tracker-core/languages";
+import { browsingPreferencesSchema } from "@qcksys/ao3tracker-core/schemas";
 import { Button } from "@/components/ui/button";
 import { EyeOffIcon } from "lucide-react";
 import { SettingsSection } from "~popup/components/SettingsSection";
@@ -10,6 +11,7 @@ import { usePopupState } from "~popup/lib/state";
 export function BrowsingSettings() {
   const { state, dispatch } = usePopupState();
   const [draft, setDraft] = useState<string | null>(null);
+  const [fandomDraft, setFandomDraft] = useState<string | null>(null);
   const [languageDraft, setLanguageDraft] = useState<{
     searchLanguage: string;
     languageFilterEnabled: boolean;
@@ -19,8 +21,27 @@ export function BrowsingSettings() {
   if (!state) return null;
   const preferences = state.browsingPreferences;
   const languageSettings = languageDraft ?? preferences;
+  const fandomInput = fandomDraft ?? String(preferences.maxFandoms ?? "");
+  const fandomLimit = browsingPreferencesSchema.shape.maxFandoms.safeParse(
+    fandomInput.trim() === "" ? null : Number(fandomInput),
+  );
   const languageLabel =
     languages.find(({ code }) => code === preferences.searchLanguage)?.label ?? "English";
+
+  const saveFandomLimit = async (): Promise<void> => {
+    if (!fandomLimit.success) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await dispatch({ kind: "setMaxFandoms", maxFandoms: fandomLimit.data });
+      if (!result.ok) setError(result.error);
+      else setFandomDraft(null);
+    } catch {
+      setError("Could not save search preferences. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveLanguage = async (): Promise<void> => {
     if (!languageDraft) return;
@@ -62,7 +83,7 @@ export function BrowsingSettings() {
     <SettingsSection
       id="search-preferences"
       title="Search preferences"
-      summary={`${preferences.languageFilterEnabled ? languageLabel : "All languages"} · ${preferences.hiddenTags.length} hidden tags · ${preferences.hiddenWorkIds.length} hidden works`}
+      summary={`${preferences.languageFilterEnabled ? languageLabel : "All languages"} · ${preferences.maxFandoms ? `Max ${preferences.maxFandoms} fandoms` : "No fandom limit"} · ${preferences.hiddenTags.length} hidden tags · ${preferences.hiddenWorkIds.length} hidden works`}
       icon={EyeOffIcon}
     >
       <p className="text-muted-foreground text-xs">
@@ -118,6 +139,36 @@ export function BrowsingSettings() {
         onClick={() => void saveLanguage()}
       >
         Save language filter
+      </Button>
+      <Label htmlFor="max-fandoms">Maximum fandoms per work</Label>
+      <input
+        id="max-fandoms"
+        type="number"
+        min={1}
+        max={2147483647}
+        step={1}
+        placeholder="No limit"
+        className="border-input w-full rounded-md border p-2"
+        value={fandomInput}
+        disabled={saving}
+        onChange={(event) => setFandomDraft(event.target.value)}
+        aria-describedby="max-fandoms-help"
+        aria-invalid={!fandomLimit.success}
+      />
+      <p id="max-fandoms-help" className="text-muted-foreground text-xs">
+        Leave blank for no limit. Hide works with more fandoms than this in work and bookmark lists.
+        Set to 1 to also apply “Exclude crossovers” to work searches. AO3’s result counts stay
+        unchanged when works are hidden locally.
+      </p>
+      {!fandomLimit.success && (
+        <p className="text-destructive text-xs">Enter a positive whole number or leave blank.</p>
+      )}
+      <Button
+        size="sm"
+        disabled={saving || fandomDraft === null || !fandomLimit.success}
+        onClick={() => void saveFandomLimit()}
+      >
+        Save fandom limit
       </Button>
       <Label htmlFor="hidden-tags">Default hidden tags</Label>
       <textarea

@@ -49,6 +49,10 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   setWorkHiddenSchema.pick({ workId: true }).extend({ kind: z.literal("unhideWork") }),
   browsingPreferencesSchema.pick({ hiddenTags: true }).extend({ kind: z.literal("setHiddenTags") }),
+  z.object({
+    kind: z.literal("setMaxFandoms"),
+    maxFandoms: browsingPreferencesSchema.shape.maxFandoms.removeDefault(),
+  }),
   browsingPreferencesSchema
     .pick({ languageFilterEnabled: true, searchLanguage: true })
     .required()

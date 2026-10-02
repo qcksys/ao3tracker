@@ -7,6 +7,7 @@ export const browsingPreferencesSchema = z.object({
   hiddenWorkIds: z.array(z.number().int().positive()),
   hiddenTags: z.array(z.string().trim().min(1)),
   languageFilterEnabled: z.boolean().default(false),
+  maxFandoms: z.number().int().positive().max(2147483647).nullable().default(null),
   searchLanguage: z
     .string()
     .refine((code) => languageCodes.has(code), "Unknown AO3 language")
