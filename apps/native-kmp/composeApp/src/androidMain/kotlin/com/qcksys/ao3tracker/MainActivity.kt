@@ -87,10 +87,7 @@ class MainActivity : ComponentActivity() {
             )
             if (workId != null) {
                 Napier.d("Notification deep link: opening work $workId")
-                NavigationState.navigateToRead(
-                    url = "https://archiveofourown.org/works/$workId",
-                    scrollProgress = 0f
-                )
+                NavigationState.navigateToWork(workId)
             }
         }
     }

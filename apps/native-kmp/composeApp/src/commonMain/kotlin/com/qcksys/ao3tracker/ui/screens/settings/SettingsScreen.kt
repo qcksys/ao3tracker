@@ -1501,7 +1501,7 @@ internal fun NotificationItemCard(notification: NotificationItem, onDismiss: () 
     Card(
         onClick = {
             onDismiss()
-            NavigationState.navigateToRead("https://archiveofourown.org/works/${notification.workId}")
+            NavigationState.navigateToWork(notification.workId.toLong())
         },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

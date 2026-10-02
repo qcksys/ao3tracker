@@ -8,7 +8,7 @@ import {
   getWorkTagInfo,
   suggestSavedSearchName,
   injectSaveSearchButton,
-  publishScrollPercentage,
+  observeChapterProgress,
   applyHiddenWorks,
   installDefaultSearchTags,
   installSearchLanguage,
@@ -95,20 +95,15 @@ export default defineContentScript({
       });
     };
 
-    const onScroll = (): void => {
-      const message = publishScrollPercentage(document, window);
-      if (message) postPageEvent(message);
-    };
-
     const { isWork, isChapterIndex } = classifyAo3Url(window.location.href);
 
     if (isWork) {
-      window.addEventListener("scroll", onScroll, { passive: true });
       postPageEvent(getWorkInfo(document, window.location));
       postPageEvent(getWorkTagInfo(document, window.location));
 
       const chapterSelect = getWorkChapterSelect(document, window.location);
       if (chapterSelect) postPageEvent(chapterSelect);
+      ctx.onInvalidated(observeChapterProgress(document, window, postPageEvent));
     }
 
     if (isChapterIndex) {

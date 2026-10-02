@@ -60,11 +60,7 @@ fun ReadScreen() {
     val pendingNavigation by NavigationState.pendingNavigation.collectAsState()
     LaunchedEffect(pendingNavigation) {
         pendingNavigation?.let { nav ->
-            if (nav.scrollProgress == null) {
-                screenModel.navigateToExternalUrl(nav.url)
-            } else {
-                screenModel.navigateToUrlWithScroll(nav.url, nav.scrollProgress)
-            }
+            screenModel.navigateToReadingPosition(nav)
             NavigationState.clearPendingNavigation()
         }
     }

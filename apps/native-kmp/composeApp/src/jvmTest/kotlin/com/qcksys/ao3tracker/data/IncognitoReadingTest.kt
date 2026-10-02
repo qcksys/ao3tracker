@@ -27,6 +27,8 @@ import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.sync.SyncTriggers
 import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
+import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.navigation.ReadNavigation
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -54,6 +56,37 @@ import kotlinx.serialization.json.Json
 
 @OptIn(ExperimentalCoroutinesApi::class, InternalVoyagerApi::class)
 class IncognitoReadingTest {
+    @Test
+    fun `work navigation uses latest stored completion and starts the next chapter without editing progress`() = runTest {
+        fixture { f ->
+            f.seedTrackedWork()
+            NavigationState.navigateToWork(1)
+            val request = assertNotNull(NavigationState.pendingNavigation.value)
+            NavigationState.clearPendingNavigation()
+            f.accounts.edit {
+                val chapter = assertNotNull(f.db.chapterDao().getChapterById(11, 1))
+                f.db.chapterDao().upsertChapter(chapter.copy(number = 1, markedCompleteAt = 200))
+                f.db.chapterDao().upsertChapter(ChapterEntity(
+                    workId = 1, chapterId = 22, number = 2, readProgress = 0.5f,
+                    rowCreatedAt = 100, rowUpdatedAt = 100
+                ))
+            }
+            f.settings.setIncognitoModeEnabled(true)
+            val before = f.snapshot()
+            f.model.navigateToReadingPosition(request)
+            assertTrue(f.model.currentUrl.value.startsWith("${url(22)}?scrollTo=0&"))
+            assertTrue(f.model.currentUrl.value.endsWith("#chapters"))
+            assertEquals(before, f.snapshot())
+
+            f.model.navigateToReadingPosition(ReadNavigation("https://archiveofourown.org/works/999", 0f, 999))
+            assertTrue(f.model.currentUrl.value.startsWith("https://archiveofourown.org/works/999?scrollTo=0&"))
+
+            val external = "${url()}?view_adult=true#comment_1"
+            f.model.navigateToReadingPosition(ReadNavigation(external, null))
+            assertEquals(external, f.model.currentUrl.value)
+        }
+    }
+
     @Test
     fun `saved search updates apply current filters in incognito and refresh the page state`() = runTest {
         fixture { f ->

@@ -23,6 +23,8 @@ import com.qcksys.ao3tracker.util.AppLogger
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import com.qcksys.ao3tracker.util.JsonConfig
 import com.qcksys.ao3tracker.ui.components.ReaderLinkAction
+import com.qcksys.ao3tracker.ui.navigation.ReadNavigation
+import com.qcksys.ao3tracker.ui.navigation.readNavigation
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -428,6 +430,17 @@ class ReadScreenModel(
     private fun extractChapterIdFromUrl(url: String): Long? {
         val regex = Regex("/chapters/(\\d+)")
         return regex.find(url)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    suspend fun navigateToReadingPosition(navigation: ReadNavigation) {
+        val generation = accountData.generation
+        val destination = navigation.workId?.let { repository.getWorkByIdOnce(it)?.readNavigation() } ?: navigation
+        if (accountData.generation != generation) return
+        if (destination.scrollProgress == null) {
+            navigateToExternalUrl(destination.url)
+        } else {
+            navigateToUrlWithScroll(destination.url, destination.scrollProgress)
+        }
     }
 
     fun navigateToUrl(url: String) {

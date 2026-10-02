@@ -1,7 +1,9 @@
 import type { WebViewMessage, WorkBadgeData } from "@qcksys/ao3tracker-core";
 import { classifyAo3Url } from "@qcksys/ao3tracker-core";
+import { workReadingUrl } from "./work-navigation";
 import {
   chapterKey,
+  chapterMetadataItem,
   type TrackedChapter,
   type TrackedWork,
   trackedChaptersItem,
@@ -119,7 +121,7 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
         chapterId,
         lastReadAt: nextReadAt(existing?.lastReadAt),
         markedCompleteAt: existing?.markedCompleteAt ?? null,
-        readProgress: progress,
+        readProgress: Math.max(existing?.readProgress ?? 0, progress),
         pendingSync: true,
       };
       await saveChapter(chapters);
@@ -132,12 +134,35 @@ export async function ingestPageEvent(message: WebViewMessage): Promise<number[]
       await saveWork(works);
       return [workId];
     }
+    case "workChapterIndex": {
+      const metadata = await chapterMetadataItem.getValue();
+      metadata[workId] = message.chapters.flatMap((chapter, index) => {
+        const chapterId = chapter.chapterUrl?.match(/\/chapters\/(\d+)/)?.[1];
+        return chapterId
+          ? [{ id: Number(chapterId), workId, number: index + 1, title: null, dateUpdated: null }]
+          : [];
+      });
+      await chapterMetadataItem.setValue(metadata);
+      return [];
+    }
     default:
-      // workTags / workChapterIndex / listWorks don't update tracker state in
+      // workTags / listWorks don't update tracker state in
       // the extension today (the api refresh-works cron does the heavy lifting
       // on metadata). They could be wired into local metadata caches later.
       return [];
   }
+}
+
+export async function getWorkReadingUrl(workId: number): Promise<string> {
+  const [chapters, metadata] = await Promise.all([
+    trackedChaptersItem.getValue(),
+    chapterMetadataItem.getValue(),
+  ]);
+  return workReadingUrl(
+    workId,
+    Object.values(chapters).filter((chapter) => chapter.workId === workId),
+    metadata[workId] ?? [],
+  );
 }
 
 export async function setFavourite(workId: number, favourite: boolean): Promise<void> {

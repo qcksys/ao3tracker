@@ -1,4 +1,10 @@
-import type { SyncTagMetadata, SyncWorkMetadata, WorkBadgeStatus } from "@qcksys/ao3tracker-core";
+import type {
+  SyncChapterMetadata,
+  SyncTagMetadata,
+  SyncWorkMetadata,
+  WorkBadgeStatus,
+} from "@qcksys/ao3tracker-core";
+import { workReadingUrl } from "./work-navigation";
 
 import type { TrackedChapter, TrackedWork } from "./storage";
 
@@ -9,6 +15,7 @@ import type { TrackedChapter, TrackedWork } from "./storage";
  */
 export interface WorksListRow {
   workId: number;
+  readingUrl: string;
   // tracker
   lastReadAt: string;
   markedCompleteAt: string | null;
@@ -104,6 +111,7 @@ export function buildWorksList(input: {
   works: Record<number, TrackedWork>;
   metadata: Record<number, SyncWorkMetadata>;
   chapters: Record<string, TrackedChapter>;
+  chapterMetadata: Record<number, SyncChapterMetadata[]>;
   tagMetadata: SyncTagMetadata[];
 }): WorksListRow[] {
   const tagsByWork = new Map<number, Set<string>>();
@@ -128,6 +136,7 @@ export function buildWorksList(input: {
     const { status, progressPercent } = deriveStatus(w, meta, workChapters);
     rows.push({
       workId: w.workId,
+      readingUrl: workReadingUrl(w.workId, workChapters, input.chapterMetadata[w.workId] ?? []),
       lastReadAt: w.lastReadAt,
       markedCompleteAt: w.markedCompleteAt,
       private: w.private,

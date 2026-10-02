@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.ui.navigation
 
 import com.qcksys.ao3tracker.data.model.TagType
+import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,10 @@ object NavigationState {
 
     fun navigateToRead(url: String, scrollProgress: Float? = 0f) {
         _pendingNavigation.value = ReadNavigation(url, scrollProgress)
+    }
+
+    fun navigateToWork(workId: Long) {
+        _pendingNavigation.value = ReadNavigation("https://archiveofourown.org/works/$workId", 0f, workId)
     }
 
     fun navigateToExternalAo3Url(url: String?) {
@@ -91,8 +96,23 @@ interface TabNavigatorContract {
 
 data class ReadNavigation(
     val url: String,
-    val scrollProgress: Float?
+    val scrollProgress: Float?,
+    val workId: Long? = null
 )
+
+internal fun Work.readNavigation(): ReadNavigation {
+    val current = lastChapterRead
+    val next = if (current?.isComplete == true && current.number != null) {
+        chapterList.firstOrNull { it.rowDeletedAt == null && it.id > 0 && it.number == current.number + 1 }
+    } else null
+    val chapter = next ?: current
+    val url = if (chapter != null && chapter.id > 0) {
+        "https://archiveofourown.org/works/$id/chapters/${chapter.id}"
+    } else {
+        "https://archiveofourown.org/works/$id"
+    }
+    return ReadNavigation(url, if (next != null) 0f else chapter?.readProgress ?: 0f)
+}
 
 data class TagFilter(
     val tagType: TagType,

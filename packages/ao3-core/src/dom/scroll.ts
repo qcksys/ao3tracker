@@ -1,5 +1,27 @@
 import type { ScrollProgressMessage } from "../schemas/messages";
-import { computeChapterScrollPercentage, extractChapterId } from "./extract";
+import { computeChapterScrollPercentage, extractChapterId, findNextChapterButton } from "./extract";
+
+export function observeChapterProgress(
+  doc: Document,
+  win: Window & typeof globalThis,
+  onProgress: (message: ScrollProgressMessage) => void,
+): () => void {
+  const report = (): void => {
+    const message = publishScrollPercentage(doc, win);
+    if (message) onProgress(message);
+  };
+  win.addEventListener("scroll", report, { passive: true });
+  win.addEventListener("resize", report);
+  const next = findNextChapterButton(doc);
+  const observer = next ? new win.IntersectionObserver(report) : null;
+  if (next) observer?.observe(next);
+  report();
+  return () => {
+    win.removeEventListener("scroll", report);
+    win.removeEventListener("resize", report);
+    observer?.disconnect();
+  };
+}
 
 /**
  * Returns the next scroll message to emit when the user scrolls, or null if

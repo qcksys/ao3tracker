@@ -18,6 +18,7 @@ import com.qcksys.ao3tracker.data.model.SyncPostResponse
 import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.sync.SyncRemote
 import com.qcksys.ao3tracker.data.sync.SyncRepository
+import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.nio.file.Files
 import kotlinx.coroutines.Dispatchers
@@ -119,7 +120,9 @@ class SearchCheckSchedulingTest {
                 override suspend fun fetchSyncData(token: String, lastSyncedAt: String?, workCursor: Long?, limit: Int?): Result<SyncGetResponse> = error("Search checks must not sync")
                 override suspend fun sendSyncData(token: String, request: SyncPostRequest): Result<SyncPostResponse> = error("Search checks must not sync")
             }
-            val sync = SyncTriggers(SyncRepository(remote, auth, FavouriteTagRepository(accounts), searches, accounts))
+            val repository = SyncRepository(remote, auth, FavouriteTagRepository(accounts), searches, accounts)
+            val coordinator = SyncCoordinator(repository, auth, accounts, signOut = { error("Search checks must not sign out") }, scope = backgroundScope)
+            val sync = SyncTriggers(coordinator)
             var now = Clock.System.now().toEpochMilliseconds()
             val model = ScreenModelStore.getOrPut(holder, null) {
                 SearchesScreenModel(searches, sync, checks, AppSettings(null), { now })

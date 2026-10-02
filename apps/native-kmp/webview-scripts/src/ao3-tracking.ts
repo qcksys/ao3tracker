@@ -25,7 +25,7 @@ import {
   installCrossoverLimit,
   installDefaultSearchTags,
   installSearchLanguage,
-  publishScrollPercentage,
+  observeChapterProgress,
   suggestSavedSearchName,
   updateSavedSearchButton,
   withCrossoverLimit,
@@ -74,11 +74,6 @@ function postMessage(msg: string): void {
   } else if (window.ao3Bridge) {
     window.ao3Bridge(msg);
   }
-}
-
-function updateScrollAndPost(): void {
-  const message = publishScrollPercentage(document, window);
-  if (message) postMessage(JSON.stringify(message));
 }
 
 let diagnostics: ReturnType<typeof installDiagnostics> | undefined;
@@ -185,10 +180,10 @@ export function reportReadingActivity(): void {
 }
 
 function init(): void {
-  if (classifyAo3Url(window.location.href).isWork) {
-    window.addEventListener("scroll", updateScrollAndPost);
-  }
   reportPageMetadata();
+  if (classifyAo3Url(window.location.href).isWork) {
+    observeChapterProgress(document, window, (message) => postMessage(JSON.stringify(message)));
+  }
 
   consumeScrollToParam(document, window);
 
