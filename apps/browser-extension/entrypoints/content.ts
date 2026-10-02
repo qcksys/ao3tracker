@@ -23,6 +23,7 @@ import { applyListBadges } from "@qcksys/ao3tracker-core/badges";
 import type { BrowsingState, WebViewMessage } from "@qcksys/ao3tracker-core/schemas";
 import { backgroundToContentResponseSchema, type ContentToBackground } from "@/lib/messaging";
 import { browsingPreferencesItem, savedSearchesItem } from "@/lib/storage";
+import { showSaveSearchDialog } from "@/lib/save-search-dialog";
 
 export default defineContentScript({
   matches: ["https://archiveofourown.org/*"],
@@ -116,17 +117,26 @@ export default defineContentScript({
 
     consumeScrollToParam(document, window);
 
+    let dismissSaveSearch: (() => void) | undefined;
+    ctx.onInvalidated(() => dismissSaveSearch?.());
     injectSaveSearchButton(document, window.location, (url, button) => {
-      const name = window.prompt("Name this saved search:", suggestSavedSearchName(document, url));
-      if (!name || name.trim().length === 0) return;
       button.disabled = true;
-      void send({ kind: "saveSearch", name: name.trim().slice(0, 191), url })
-        .then(async (res) => {
-          if (res.kind === "ok") {
-            await refreshBrowsingState();
-          } else if (res.kind === "error") {
-            throw new Error(res.message);
-          }
+      void savedSearchesItem
+        .getValue()
+        .then((searches) => {
+          dismissSaveSearch?.();
+          dismissSaveSearch = showSaveSearchDialog(
+            document,
+            suggestSavedSearchName(document, url),
+            searches,
+            async (choice) => {
+              const res = await send({ ...choice, url });
+              if (res.kind === "error") throw new Error(res.message);
+              if (res.kind !== "ok") throw new Error("Could not save. Please try again.");
+              await refreshBrowsingState();
+            },
+          );
+          button.disabled = false;
         })
         .catch((err) => {
           button.disabled = false;
