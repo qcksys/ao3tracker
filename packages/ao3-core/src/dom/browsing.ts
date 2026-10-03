@@ -242,7 +242,11 @@ export function applyHiddenWorks(
   doc: Document,
   hiddenWorkIds: number[],
   onChange: (workId: number, hidden: boolean, title?: string) => void,
-  options: { hideCaughtUp?: boolean; badges?: import("../badges").WorkBadgeData[] } = {},
+  options: {
+    hideCaughtUp?: boolean;
+    hideTracked?: boolean;
+    badges?: import("../badges").WorkBadgeData[];
+  } = {},
 ): void {
   const hidden = new Set(hiddenWorkIds);
   const badges = new Map(options.badges?.map((badge) => [badge.id, badge]));
@@ -283,11 +287,13 @@ export function applyHiddenWorks(
     const published = Number(blurb.querySelector("dd.chapters")?.textContent?.trim().split("/")[0]);
     const hasNewChapters = badge?.currentChapters != null && published > badge.currentChapters;
     const reason =
-      options.hideCaughtUp &&
-      !hasNewChapters &&
-      (badge?.status === "caught-up" || badge?.status === "finished")
-        ? badge.status
-        : null;
+      options.hideTracked && badge
+        ? "tracked"
+        : options.hideCaughtUp &&
+            !hasNewChapters &&
+            (badge?.status === "caught-up" || badge?.status === "finished")
+          ? badge.status
+          : null;
     const automaticallyHidden =
       reason !== null && blurb.dataset.ao3TrackerRevealedStatus !== reason;
     const isHidden = hidden.has(workId) || automaticallyHidden;
@@ -321,9 +327,11 @@ export function applyHiddenWorks(
     link.textContent = title;
     const label = manuallyHidden
       ? "Hidden"
-      : reason === "finished"
-        ? "Hidden - finished"
-        : "Hidden - caught up";
+      : reason === "tracked"
+        ? "Hidden - tracked"
+        : reason === "finished"
+          ? "Hidden - finished"
+          : "Hidden - caught up";
     placeholder.replaceChildren(link, doc.createTextNode(` · ${label} · `), restore);
   }
 }

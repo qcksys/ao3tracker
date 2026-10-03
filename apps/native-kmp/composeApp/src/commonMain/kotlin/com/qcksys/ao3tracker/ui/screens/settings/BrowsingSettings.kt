@@ -110,7 +110,16 @@ fun BrowsingSettings(appSettings: AppSettings, onOpenHiddenWorks: () -> Unit) {
                     modifier = Modifier.semantics { contentDescription = "Hide caught-up and finished works" }
                 )
             }
-            Text("Collapse these works in AO3 lists. Works with new chapters stay visible.")
+            Text("Collapse these works in AO3 lists. Works with new chapters stay visible unless all tracked works are hidden.")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Hide all tracked works", modifier = Modifier.weight(1f))
+                Switch(
+                    checked = preferences.hideTracked,
+                    onCheckedChange = { enabled -> save { appSettings.setHideTracked(enabled) } },
+                    modifier = Modifier.semantics { contentDescription = "Hide all tracked works" }
+                )
+            }
+            Text("Collapse every tracked work in AO3 lists, including unread works and works with new chapters. Use Show to reveal a work on the current page.")
             Text("Excluded tags", style = MaterialTheme.typography.titleSmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 preferences.hiddenTags.forEach { tag ->

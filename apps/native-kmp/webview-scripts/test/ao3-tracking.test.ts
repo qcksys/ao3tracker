@@ -41,6 +41,29 @@ beforeEach(() => {
 });
 
 describe("browsing state bridge", () => {
+  it("hides all tracked works regardless of response order and restores them when disabled", () => {
+    mockLocation("https://archiveofourown.org/works");
+    const state = { hiddenWorkIds: [], hiddenTags: [], savedSearchUrls: [], hideTracked: true };
+    const entries: WorkBadgeData[] = [
+      { id: 123, status: "not-started", progressPercent: 0, favourite: false, currentChapters: 1 },
+    ];
+    for (const badgesFirst of [true, false]) {
+      document.body.innerHTML =
+        '<ol><li id="work_123"><h4 class="heading"><a href="/works/123">A story</a></h4><dd class="chapters">2/5</dd></li><li id="work_456"><h4 class="heading"><a href="/works/456">Untracked</a></h4></li></ol>';
+      applyBrowsingState(JSON.stringify({ ...state, hideTracked: false }));
+      applyListBadges("[]");
+      if (badgesFirst) applyListBadges(JSON.stringify(entries));
+      applyBrowsingState(JSON.stringify(state));
+      if (!badgesFirst) applyListBadges(JSON.stringify(entries));
+      expect(document.querySelectorAll(".ao3-tracker-work-hidden")).toHaveLength(1);
+      expect(document.querySelector("#work_123 + li")?.textContent).toContain(
+        "A story · Hidden - tracked",
+      );
+      applyBrowsingState(JSON.stringify({ ...state, hideTracked: false }));
+      expect(document.querySelectorAll(".ao3-tracker-work-hidden")).toHaveLength(0);
+    }
+  });
+
   it("combines preferences and badges regardless of response order and sends titles when hiding", () => {
     const url = "https://archiveofourown.org/works";
     mockLocation(url);

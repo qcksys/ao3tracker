@@ -88,6 +88,7 @@ function setDiagnosticsEnabled(enabled: boolean): void {
 
 let browsingState: BrowsingState = {
   hideCaughtUp: false,
+  hideTracked: false,
   hiddenWorkTitles: {},
   hiddenWorkIds: [],
   hiddenTags: [],
@@ -136,7 +137,7 @@ export function applyBrowsingState(payloadJson: string): void {
         } satisfies SetWorkHiddenMessage),
       );
     },
-    { hideCaughtUp: browsingState.hideCaughtUp, badges },
+    { hideCaughtUp: browsingState.hideCaughtUp, hideTracked: browsingState.hideTracked, badges },
   );
   applyFandomLimit(document, browsingState.maxFandoms);
 }

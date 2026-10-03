@@ -121,6 +121,10 @@ class AppSettings(
         setBrowsingPreferences(_browsingPreferences.value.copy(hideCaughtUp = enabled))
     }
 
+    fun setHideTracked(enabled: Boolean) {
+        setBrowsingPreferences(_browsingPreferences.value.copy(hideTracked = enabled))
+    }
+
     fun setWorkHidden(workId: Long, hidden: Boolean, title: String? = null) {
         if (workId <= 0) return
         val ids = _browsingPreferences.value.hiddenWorkIds.toMutableSet()
