@@ -51,6 +51,12 @@ Subpath exports are declared in [package.json](./package.json). **Prefer them ov
 
 The `/languages` export exposes [src/languages.json](src/languages.json), captured from the [AO3 work-search form](https://archiveofourown.org/works/search) on 2026-10-02. Preserve AO3 codes and labels; the extension reads it directly and Gradle generates the native list from the same file. Language filtering starts disabled with English selected. `withSearchLanguage` and `installSearchLanguage` enforce the enabled choice in work/bookmark URLs and GET forms; saved-search matching uses the same effective language.
 
+## Offline capture
+
+For offline HTML, CSS, or bridge changes, read [the native offline design and acceptance matrix](../../docs/native-offline-reading.md). `/offline` includes DOMPurify and CSS-tree and belongs only in the capture bundle. `/offline/observation` identifies the AO3 session and readable page without loading the capture dependencies. Canonical schemas live in `src/schemas/offline.ts`; keep their Kotlin counterparts in the native app aligned.
+
+Preserve viewport content, DOM styling hooks, ordered styles, media conditions, and separate work styles. Required stylesheet failures abort publication; optional missing media is disclosed. Only a complete foreground capture may select a new site skin. Upstream default/Reversi CSS fixtures are shared with Android instrumentation under `apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins`; run the upstream fixture test when changing CSS parsing. `observeChapterProgress` accepts a publication guard checked before either URL mutation or bridge delivery; native uses it to suppress progress from rotation and appearance changes.
+
 ## Tests
 
 Pure DOM + utility tests under happy-dom live in [test/](./test/) — flat layout mirroring `src/dom/`:

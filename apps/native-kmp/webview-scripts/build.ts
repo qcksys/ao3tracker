@@ -19,6 +19,21 @@ interface Entry {
 
 const entries: Entry[] = [
   {
+    entry: "./src/offline-observation-entry.ts",
+    name: "Ao3OfflineObservation",
+    fileName: "offline-observation.min.js",
+  },
+  {
+    entry: "./src/offline-reader-entry.ts",
+    name: "Ao3OfflineReader",
+    fileName: "offline-reader.min.js",
+  },
+  {
+    entry: "./src/offline-capture-entry.ts",
+    name: "Ao3OfflineCapture",
+    fileName: "offline-capture.min.js",
+  },
+  {
     entry: "./src/search-check-entry.ts",
     name: "Ao3SearchCheck",
     fileName: "search-check.min.js",

@@ -14,6 +14,8 @@
     "./work-summary": "./src/work-summary.ts",
     "./languages": "./src/languages.json",
     "./dom": "./src/dom/index.ts",
+    "./offline": "./src/offline/index.ts",
+    "./offline/observation": "./src/offline/observation.ts",
     "./badges": "./src/badges.ts"
   },
   "scripts": {
@@ -22,11 +24,15 @@
     "test:watch": "vp test watch"
   },
   "dependencies": {
+    "css-tree": "catalog:",
+    "dompurify": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/css-tree": "catalog:",
     "@types/node": "catalog:",
     "happy-dom": "catalog:",
+    "jsdom": "catalog:",
     "typescript": "catalog:"
   }
 }

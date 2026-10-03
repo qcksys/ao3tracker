@@ -26,11 +26,48 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.dispatchEvent(new Event("pagehide"));
   for (const listener of scrollListeners) window.removeEventListener("scroll", listener);
   for (const listener of resizeListeners) window.removeEventListener("resize", listener);
   delete window.AndroidBridge;
   vi.useRealTimers();
   vi.restoreAllMocks();
+});
+
+it("does not publish progress or change its URL after rotation or appearance reflow until interaction", async () => {
+  document.body.innerHTML = workPageHtml;
+  window.history.replaceState({}, "", "/works/10828137/chapters/24029673?scroll=50");
+  const bounds = vi
+    .spyOn(required(document.getElementById("chapters")), "getBoundingClientRect")
+    .mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight * 2));
+  const appearance = window.matchMedia("(prefers-color-scheme: dark)");
+  vi.spyOn(window, "matchMedia").mockReturnValue(appearance);
+  const postMessage = vi.fn<(message: string) => void>();
+  window.AndroidBridge = { postMessage };
+  await import("~/ao3-tracking");
+  postMessage.mockClear();
+  const progress = () =>
+    postMessage.mock.calls
+      .map(([raw]) => JSON.parse(raw))
+      .filter((message) => message.type === "scrollProgress");
+  bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
+  window.dispatchEvent(new Event("resize"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([]);
+  expect(new URL(window.location.href).searchParams.get("scroll")).toBe("50");
+  bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight / 0.75));
+  document.dispatchEvent(new Event("touchstart"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([expect.objectContaining({ scrollPercentage: 75 })]);
+  postMessage.mockClear();
+  bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
+  appearance.dispatchEvent(new Event("change"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([]);
+  expect(new URL(window.location.href).searchParams.get("scroll")).toBe("75");
+  document.dispatchEvent(new Event("wheel"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([expect.objectContaining({ scrollPercentage: 100 })]);
 });
 
 it("restores a chapter to the body start before reporting reading progress", async () => {

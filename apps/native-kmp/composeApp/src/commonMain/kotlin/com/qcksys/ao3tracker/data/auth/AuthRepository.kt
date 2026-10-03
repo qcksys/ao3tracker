@@ -53,7 +53,7 @@ class AuthRepository(
     }
 
     private suspend fun acceptSession(operation: AuthOperation, user: User, token: String, claimLegacy: Boolean = false): Boolean = complete(operation) {
-        accountData.activate(AccountDataStore.owner(operation.environment.name, user.id), claimLegacy)
+        accountData.activate(AccountDataStore.owner(operation.environment.name, user.id), claimLegacy, preserveCurrent = claimLegacy)
         if (isCurrent(operation)) {
             tokenStorage.saveToken(token)
             _authState.value = AuthState.Authenticated(user, token)
@@ -85,7 +85,7 @@ class AuthRepository(
                 acceptSession(operation, response.user, response.session.token, claimLegacy = true)
             }
         } else {
-            complete(operation) { accountData.activate(AccountDataStore.GUEST) }
+            complete(operation) { accountData.activate(AccountDataStore.GUEST, preserveCurrent = true) }
         }
 
         if (isCurrent(operation)) isInitialized = true

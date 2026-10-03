@@ -11,6 +11,7 @@ import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
 import com.qcksys.ao3tracker.data.database.MIGRATION_8_9
 import com.qcksys.ao3tracker.data.database.MIGRATION_9_10
+import com.qcksys.ao3tracker.data.database.MIGRATION_10_11
 import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_1_2
 import com.qcksys.ao3tracker.data.database.MIGRATION_2_3
@@ -27,6 +28,14 @@ import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.repository.SearchCheckRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.data.offline.OfflineContentStore
+import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
+import com.qcksys.ao3tracker.data.offline.Ao3RequestGate
+import com.qcksys.ao3tracker.data.offline.offlineNetworkState
+import com.qcksys.ao3tracker.ui.components.supportsOfflineReading
+import com.qcksys.ao3tracker.data.offline.OfflineFileScope
+import com.qcksys.ao3tracker.data.offline.getOfflineFiles
+import com.qcksys.ao3tracker.data.offline.offlineSha256
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsTransport
@@ -41,6 +50,7 @@ import com.qcksys.ao3tracker.ui.screens.searches.SearchesScreenModel
 import com.qcksys.ao3tracker.ui.screens.track.TrackScreenModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 
@@ -59,12 +69,20 @@ val appModule = module {
                     MIGRATION_6_7,
                     MIGRATION_7_8,
                     MIGRATION_8_9,
-                    MIGRATION_9_10
+                    MIGRATION_9_10,
+                    MIGRATION_10_11
                 )
                 .build()
         }
-        AccountDataStore(openDatabase(DB_FILE_NAME), openDatabase)
+        AccountDataStore(openDatabase(DB_FILE_NAME), openDatabase) { owner, context ->
+            withContext(Dispatchers.IO) {
+                getOfflineFiles().removeContext(OfflineFileScope(offlineSha256(owner.encodeToByteArray()), context))
+            }
+        }
     }
+    single { OfflineContentStore(get(), getOfflineFiles()) }
+    single { Ao3RequestGate() }
+    single { OfflineCoordinator(get(), get(), get(), get(), offlineNetworkState(), supportsOfflineReading(), requestSync = get<SyncTriggers>()::notifyReadingConnection) }
 
     single { Ao3Repository(get()) }
 
@@ -113,5 +131,5 @@ val appModule = module {
 
     // TrackScreenModel as singleton to preserve filter state
     single { TrackScreenModel(get(), get(), get(), get()) }
-    single { SearchesScreenModel(get(), get(), get(), get()) }
+    single { SearchesScreenModel(get(), get(), get(), get(), ao3Gate = get()) }
 }

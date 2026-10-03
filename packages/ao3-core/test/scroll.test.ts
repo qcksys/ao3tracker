@@ -125,6 +125,38 @@ it("reports 100 percent as soon as the bottom Next Chapter button enters the vie
   expect(publishScrollPercentage(document, window)).toBeNull();
 });
 
+it("checks the publication guard before changing the URL for scroll, resize, or intersection events", () => {
+  const { bounds } = chapterWithNextButton();
+  bounds.mockReturnValue(new DOMRect(20, 799, 120, 24));
+  let intersectionChanged = () => {};
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: () => void) {
+        intersectionChanged = callback;
+      }
+      observe() {}
+      disconnect() {}
+    },
+  );
+  let enabled = false;
+  const report = vi.fn();
+  const stop = observeChapterProgress(document, window, report, () => enabled);
+  try {
+    window.dispatchEvent(new Event("scroll"));
+    window.dispatchEvent(new Event("resize"));
+    intersectionChanged();
+    expect(report).not.toHaveBeenCalled();
+    expect(window.location.search).toBe("");
+    enabled = true;
+    intersectionChanged();
+    expect(report).toHaveBeenCalledWith(expect.objectContaining({ scrollPercentage: 100 }));
+    expect(window.location.search).toBe("?scroll=100");
+  } finally {
+    stop();
+  }
+});
+
 it.each([
   [20, 800, 120, 24],
   [20, -24, 120, 24],

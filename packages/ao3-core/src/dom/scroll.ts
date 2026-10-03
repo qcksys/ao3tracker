@@ -5,8 +5,10 @@ export function observeChapterProgress(
   doc: Document,
   win: Window & typeof globalThis,
   onProgress: (message: ScrollProgressMessage) => void,
+  shouldPublish: () => boolean = () => true,
 ): () => void {
   const report = (): void => {
+    if (!shouldPublish()) return;
     const message = publishScrollPercentage(doc, win);
     if (message) onProgress(message);
   };
