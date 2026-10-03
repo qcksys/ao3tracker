@@ -1,7 +1,7 @@
 import createDOMPurify from "dompurify";
 import type { OfflineChapter, OfflinePage, OfflineStyle } from "../schemas/offline";
 import { readingLocation, resourceUrl, trustedAo3Url } from "./urls";
-import { ao3Identity } from "./observation";
+import { ao3Identity, downloadUpdatedAt } from "./observation";
 
 export interface OfflineCapture {
   page: OfflinePage;
@@ -175,6 +175,7 @@ export function captureOfflinePage(doc: Document, sourceUrl: string): OfflineCap
       html,
       siteStyles,
       chapters: chapterManifest(doc, location.url, location.workId, chapterId),
+      downloadUpdatedAt: downloadUpdatedAt(doc, sourceUrl),
     },
     stylesheets,
   };

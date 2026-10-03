@@ -336,9 +336,10 @@ fun SettingsScreen() {
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Ao3LinkSettings()
-                    OfflineStorageSettings(appSettings, onManageDownloads = { navigator.push(DownloadsScreen()) })
                 }
             }
+
+            OfflineStorageSettings(appSettings, onManageDownloads = { navigator.push(DownloadsScreen()) })
 
             BrowsingSettings(appSettings, onOpenHiddenWorks = { navigator.push(HiddenWorksScreen()) })
 

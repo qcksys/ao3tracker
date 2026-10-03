@@ -1,6 +1,15 @@
 import type { OfflineObservation } from "../schemas/offline";
 import { readingLocation, trustedAo3Url } from "./urls";
 
+export function downloadUpdatedAt(doc: Document, pageUrl: string): string | null {
+  const href = doc.querySelector("li.download ul a[href]")?.getAttribute("href");
+  const url = href ? trustedAo3Url(href, pageUrl) : null;
+  const timestamp = url?.searchParams.get("updated_at");
+  if (!timestamp || !/^\d+$/.test(timestamp)) return null;
+  const date = new Date(Number(timestamp) * 1000);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
 export function ao3Identity(doc: Document, pageUrl: string): string | null {
   const loggedIn = doc.body.classList.contains("logged-in");
   const loggedOut = doc.body.classList.contains("logged-out");

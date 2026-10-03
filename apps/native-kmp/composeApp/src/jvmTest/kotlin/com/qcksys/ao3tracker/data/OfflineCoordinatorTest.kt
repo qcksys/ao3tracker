@@ -12,6 +12,28 @@ import kotlin.test.*
 
 class OfflineCoordinatorTest {
     @Test
+    fun `download service continues the queue after app backgrounds and service stop preserves resumable work`() = runBlocking {
+        fixture { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.setDownloadServiceActive(true)
+            coordinator.saveWork(123)
+            val first = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            coordinator.setForeground(false)
+            assertTrue(first.capture.isCurrent())
+            first.capture.publish(multiChapterBundle())
+            val next = withTimeout(5000) { coordinator.background.first { it != null && it.id != first.id }!! }
+            assertTrue(next.capture.isCurrent())
+            coordinator.setDownloadServiceActive(false)
+            assertFalse(next.capture.isCurrent())
+            withTimeout(5000) { coordinator.background.first { it == null } }
+            coordinator.setForeground(true)
+            val resumed = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertEquals(next.url, resumed.url)
+            assertTrue(coordinator.debugEntries.value.any { it.message.contains("Chapter saved") })
+        }
+    }
+
+    @Test
     fun `default settings do not capture live pages or queue saved chapter refresh and prefetch`() = runBlocking {
         fixture { coordinator, _ ->
             coordinator.setForeground(true)

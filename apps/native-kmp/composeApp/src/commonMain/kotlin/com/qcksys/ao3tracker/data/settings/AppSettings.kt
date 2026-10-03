@@ -6,6 +6,9 @@ import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.Json
+
+private val offlinePreferencesJson = Json(JsonConfig.json) { explicitNulls = true }
 
 enum class ApiEnvironment(
     val authBaseUrl: String,
@@ -59,7 +62,7 @@ class AppSettings(
     val offlinePreferences = _offlinePreferences.asStateFlow()
 
     fun setOfflinePreferences(preferences: OfflinePreferences) {
-        settingsStorage?.setOfflinePreferences(JsonConfig.json.encodeToString(preferences))
+        settingsStorage?.setOfflinePreferences(offlinePreferencesJson.encodeToString(preferences))
         _offlinePreferences.value = preferences
     }
     private val _diagnosticDataEnabled = MutableStateFlow(settingsStorage?.isDiagnosticDataEnabled() ?: true)

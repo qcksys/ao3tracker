@@ -12,6 +12,7 @@ import com.qcksys.ao3tracker.data.offline.OfflineThrottled
 import com.qcksys.ao3tracker.data.offline.offlineCaptureFailure
 import com.qcksys.ao3tracker.data.offline.offlineJson
 import com.qcksys.ao3tracker.data.offline.offlineLocation
+import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import com.qcksys.ao3tracker.webview.OfflineCaptureScriptGenerated
 import com.qcksys.ao3tracker.webview.guardAo3Script
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
@@ -80,7 +81,7 @@ internal class OfflineCaptureConnection(
             OfflineAssetClient({ url -> withContext(Dispatchers.Main.immediate) { CookieManager.getInstance().getCookie(url) } }, http::request)
         }
         val session = OfflineCaptureSession(capture.token, request.url, request.expectedIdentity,
-            { active.value === capture && request.isCurrent() }, assets, request.stageResource, request.publish)
+            { active.value === capture && request.isCurrent() }, assets, request.stageResource, request.publish, request.onProgress)
         worker = scope.launch(Dispatchers.Default) {
             try {
                 for (message in capture.messages) {
@@ -98,6 +99,9 @@ internal class OfflineCaptureConnection(
             } catch (error: Exception) {
                 withContext(Dispatchers.Main.immediate) {
                     if (active.value !== capture) return@withContext
+                    val detail = "Offline capture failed during ${session.stage} (${error::class.simpleName}): ${offlineCaptureFailure(error)}"
+                    request.onProgress(detail)
+                    PostHogCrashReporter.captureException(IllegalStateException(detail).apply { stackTrace = error.stackTrace })
                     cancel()
                     request.onFailure(offlineCaptureFailure(error), (error as? OfflineThrottled)?.retryAfter)
                 }
@@ -109,20 +113,20 @@ internal class OfflineCaptureConnection(
         view.evaluateJavascript(guardAo3Script("window.__ao3OfflineOptions = $options; ${OfflineCaptureScriptGenerated.script}"), null)
     }
 
-    fun cancel() {
+    fun cancel(renderProcessGone: Boolean = false) {
         if (closed) return
         active.value?.messages?.cancel()
         active.value = null
         worker?.cancel()
         worker = null
-        if (isTrustedAo3Url(view.url)) view.evaluateJavascript(guardAo3Script("window.__ao3OfflineCapture?.cancel();"), null)
+        if (!renderProcessGone && isTrustedAo3Url(view.url)) view.evaluateJavascript(guardAo3Script("window.__ao3OfflineCapture?.cancel();"), null)
     }
 
-    fun close() {
+    fun close(renderProcessGone: Boolean = false) {
         if (closed) return
-        cancel()
+        cancel(renderProcessGone)
         closed = true
-        if (supported) WebViewCompat.removeWebMessageListener(view, "OfflineCaptureBridge")
+        if (!renderProcessGone && supported) WebViewCompat.removeWebMessageListener(view, "OfflineCaptureBridge")
         transport?.close()
         transport = null
     }

@@ -145,6 +145,12 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE offline_chapter ADD COLUMN downloadUpdatedAt TEXT")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("CREATE TABLE IF NOT EXISTS active_account (id INTEGER NOT NULL PRIMARY KEY, owner TEXT NOT NULL, remoteCursor TEXT, localCursor INTEGER)")

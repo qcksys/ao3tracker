@@ -62,6 +62,7 @@ Saving a search merges the current default hidden tags into its URL before gener
 - **`~/` aliases are fine here** because this package is a leaf consumer — nothing else compiles our source. Use them for cross-directory imports (e.g. tests reference `~/ao3-tracking` and `~/fixtures`). Sibling barrels can still use `./`.
 - **No top-level side effects in modules that are only imported.** The entry files own the IIFE side effects; everything else must be pure to keep tree-shaking honest.
 - **Bridge contract is sacred.** The shape of messages posted via `AndroidBridge.postMessage` / `webkit.messageHandlers.ao3Handler.postMessage` is the canonical `WebViewMessage` in `@qcksys/ao3tracker-core/schemas`. Don't add fields here without updating the schema and the Kotlin parser in lockstep.
+- **Offline capture revisions**: shared `OfflinePage.downloadUpdatedAt` carries the optional UTC timestamp extracted from the AO3 download URL. Preserve it through preparation and transfer so native can compare each saved chapter with newer work downloads. Native accepts old bundles without the field.
 - **Bundle target is ES2018** (see `vite.config.ts`) so older Android WebView engines accept the output. Don't raise it without checking the lowest-supported Android version in the KMP build.
 
 ## Tests

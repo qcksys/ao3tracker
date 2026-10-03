@@ -9,6 +9,20 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class OfflineCaptureSessionTest {
+    @Test
+    fun `capture errors retain known failure reasons and redact unexpected script details`() = runTest {
+        val safe = "The stylesheet could not be downloaded."
+        val known = assertFailsWith<OfflineCaptureRejected> {
+            session().receive(offlineJson.encodeToString(OfflineFailure("offlineFailure", "active", safe)))
+        }
+        assertEquals(safe, offlineCaptureFailure(known))
+        val private = assertFailsWith<OfflineCaptureRejected> {
+            session().receive(offlineJson.encodeToString(OfflineFailure("offlineFailure", "active", "Private chapter text https://secret.test")))
+        }
+        assertTrue(!offlineCaptureFailure(private).contains("Private"))
+        assertTrue(!offlineCaptureFailure(private).contains("secret.test"))
+    }
+
     private val url = "https://archiveofourown.org/works/123/chapters/456"
     private val styles = listOf(OfflineStyle("body{color:white}", url, "screen", false))
     private fun bundle() = OfflineBundle(

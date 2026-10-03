@@ -23,7 +23,8 @@ data class OfflinePage(
     val canSelectSkin: Boolean,
     val html: String,
     val siteStyles: List<OfflineStyle>,
-    val chapters: List<OfflineChapter>
+    val chapters: List<OfflineChapter>,
+    val downloadUpdatedAt: String? = null
 )
 
 @Serializable

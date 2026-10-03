@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.data.offline.OpenOfflineChapter
 import com.qcksys.ao3tracker.data.offline.offlineLocation
+import com.qcksys.ao3tracker.ui.components.DownloadDebugDialog
 
 @Composable
 internal fun OfflineReaderControls(
@@ -42,6 +43,8 @@ internal fun OfflineReaderControls(
     val status = downloads.firstOrNull { it.work.workId.toString() == location.workId }
     val workId = location.workId.toLong()
     var expanded by remember(workId) { mutableStateOf(false) }
+    var showDebug by remember(workId) { mutableStateOf(false) }
+    if (showDebug) DownloadDebugDialog(coordinator, workId) { showDebug = false }
     val chapters = opened?.document?.page?.chapters ?: status?.chapters.orEmpty()
     val currentId = opened?.document?.page?.chapterId ?: location.chapterId
     val index = chapters.indexOfFirst { it.id == currentId }
@@ -58,7 +61,9 @@ internal fun OfflineReaderControls(
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             TextButton(onClick = { chapters.getOrNull(index - 1)?.let { model.openSavedOrLive(it.url, 0f) } }, enabled = index > 0) { Text("Previous") }
-            TextButton(onClick = { expanded = true }) { Text(label) }
+            TextButton(onClick = {
+                if (capture != null || status?.job?.state in setOf("running", "queued", "failed")) showDebug = true else expanded = true
+            }) { Text(label) }
             TextButton(onClick = { chapters.getOrNull(index + 1)?.let { model.openSavedOrLive(it.url, 0f) } }, enabled = index >= 0 && index < chapters.lastIndex) { Text("Next") }
         }
     }
@@ -68,12 +73,14 @@ internal fun OfflineReaderControls(
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(status?.work?.title ?: "This work")
-                if (status != null) Text("${status.savedChapterIds.size} of ${status.publishedChapters} published chapters saved")
+                if (status != null) TextButton(onClick = { showDebug = true }) {
+                    Text("${status.savedChapterIds.size} of ${status.publishedChapters} published chapters saved")
+                }
                 if (status != null && status.publishedChapters > status.chapters.size) Text("New chapters are available. Update saved work to download them.")
                 if (incognito) Text("Saving keeps a copy on this device, including while incognito is on.")
                 if (opened?.missingResources?.isNotEmpty() == true) Text("Some images or fonts could not be saved. The appearance may be incomplete.")
                 status?.job?.error?.let { Text(it) }
-                Text("Downloads continue while the app is open. Saved copies include the last complete AO3 site skin.")
+                Text("Downloads continue when you switch apps or lock your phone. Saved copies include the last complete AO3 site skin.")
                 if (opened != null) Text("Comments, kudos, subscriptions and searches require a connection. Open this page online to use them.")
                 Row {
                     TextButton(onClick = { model.goBack(); expanded = false }, enabled = canGoBack) { Text("Back") }

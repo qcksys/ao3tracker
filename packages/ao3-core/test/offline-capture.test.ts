@@ -25,6 +25,27 @@ function page(head = "", text = "<p>Chapter text.</p>"): Document {
 }
 
 describe("offline page capture", () => {
+  it("retains the update timestamp from the download URL on the captured chapter", () => {
+    const doc = page();
+    doc.body.insertAdjacentHTML(
+      "beforeend",
+      '<li class="download"><ul><li><a href="/downloads/123/Story.epub?updated_at=1750000000">EPUB</a></li></ul></li>',
+    );
+    const captured = captureOfflinePage(doc, url).page;
+    expect(captured.downloadUpdatedAt).toBe("2025-06-15T15:06:40.000Z");
+    expect(offlinePageSchema.parse(captured).downloadUpdatedAt).toBe(captured.downloadUpdatedAt);
+    for (const value of ["oops", "1750000000oops", "9".repeat(40)]) {
+      doc
+        .querySelector("li.download a")
+        ?.setAttribute("href", `/downloads/123/Story.epub?updated_at=${value}`);
+      expect(captureOfflinePage(doc, url).page.downloadUpdatedAt).toBeNull();
+    }
+    doc
+      .querySelector("li.download a")
+      ?.setAttribute("href", "https://evil.test/downloads/123.epub?updated_at=1750000000");
+    expect(captureOfflinePage(doc, url).page.downloadUpdatedAt).toBeNull();
+  });
+
   it("observes identity and readability without changing the page or marking it read", () => {
     const doc = page();
     const before = doc.documentElement.outerHTML;
