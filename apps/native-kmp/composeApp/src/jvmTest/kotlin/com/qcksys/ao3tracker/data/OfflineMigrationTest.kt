@@ -13,6 +13,38 @@ import kotlin.test.*
 
 class OfflineMigrationTest {
     @Test
+    fun `v11 migration preserves existing chapter files and starts with unknown download revisions`() = runTest {
+        val directory = Files.createTempDirectory("ao3-offline-revision-migration-")
+        val schema = Json.parseToJsonElement(Files.readString(Path.of("schemas/com.qcksys.ao3tracker.data.database.Ao3Database/11.json"))).jsonObject["database"]!!.jsonObject
+        BundledSQLiteDriver().open(directory.resolve("test.db").toString()).use { connection ->
+            schema["entities"]!!.jsonArray.forEach { entry ->
+                val entity = entry.jsonObject
+                val table = entity["tableName"]!!.jsonPrimitive.content
+                connection.execSQL(entity["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", table))
+                entity["indices"]?.jsonArray.orEmpty().forEach {
+                    connection.execSQL(it.jsonObject["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", table))
+                }
+            }
+            schema["setupQueries"]!!.jsonArray.forEach { connection.execSQL(it.jsonPrimitive.content) }
+            connection.execSQL("PRAGMA user_version = 11")
+            connection.execSQL("INSERT INTO active_account(id,owner,remoteCursor,localCursor) VALUES (0,'guest','cursor',987)")
+            connection.execSQL("INSERT INTO offline_context VALUES ('context','guest',1,'skin')")
+            connection.execSQL("INSERT INTO offline_chapter VALUES ('context','chapter',123,456,'chapter','https://archiveofourown.org/works/123/chapters/456','file','skin','[]',100,200,300)")
+        }
+        val accounts = createTestAccounts(directory)
+        try {
+            accounts.initialize()
+            val chapter = assertNotNull(accounts.database.offlineDao().chapter("context", "chapter"))
+            assertNull(chapter.downloadUpdatedAt)
+            assertEquals("file", chapter.fileHash)
+            assertEquals(100, chapter.savedAt)
+        } finally {
+            accounts.close()
+            Files.walk(directory).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
+        }
+    }
+
+    @Test
     fun `v10 migration creates empty offline indexes without changing account or pending library data`() = runTest {
         val directory = Files.createTempDirectory("ao3-offline-migration-")
         val schema = Json.parseToJsonElement(Files.readString(Path.of("schemas/com.qcksys.ao3tracker.data.database.Ao3Database/10.json"))).jsonObject["database"]!!.jsonObject

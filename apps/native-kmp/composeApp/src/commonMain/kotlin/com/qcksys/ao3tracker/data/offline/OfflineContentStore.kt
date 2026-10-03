@@ -11,6 +11,7 @@ import com.qcksys.ao3tracker.data.database.OfflineResourceEntity
 import com.qcksys.ao3tracker.data.database.OfflineSkinEntity
 import com.qcksys.ao3tracker.data.database.OfflineWorkEntity
 import com.qcksys.ao3tracker.data.database.OfflineJobEntity
+import com.qcksys.ao3tracker.data.settings.OfflinePreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -22,6 +23,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 internal data class OfflineContext(val owner: String, val generation: Long, val id: String, val identity: String, val epoch: Long, val reset: Long) {
@@ -42,7 +44,8 @@ internal data class OfflineWorkStatus(
     val savedChapterIds: Set<String>,
     val job: OfflineJobEntity?,
     val bytes: Long,
-    val publishedChapters: Int = chapters.size
+    val publishedChapters: Int = chapters.size,
+    val snapshots: List<OfflineChapterEntity> = emptyList()
 )
 
 internal class OfflineContentStore(
@@ -109,8 +112,8 @@ internal class OfflineContentStore(
 
         suspend fun stage(resource: OfflineResource, bytes: ByteArray) = withContext(Dispatchers.IO) {
             mutex.withLock {
-                check(!finished)
                 checkCurrent(context, isAllowed)
+                check(!finished)
                 require(resource.bytes == bytes.size.toLong() && bytes.size <= OFFLINE_RESOURCE_LIMIT)
                 require(offlineAssetMime(resource.mimeType) && offlineResourceHash(resource.mimeType, bytes) == resource.hash)
                 require(resources.size < 1000 && resources.values.sumOf { it.bytes } + resource.bytes <= OFFLINE_BUNDLE_LIMIT)
@@ -123,10 +126,10 @@ internal class OfflineContentStore(
             }
         }
 
-        suspend fun publish(bundle: OfflineBundle, foreground: Boolean, pin: Boolean = false, jobId: String? = null, automatic: Boolean = false) = withContext(Dispatchers.IO) {
+        suspend fun publish(bundle: OfflineBundle, foreground: Boolean, pin: Boolean = false, jobId: String? = null, automatic: Boolean = false, deleteRead: Boolean = false) = withContext(Dispatchers.IO) {
             mutex.withLock {
-                check(!finished)
                 checkCurrent(context, isAllowed)
+                check(!finished)
                 require(bundle.page.ao3Identity == context.identity && bundle.page.version == 1)
                 val saveChapter = bundle.page.representation == "chapter"
                 require(saveChapter || bundle.page.representation == "whole" && foreground && jobId == null)
@@ -150,7 +153,7 @@ internal class OfflineContentStore(
                 val skinRecord = OfflineSkinEntity(context.id, bundle.skinHash, skinFile, offlineJson.encodeToString(siteResources), time, skinBytes.size.toLong())
                 val chapterRecord = if (chapterFile != null) OfflineChapterEntity(context.id, chapterKey(bundle.page.url, bundle.page.chapterId), bundle.page.workId.toLong(),
                     bundle.page.chapterId.toLong(), bundle.page.representation, bundle.page.url, chapterFile, bundle.skinHash,
-                    offlineJson.encodeToString(chapterResources), time, time, chapterBytes.size.toLong()) else null
+                    offlineJson.encodeToString(chapterResources), time, time, chapterBytes.size.toLong(), bundle.page.downloadUpdatedAt) else null
                 if (automatic) ensureAutomaticSpace(context, chapterRecord, skinRecord, bundle.resources, foreground && bundle.page.canSelectSkin, isAllowed)
                 forContext(context, isAllowed) { dao ->
                     val job = jobId?.let { requireNotNull(dao.job(it)) }
@@ -159,7 +162,10 @@ internal class OfflineContentStore(
                     dao.saveResources(bundle.resources.map { OfflineResourceEntity(context.id, it.hash, it.mimeType, it.bytes) })
                     dao.saveSkin(skinRecord)
                     if (chapterRecord != null) {
-                        dao.saveChapter(chapterRecord)
+                        if (deleteRead && !pin && oldWork?.pinned != true && chapterIsRead(bundle.page.workId.toLong(), bundle.page.chapterId,
+                                bundle.page.chapters.firstOrNull { it.id == bundle.page.chapterId }?.number)) {
+                            dao.deleteChapter(context.id, chapterRecord.key)
+                        } else dao.saveChapter(chapterRecord)
                         dao.saveWork(OfflineWorkEntity(context.id, bundle.page.workId.toLong(), bundle.page.title,
                             if (job?.mode in setOf("save", "update") && oldWork != null) oldWork.chaptersJson else offlineJson.encodeToString(bundle.page.chapters),
                             pin || oldWork?.pinned == true, time))
@@ -173,7 +179,8 @@ internal class OfflineContentStore(
                         val remaining = if (job.mode.endsWith("-discover")) {
                             val existing = dao.chapters(context.id).map { it.key }.toSet()
                             bundle.page.chapters.filter { chapter ->
-                                chapter.id != bundle.page.chapterId && (job.mode == "update-discover" || chapterKey(chapter.url, chapter.id) !in existing)
+                                chapter.id != bundle.page.chapterId &&
+                                    (job.mode == "update-discover" || chapterKey(chapter.url, chapter.id) !in existing)
                             }.map { it.url }
                         } else offlineJson.decodeFromString<List<String>>(job.remainingJson).drop(1)
                         dao.saveJob(job.copy(mode = job.mode.removeSuffix("-discover"), remainingJson = offlineJson.encodeToString(remaining),
@@ -256,7 +263,7 @@ internal class OfflineContentStore(
                     ?: workJobs.lastOrNull { it.state != "complete" } ?: workJobs.lastOrNull()
                 OfflineWorkStatus(work, chapters, ids, visibleJob,
                     saved.sumOf { it.bytes } + skins.distinctBy { it.fileHash }.sumOf { it.bytes } + assets.sumOf { it.bytes },
-                    maxOf(chapters.size, accounts.database.workDao().getWorkById(work.workId)?.currentChapters ?: 0))
+                    maxOf(chapters.size, accounts.database.workDao().getWorkById(work.workId)?.currentChapters ?: 0), saved)
             }
         }
     }
@@ -272,20 +279,66 @@ internal class OfflineContentStore(
         }
     }
 
-    suspend fun enqueuePrefetch(context: OfflineContext, page: OfflinePage, refreshCurrent: Boolean = false, isAllowed: () -> Boolean = { true }) = mutex.withLock {
+    suspend fun enqueuePrefetch(context: OfflineContext, page: OfflinePage, refreshCurrent: Boolean = false,
+        preferences: OfflinePreferences = OfflinePreferences(), isAllowed: () -> Boolean = { true }) = mutex.withLock {
         forContext(context, isAllowed) { dao ->
             dao.deletePrefetchJobs(context.id)
             val currentIndex = page.chapters.indexOfFirst { it.id == page.chapterId }
             if (currentIndex < 0 || page.representation == "whole") return@forContext
-            val chapters = page.chapters.drop(currentIndex + 1).take(2)
-            val saved = chapters.filter { dao.chapter(context.id, chapterKey(it.url, it.id)) != null }
+            val deleteRead = preferences.autoDeleteRead && dao.work(context.id, page.workId.toLong())?.pinned != true
+            val chapters = page.chapters.drop(currentIndex + 1).take(preferences.prefetchChapters ?: Int.MAX_VALUE)
+                .filterNot { deleteRead && chapterIsRead(page.workId.toLong(), it.id, it.number) }
+            val latest = listOfNotNull(page.downloadUpdatedAt,
+                accounts.database.workDao().getWorkById(page.workId.toLong())?.downloadUpdatedAt)
+                .mapNotNull { runCatching { Instant.parse(it) }.getOrNull() }.maxOrNull()
+            fun outdated(entry: OfflineChapterEntity): Boolean = latest != null &&
+                (entry.downloadUpdatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }?.let { it < latest } != false)
+            val saved = chapters.filter { chapter ->
+                dao.chapter(context.id, chapterKey(chapter.url, chapter.id))?.let { !outdated(it) } == true
+            }
             val current = dao.chapter(context.id, chapterKey(page.url, page.chapterId))
-            val refresh = if (refreshCurrent && current != null && now() - current.savedAt >= 30 * 60 * 1000L) listOf(page.url) else emptyList()
-            val remaining = refresh + chapters.filterNot { it in saved }.map { it.url }
+            val refresh = if (refreshCurrent && current != null &&
+                (!deleteRead || !chapterIsRead(current.workId, page.chapterId, page.chapters[currentIndex].number)) &&
+                (outdated(current) || now() - current.savedAt >= 30 * 60 * 1000L)) listOf(page.url) else emptyList()
+            val stale = dao.chapters(context.id).filter { it.workId == page.workId.toLong() && outdated(it) }
+                .filterNot { deleteRead && chapterIsRead(it.workId, it.chapterId.toString(),
+                    page.chapters.firstOrNull { chapter -> chapter.id == it.chapterId.toString() }?.number) }.map { it.url }
+            val remaining = (refresh + chapters.filterNot { it in saved }.map { it.url } + stale).distinct()
             if (chapters.isNotEmpty() || remaining.isNotEmpty()) dao.saveJob(OfflineJobEntity(Uuid.random().toString(), context.id, page.workId.toLong(), "prefetch",
                 offlineJson.encodeToString(remaining), offlineJson.encodeToString(saved.map { it.url }),
                 if (remaining.isEmpty()) "complete" else "queued", 0, 0, null, now()))
         }
+    }
+
+    private suspend fun chapterIsRead(workId: Long, chapterId: String, number: Int?): Boolean {
+        val dao = accounts.database.chapterDao()
+        val chapter = dao.getChapterById(chapterId.toLong(), workId)
+            ?: number?.let { dao.getChapterByWorkAndNumber(workId, it) }
+        return chapter != null && (chapter.markedCompleteAt != null || (chapter.readProgress ?: 0f) >= 0.95f)
+    }
+
+    suspend fun removeReadChapters(context: OfflineContext, isAllowed: () -> Boolean = { true }) {
+        mutex.withLock {
+            forContext(context, isAllowed) { dao ->
+                val automatic = dao.works(context.id).filterNot { it.pinned }
+                val manifests = automatic.associate { it.workId to offlineJson.decodeFromString<List<OfflineChapter>>(it.chaptersJson) }
+                for (chapter in dao.chapters(context.id).filter { it.workId in manifests }) {
+                    val number = manifests[chapter.workId]?.firstOrNull { it.id == chapter.chapterId.toString() }?.number
+                    if (chapterIsRead(chapter.workId, chapter.chapterId.toString(), number)) dao.deleteChapter(context.id, chapter.key)
+                }
+                for (job in dao.jobs(context.id).filter { it.workId in manifests && it.mode == "prefetch" && it.state == "queued" }) {
+                    val remaining = offlineJson.decodeFromString<List<String>>(job.remainingJson)
+                    val kept = remaining.filterNot { url ->
+                        val location = offlineLocation(url)
+                        val chapter = manifests[job.workId]?.firstOrNull { it.id == location.chapterId }
+                        location.chapterId != null && chapterIsRead(job.workId, location.chapterId, chapter?.number)
+                    }
+                    if (kept != remaining) dao.saveJob(job.copy(remainingJson = offlineJson.encodeToString(kept),
+                        state = if (kept.isEmpty()) "complete" else job.state))
+                }
+            }
+        }
+        collectUnusedFiles()
     }
 
     suspend fun nextJob(context: OfflineContext, allowAutomatic: Boolean = true): OfflineJobEntity? = mutex.withLock {

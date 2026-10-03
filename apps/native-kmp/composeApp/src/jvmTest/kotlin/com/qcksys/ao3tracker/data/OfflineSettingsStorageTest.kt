@@ -24,6 +24,11 @@ class OfflineSettingsStorageTest {
             val settings = AppSettings(storage)
             settings.setOfflinePreferences(OfflinePreferences(automatic = true, wifiOnly = false))
             assertEquals(OfflinePreferences(automatic = true, wifiOnly = false), AppSettings(SettingsStorage()).offlinePreferences.value)
+            for (count in listOf(0, 17, null)) {
+                val customized = OfflinePreferences(automatic = true, prefetchChapters = count, autoDeleteRead = true)
+                settings.setOfflinePreferences(customized)
+                assertEquals(customized, AppSettings(SettingsStorage()).offlinePreferences.value)
+            }
             settings.setOfflinePreferences(OfflinePreferences())
             assertEquals(OfflinePreferences(automatic = false, wifiOnly = true), AppSettings(SettingsStorage()).offlinePreferences.value)
         } finally {

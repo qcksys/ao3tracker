@@ -6,7 +6,24 @@ import com.qcksys.ao3tracker.data.database.OfflineSkinEntity
 internal const val AUTOMATIC_OFFLINE_ALLOWANCE = 250L * 1024 * 1024
 internal class OfflineAllowanceExceeded : IllegalStateException("Automatic downloads are paused because protected chapters fill the 250 MiB allowance.")
 internal class OfflineStorageUnavailable : IllegalStateException("Unable to save the download. Free up device space and retry.")
+internal class OfflineCaptureRejected(message: String) : IllegalStateException(message)
+internal fun safeOfflineFailure(message: String): String = message.takeIf { it in setOf(
+    "Open an accessible AO3 chapter before saving it.",
+    "Open the requested chapter before saving it.",
+    "The loaded chapter does not match its address.",
+    "The loaded page contains more than one chapter.",
+    "A stylesheet uses an unsupported address.",
+    "A stylesheet has a circular import.",
+    "The stylesheet could not be downloaded.",
+    "The resource could not be downloaded.",
+    "A stylesheet resource was not resolved.",
+    "This chapter is too large to save.",
+    "This download is too large to transfer.",
+    "The download timed out. Try again.",
+    "The download response was incomplete."
+) } ?: "The chapter capture script failed. Reopen it and try again."
 internal fun offlineCaptureFailure(error: Exception): String = when (error) {
+    is OfflineCaptureRejected -> safeOfflineFailure(error.message.orEmpty())
     is OfflineAllowanceExceeded -> "Automatic downloads are paused because protected chapters fill the 250 MiB allowance."
     is OfflineStorageUnavailable -> "Unable to save the download. Free up device space and retry."
     is OfflineThrottled -> "AO3 has paused downloads. Try again later."

@@ -57,6 +57,8 @@ For offline HTML, CSS, or bridge changes, read [the native offline design and ac
 
 Preserve viewport content, DOM styling hooks, ordered styles, media conditions, and separate work styles. Required stylesheet failures abort publication; optional missing media is disclosed. Only a complete foreground capture may select a new site skin. Upstream default/Reversi CSS fixtures are shared with Android instrumentation under `apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins`; run the upstream fixture test when changing CSS parsing. `observeChapterProgress` accepts a publication guard checked before either URL mutation or bridge delivery; native uses it to suppress progress from rotation and appearance changes.
 
+`OfflinePage.downloadUpdatedAt` is optional and nullable for older saved pages. Capture it as a UTC ISO timestamp from a trusted AO3 download link's `updated_at` Unix seconds. Native stores this revision per chapter to refresh stale prefetches; it is distinct from the local save time. Missing or malformed download timestamps remain unknown.
+
 ## Tests
 
 Pure DOM + utility tests under happy-dom live in [test/](./test/) — flat layout mirroring `src/dom/`:

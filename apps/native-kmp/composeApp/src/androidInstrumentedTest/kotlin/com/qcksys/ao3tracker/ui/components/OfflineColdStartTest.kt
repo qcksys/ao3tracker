@@ -43,7 +43,7 @@ class OfflineColdStartTest {
                 val open = { name: String -> Room.databaseBuilder<Ao3Database>(context, context.getDatabasePath(name).absolutePath)
                     .setDriver(BundledSQLiteDriver()).setQueryCoroutineContext(Dispatchers.IO)
                     .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6,
-                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11).build() }
+                        MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12).build() }
                 val accounts = AccountDataStore(open(DB_FILE_NAME), open)
                 try {
                     accounts.activate(AccountDataStore.GUEST)

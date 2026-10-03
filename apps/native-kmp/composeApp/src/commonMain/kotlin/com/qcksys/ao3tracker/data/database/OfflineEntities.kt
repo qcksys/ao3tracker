@@ -38,7 +38,8 @@ data class OfflineChapterEntity(
     val resourcesJson: String,
     val savedAt: Long,
     val lastAccessedAt: Long,
-    val bytes: Long
+    val bytes: Long,
+    val downloadUpdatedAt: String? = null
 )
 
 @Entity(tableName = "offline_skin", primaryKeys = ["contextId", "hash"])

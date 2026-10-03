@@ -44,6 +44,7 @@ export const offlinePageSchema = z.object({
   html: z.string(),
   siteStyles: z.array(offlineStyleSchema),
   chapters: z.array(offlineChapterSchema),
+  downloadUpdatedAt: z.string().datetime().nullable().optional(),
 });
 
 export type OfflineStyle = z.infer<typeof offlineStyleSchema>;

@@ -1,6 +1,9 @@
 package com.qcksys.ao3tracker.data
 
 import com.qcksys.ao3tracker.data.offline.*
+import com.qcksys.ao3tracker.data.settings.OfflinePreferences
+import com.qcksys.ao3tracker.data.database.WorkEntity
+import com.qcksys.ao3tracker.data.database.ChapterEntity
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlinx.coroutines.CancellationException
@@ -9,6 +12,67 @@ import kotlin.test.*
 
 class OfflineContentStoreTest {
     private val url = "https://archiveofourown.org/works/123/chapters/456"
+
+    @Test
+    fun `prefetch respects zero custom and all counts and refreshes older download revisions`() = runTest {
+        val directory = Files.createTempDirectory("ao3-offline-custom-")
+        val accounts = createTestAccounts(directory)
+        try {
+            val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
+            val context = store.observeIdentity("user:fixture")
+            val (original, bytes) = bundle(chapterId = "789")
+            val old = original.copy(page = original.page.copy(downloadUpdatedAt = "2026-01-01T00:00:00Z"))
+            store.beginCapture(context).apply { stage(old.resources.single(), bytes); publish(old, true) }
+            val page = bundle().first.page.copy(chapters = old.page.chapters +
+                (3..6).map { OfflineChapter("${800 + it}", it, "Chapter $it", "https://archiveofourown.org/works/123/chapters/${800 + it}") },
+                downloadUpdatedAt = "2026-01-01T00:00:00Z")
+            store.enqueuePrefetch(context, page, preferences = OfflinePreferences(prefetchChapters = 0))
+            assertNull(store.nextJob(context))
+            store.enqueuePrefetch(context, page, preferences = OfflinePreferences(prefetchChapters = 3))
+            assertEquals(page.chapters.drop(2).take(2).map { it.url }, offlineJson.decodeFromString<List<String>>(store.nextJob(context)!!.remainingJson))
+            store.enqueuePrefetch(context, page, preferences = OfflinePreferences(prefetchChapters = null))
+            assertEquals(4, offlineJson.decodeFromString<List<String>>(store.nextJob(context)!!.remainingJson).size)
+            store.enqueuePrefetch(context, page.copy(downloadUpdatedAt = "2026-02-01T00:00:00Z"), preferences = OfflinePreferences(prefetchChapters = 1))
+            assertEquals(listOf(old.page.url), offlineJson.decodeFromString<List<String>>(store.nextJob(context)!!.remainingJson))
+            assertEquals("2026-01-01T00:00:00Z", accounts.database.offlineDao().chapters(context.id).single().downloadUpdatedAt)
+            val open = assertNotNull(store.open(context, old.page.url))
+            val job = store.nextJob(context)!!
+            store.setJobState(context, job.id, "running")
+            val fresh = old.copy(page = old.page.copy(downloadUpdatedAt = "2026-02-01T00:00:00Z"))
+            store.beginCapture(context).apply { stage(fresh.resources.single(), bytes); publish(fresh, false, jobId = job.id) }
+            assertEquals("2026-01-01T00:00:00Z", open.document.page.downloadUpdatedAt)
+            assertEquals("2026-02-01T00:00:00Z", store.open(context, old.page.url)!!.also { it.document.close() }.document.page.downloadUpdatedAt)
+            open.document.close()
+        } finally { accounts.close(); removeDirectory(directory) }
+    }
+
+    @Test
+    fun `read cleanup removes automatic copies preserves open resources and never removes whole work saves`() = runTest {
+        val directory = Files.createTempDirectory("ao3-offline-read-cleanup-")
+        val accounts = createTestAccounts(directory)
+        try {
+            val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
+            val context = store.observeIdentity("user:fixture")
+            val (page, bytes) = bundle()
+            accounts.database.workDao().upsertWork(WorkEntity(123, rowCreatedAt = 1, rowUpdatedAt = 1))
+            accounts.database.chapterDao().upsertChapter(ChapterEntity(123, 456, number = 1, readProgress = .95f, rowCreatedAt = 1, rowUpdatedAt = 1))
+            store.beginCapture(context).apply { stage(page.resources.single(), bytes); publish(page, true) }
+            val opened = assertNotNull(store.open(context, url))
+            store.removeReadChapters(context)
+            assertNull(store.open(context, url))
+            assertNotNull(opened.document.readPath("/resources/${page.resources.single().hash}"))
+            assertEquals(.95f, accounts.database.chapterDao().getChapterById(456, 123)!!.readProgress)
+            store.beginCapture(context).apply { stage(page.resources.single(), bytes); publish(page, true, automatic = true, deleteRead = true) }
+            assertNull(store.open(context, url))
+            store.beginCapture(context).apply { stage(page.resources.single(), bytes); publish(page, true, pin = true, deleteRead = true) }
+            store.removeReadChapters(context)
+            assertNotNull(store.open(context, url)).document.close()
+            store.beginCapture(context).apply { stage(page.resources.single(), bytes); publish(page, true, automatic = true, deleteRead = true) }
+            store.removeReadChapters(context)
+            assertNotNull(store.open(context, url)).document.close()
+            opened.document.close()
+        } finally { accounts.close(); removeDirectory(directory) }
+    }
 
     @Test
     fun `whole work jobs freeze discovery coverage and resume an interrupted chapter after restart`() = runTest {

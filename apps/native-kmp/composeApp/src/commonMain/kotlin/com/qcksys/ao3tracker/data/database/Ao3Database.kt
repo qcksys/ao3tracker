@@ -24,7 +24,7 @@ import androidx.room.RoomDatabaseConstructor
         OfflineJobEntity::class,
         OfflineCleanupEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @ConstructedBy(Ao3DatabaseConstructor::class)

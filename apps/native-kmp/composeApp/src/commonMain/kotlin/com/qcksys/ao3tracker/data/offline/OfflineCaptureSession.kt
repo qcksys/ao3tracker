@@ -51,7 +51,8 @@ internal class OfflineCaptureSession(
     private val isCurrent: () -> Boolean,
     private val assets: OfflineAssetClient,
     private val stageResource: suspend (OfflineResource, ByteArray) -> Unit,
-    private val publish: suspend (OfflineBundle) -> Unit
+    private val publish: suspend (OfflineBundle) -> Unit,
+    private val onProgress: (String) -> Unit = {}
 ) {
     private val expected = offlineLocation(expectedUrl)
     private val receiver = OfflineTransferReceiver(token)
@@ -63,6 +64,8 @@ internal class OfflineCaptureSession(
     private var lastRequest = 0L
     private var transfer: String? = null
     private var finished = false
+    internal var stage = "capture"
+        private set
 
     fun cancel() { finished = true }
 
@@ -84,6 +87,7 @@ internal class OfflineCaptureSession(
         require(message["token"]?.jsonPrimitive?.content == token) { "Stale offline document" }
         when (message["type"]?.jsonPrimitive?.content) {
             "offlineFetch" -> {
+                stage = "resource download"
                 val fetch = offlineJson.decodeFromString<OfflineFetch>(body)
                 startRequest(fetch.id)
                 require(++requests <= 1000 && fetchedBytes < OFFLINE_BUNDLE_LIMIT) { "The chapter contains too many resources." }
@@ -97,9 +101,11 @@ internal class OfflineCaptureSession(
                 } catch (error: OfflineThrottled) {
                     throw error
                 } catch (error: OfflineAssetReadFailure) {
+                    onProgress("A resource could not be downloaded (${error::class.simpleName}).")
                     fetchedBytes += error.bytesRead
                     offlineJson.encodeToString(OfflineCaptureError("The resource could not be downloaded."))
-                } catch (_: Exception) {
+                } catch (error: Exception) {
+                    onProgress("A resource could not be downloaded (${error::class.simpleName}).")
                     offlineJson.encodeToString(OfflineCaptureError("The resource could not be downloaded."))
                 }
                 checkCurrent()
@@ -112,6 +118,7 @@ internal class OfflineCaptureSession(
                 transfer = null
                 when (chunk.kind) {
                     "resource" -> {
+                        stage = "resource validation and storage"
                         val resource = offlineJson.decodeFromString<OfflineResourceData>(content)
                         require(Regex("^[a-f0-9]{64}$").matches(resource.hash) && offlineAssetMime(resource.mimeType))
                         require(resource.bytes in 0..OFFLINE_RESOURCE_LIMIT.toLong())
@@ -127,11 +134,14 @@ internal class OfflineCaptureSession(
                         checkCurrent()
                         resources[resource.hash] = entry
                         storedBytes += resource.bytes
+                        onProgress("Stored resource ${resources.size} · $storedBytes bytes.")
                     }
                     "bundle" -> {
+                        stage = "chapter validation"
                         val bundle = offlineJson.decodeFromString<OfflineBundle>(content)
                         validate(bundle)
                         checkCurrent()
+                        stage = "chapter publication"
                         // The publisher must also check its captured account generation inside the storage transaction.
                         publish(bundle)
                         checkCurrent()
@@ -141,8 +151,8 @@ internal class OfflineCaptureSession(
                 offlineResponse(token, chunk.transferId, "{}")
             }
             "offlineFailure" -> {
-                offlineJson.decodeFromString<OfflineFailure>(body)
-                error("The chapter could not be saved. Open it and try again.")
+                val failure = offlineJson.decodeFromString<OfflineFailure>(body)
+                throw OfflineCaptureRejected(safeOfflineFailure(failure.message))
             }
             else -> error("Unsupported offline message")
         }
@@ -152,6 +162,7 @@ internal class OfflineCaptureSession(
         val page = bundle.page
         val location = offlineLocation(page.url)
         require(page.version == 1 && page.workId == expected.workId && location.workId == expected.workId)
+        require(page.downloadUpdatedAt == null || runCatching { kotlin.time.Instant.parse(page.downloadUpdatedAt) }.isSuccess)
         require(page.representation == expected.representation && location.representation == expected.representation && location.parameters == expected.parameters)
         require(page.chapterId.toLongOrNull()?.let { it >= 0 } == true)
         require(expected.chapterId == null || expected.chapterId == page.chapterId)

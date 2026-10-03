@@ -11,6 +11,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
@@ -23,18 +26,22 @@ internal fun OfflineWorkCard(workId: Long) {
     if (!coordinator.enabled) return
     val downloads by coordinator.downloads.collectAsState()
     val download = downloads.firstOrNull { it.work.workId == workId }
+    var showDebug by remember(workId) { mutableStateOf(false) }
+    if (showDebug) DownloadDebugDialog(coordinator, workId) { showDebug = false }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Offline reading", style = MaterialTheme.typography.titleMedium)
             if (download == null) Text("Keep this work and its AO3 site skin on this device.")
             else {
-                Text("${download.savedChapterIds.size} of ${download.publishedChapters} published chapters saved")
+                TextButton(onClick = { showDebug = true }) {
+                    Text("${download.savedChapterIds.size} of ${download.publishedChapters} published chapters saved")
+                }
                 val knownChapters = download.savedChapterIds.intersect(download.chapters.map { it.id }.toSet()).size
                 if (download.publishedChapters > download.chapters.size) Text("New chapters are available. Update saved work to download them.")
                 else if (knownChapters < download.chapters.size) Text("Some chapters still need to download.")
                 when (download.job?.state) {
-                    "running" -> Text("Downloading · keep the app open")
-                    "queued" -> Text("Queued · resumes when the app is active and connected")
+                    "running" -> Text("Downloading · continues in the background")
+                    "queued" -> Text("Queued · waiting for a connection or retry")
                     "failed" -> Text(download.job.error ?: "Download paused. Open the work in Read, then retry.")
                 }
                 download.chapters.firstOrNull { it.id in download.savedChapterIds }?.let { chapter ->
