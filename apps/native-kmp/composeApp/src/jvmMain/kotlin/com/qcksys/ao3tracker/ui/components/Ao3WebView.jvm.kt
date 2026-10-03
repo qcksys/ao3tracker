@@ -9,6 +9,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.SharedFlow
+import com.qcksys.ao3tracker.data.offline.OfflineCaptureRequest
+import com.qcksys.ao3tracker.data.offline.OfflinePageObservation
 
 @Composable
 actual fun Ao3WebView(
@@ -21,7 +23,12 @@ actual fun Ao3WebView(
     onBackAtRoot: () -> Unit,
     jsInjectionFlow: SharedFlow<String>?,
     pageScript: String?,
-    onLinkAction: (ReaderLinkAction) -> Unit
+    onLinkAction: (ReaderLinkAction) -> Unit,
+    offlineCapture: OfflineCaptureRequest?,
+    onOfflinePage: (OfflinePageObservation) -> Unit,
+    onLoadFailure: (Int?, String?) -> Unit,
+    onNavigate: (String) -> Boolean,
+    onBack: () -> Boolean
 ) {
     if (pageScript != null) {
         LaunchedEffect(pageScript) {

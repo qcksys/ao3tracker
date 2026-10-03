@@ -23,6 +23,31 @@ import kotlinx.serialization.json.*
 
 class NativeSyncRegressionTest {
     @Test
+    fun `offline reading reconciles competing older edits newer unread resets and chapter tombstones`() = runTest {
+        fixture { f ->
+            f.accounts.edit { f.db.workDao().upsertWork(work(1)) }
+            f.works.recordOfflineReading(1, 2, 1, 65) { true }
+            val local = assertNotNull(f.db.chapterDao().getChapterById(2, 1))
+            fun timestamp(offset: Long) = kotlin.time.Instant.fromEpochMilliseconds(local.lastReadAt!! + offset).toString()
+            f.remote.onFetch = { Result.success(response(chapters = listOf(SyncChapterResponse(1, 2, timestamp(-1), readProgress = .2f)))) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            assertEquals(.65f, f.db.chapterDao().getChapterById(2, 1)?.readProgress)
+            assertEquals(.65f, f.remote.sent.last().chapters.single().readProgress)
+            f.remote.onFetch = { Result.success(response(chapters = listOf(SyncChapterResponse(1, 2, timestamp(1000), readProgress = 0f)))) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            f.works.recordOfflineReading(1, 2, 1, null) { true }
+            assertEquals(0f, f.db.chapterDao().getChapterById(2, 1)?.readProgress)
+            assertNull(f.db.chapterDao().getChapterById(2, 1)?.markedCompleteAt)
+            f.remote.onFetch = { Result.success(response(chapters = listOf(SyncChapterResponse(1, 2, timestamp(2000), readProgress = 0f, deleted = true)))) }
+            assertIs<SyncResult.Success>(f.sync.sync())
+            val deleted = assertNotNull(f.db.chapterDao().getChapterByIdIncludingDeleted(2, 1))
+            assertNotNull(deleted.rowDeletedAt)
+            f.works.recordOfflineReading(1, 2, 1, 100) { true }
+            assertEquals(deleted, f.db.chapterDao().getChapterByIdIncludingDeleted(2, 1))
+        }
+    }
+
+    @Test
     fun `sync debug progress updates during paginated downloads and batched uploads`() = runTest {
         fixture { f ->
             f.accounts.edit {

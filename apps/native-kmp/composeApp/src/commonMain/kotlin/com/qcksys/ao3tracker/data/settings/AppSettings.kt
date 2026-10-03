@@ -53,6 +53,15 @@ class AppSettings(
 
     private val _incognitoModeEnabled = MutableStateFlow(settingsStorage?.isIncognitoModeEnabled() ?: false)
     val incognitoModeEnabled: StateFlow<Boolean> = _incognitoModeEnabled.asStateFlow()
+    private val _offlinePreferences = MutableStateFlow(settingsStorage?.getOfflinePreferences()?.let {
+        runCatching { JsonConfig.json.decodeFromString<OfflinePreferences>(it) }.getOrNull()
+    } ?: OfflinePreferences())
+    val offlinePreferences = _offlinePreferences.asStateFlow()
+
+    fun setOfflinePreferences(preferences: OfflinePreferences) {
+        settingsStorage?.setOfflinePreferences(JsonConfig.json.encodeToString(preferences))
+        _offlinePreferences.value = preferences
+    }
     private val _diagnosticDataEnabled = MutableStateFlow(settingsStorage?.isDiagnosticDataEnabled() ?: true)
     val diagnosticDataEnabled: StateFlow<Boolean> = _diagnosticDataEnabled.asStateFlow()
     private val _diagnosticSession = MutableStateFlow(

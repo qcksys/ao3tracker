@@ -24,6 +24,7 @@ import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.Tab
 import cafe.adriel.voyager.navigator.tab.TabNavigator
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreenModel
+import com.qcksys.ao3tracker.ui.components.OfflineDownloadHost
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import org.koin.compose.koinInject
 
@@ -62,6 +63,7 @@ class MainScreen : Screen {
             ) { paddingValues ->
                 Box(modifier = Modifier.padding(PaddingValues(bottom = paddingValues.calculateBottomPadding()))) {
                     CurrentTab()
+                    OfflineDownloadHost()
                 }
             }
         }

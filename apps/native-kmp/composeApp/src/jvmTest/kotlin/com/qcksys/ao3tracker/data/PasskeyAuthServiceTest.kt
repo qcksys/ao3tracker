@@ -4,6 +4,7 @@ import com.qcksys.ao3tracker.data.auth.AuthService
 import com.qcksys.ao3tracker.data.auth.PasskeyCookiesStorage
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.sun.net.httpserver.HttpServer
+import io.ktor.client.engine.java.JavaHttpConfig
 import io.ktor.http.Cookie
 import io.ktor.http.Url
 import java.net.InetSocketAddress
@@ -14,6 +15,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -44,22 +46,26 @@ class PasskeyAuthServiceTest {
         server.start()
         val service = AuthService(AppSettings(null))
         try {
-            assertTrue(service.getPasskeyAuthenticateOptions(baseUrl = "$origin/auth").isSuccess)
-            val credential = """{"id":"credential","type":"public-key","response":{"clientDataJSON":"encoded"}}"""
-            val signedIn = service.verifyPasskeyAuthentication(credential, "$origin/auth").getOrThrow()
-            assertEquals("new-token", signedIn.session.token)
-            service.verifyPasskeyRegistration("new-token", credential, "Phone", "$origin/auth").getOrThrow()
-            val verifications = requests.filter { it.path.contains("verify-") }
-            assertEquals(2, verifications.size)
-            for ((_, cookie, body, requestOrigin) in verifications) {
-                assertEquals(origin, requestOrigin)
-                assertTrue(cookie.orEmpty().contains("better-auth.better-auth-passkey=challenge"))
-                assertFalse(cookie.orEmpty().contains("session_token"))
-                val payload = Json.parseToJsonElement(body).jsonObject
-                assertIs<JsonObject>(payload["response"])
-                assertEquals("credential", payload["response"]!!.jsonObject["id"]!!.jsonPrimitive.content)
+            // The JDK test server is HTTP/1.1; avoid h2c upgrade negotiation on its reused connection.
+            assertIs<JavaHttpConfig>(service.getClient().engine.config).config { version(java.net.http.HttpClient.Version.HTTP_1_1) }
+            withTimeout(10_000) {
+                assertTrue(service.getPasskeyAuthenticateOptions(baseUrl = "$origin/auth").isSuccess)
+                val credential = """{"id":"credential","type":"public-key","response":{"clientDataJSON":"encoded"}}"""
+                val signedIn = service.verifyPasskeyAuthentication(credential, "$origin/auth").getOrThrow()
+                assertEquals("new-token", signedIn.session.token)
+                service.verifyPasskeyRegistration("new-token", credential, "Phone", "$origin/auth").getOrThrow()
+                val verifications = requests.filter { it.path.contains("verify-") }
+                assertEquals(2, verifications.size)
+                for ((_, cookie, body, requestOrigin) in verifications) {
+                    assertEquals(origin, requestOrigin)
+                    assertTrue(cookie.orEmpty().contains("better-auth.better-auth-passkey=challenge"))
+                    assertFalse(cookie.orEmpty().contains("session_token"))
+                    val payload = Json.parseToJsonElement(body).jsonObject
+                    assertIs<JsonObject>(payload["response"])
+                    assertEquals("credential", payload["response"]!!.jsonObject["id"]!!.jsonPrimitive.content)
+                }
+                assertEquals("Phone", Json.parseToJsonElement(verifications.last().body).jsonObject["name"]!!.jsonPrimitive.content)
             }
-            assertEquals("Phone", Json.parseToJsonElement(verifications.last().body).jsonObject["name"]!!.jsonPrimitive.content)
         } finally {
             service.getClient().close()
             server.stop(0)

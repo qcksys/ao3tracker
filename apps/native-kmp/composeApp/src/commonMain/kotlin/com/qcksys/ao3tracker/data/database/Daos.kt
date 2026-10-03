@@ -287,6 +287,9 @@ interface AccountDao {
     @Query("SELECT * FROM account_database WHERE selected = 1 LIMIT 1")
     suspend fun getSelectedDatabase(): AccountDatabaseEntity?
 
+    @Query("SELECT * FROM account_database")
+    suspend fun getDatabases(): List<AccountDatabaseEntity>
+
     @Upsert
     suspend fun saveDatabase(database: AccountDatabaseEntity)
 

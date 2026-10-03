@@ -130,6 +130,21 @@ val MIGRATION_9_10 = object : Migration(9, 10) {
     }
 }
 
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_cleanup (contextId TEXT NOT NULL PRIMARY KEY, owner TEXT NOT NULL)")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_context (id TEXT NOT NULL PRIMARY KEY, identity TEXT NOT NULL, selected INTEGER NOT NULL, activeSkin TEXT)")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_offline_context_identity ON offline_context(identity)")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_work (contextId TEXT NOT NULL, workId INTEGER NOT NULL, title TEXT NOT NULL, chaptersJson TEXT NOT NULL, pinned INTEGER NOT NULL, observedAt INTEGER NOT NULL, PRIMARY KEY(contextId, workId))")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_chapter (contextId TEXT NOT NULL, `key` TEXT NOT NULL, workId INTEGER NOT NULL, chapterId INTEGER NOT NULL, representation TEXT NOT NULL, url TEXT NOT NULL, fileHash TEXT NOT NULL, skinHash TEXT NOT NULL, resourcesJson TEXT NOT NULL, savedAt INTEGER NOT NULL, lastAccessedAt INTEGER NOT NULL, bytes INTEGER NOT NULL, PRIMARY KEY(contextId, `key`))")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_offline_chapter_contextId_workId ON offline_chapter(contextId, workId)")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_skin (contextId TEXT NOT NULL, hash TEXT NOT NULL, fileHash TEXT NOT NULL, resourcesJson TEXT NOT NULL, savedAt INTEGER NOT NULL, bytes INTEGER NOT NULL, PRIMARY KEY(contextId, hash))")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_resource (contextId TEXT NOT NULL, hash TEXT NOT NULL, mimeType TEXT NOT NULL, bytes INTEGER NOT NULL, PRIMARY KEY(contextId, hash))")
+        connection.execSQL("CREATE TABLE IF NOT EXISTS offline_job (id TEXT NOT NULL PRIMARY KEY, contextId TEXT NOT NULL, workId INTEGER NOT NULL, mode TEXT NOT NULL, remainingJson TEXT NOT NULL, completedJson TEXT NOT NULL, state TEXT NOT NULL, retryAt INTEGER NOT NULL, attempts INTEGER NOT NULL, error TEXT, createdAt INTEGER NOT NULL)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_offline_job_contextId_workId ON offline_job(contextId, workId)")
+    }
+}
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("CREATE TABLE IF NOT EXISTS active_account (id INTEGER NOT NULL PRIMARY KEY, owner TEXT NOT NULL, remoteCursor TEXT, localCursor INTEGER)")

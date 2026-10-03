@@ -19,6 +19,23 @@ import kotlin.test.*
 
 class AccountDatabaseTest {
     @Test
+    fun `restoring an already selected account preserves reader generation while account replacements invalidate it`() = runTest {
+        fixture { accounts ->
+            accounts.activate(AccountDataStore.GUEST)
+            val guestGeneration = accounts.generation
+            accounts.activate(AccountDataStore.GUEST, preserveCurrent = true)
+            assertEquals(guestGeneration, accounts.generation)
+            accounts.activate(A, preserveCurrent = true)
+            assertTrue(accounts.generation > guestGeneration)
+            val accountGeneration = accounts.generation
+            accounts.activate(A, claimLegacy = true, preserveCurrent = true)
+            assertEquals(accountGeneration, accounts.generation)
+            accounts.activate(A)
+            assertTrue(accounts.generation > accountGeneration)
+        }
+    }
+
+    @Test
     fun `accounts use distinct files and survive reopening with independent cursors`() = runTest {
         val directory = Files.createTempDirectory("ao3tracker-accounts-")
         var accounts = createTestAccounts(directory)

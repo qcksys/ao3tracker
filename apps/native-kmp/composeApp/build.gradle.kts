@@ -104,12 +104,24 @@ val generateWebviewScriptKotlin by tasks.registering {
     val trackingJsFile = webviewScriptsDir.resolve("dist/ao3-tracking.min.js")
     val searchCheckJsFile = webviewScriptsDir.resolve("dist/search-check.min.js")
     val scrollRestoreJsFile = webviewScriptsDir.resolve("dist/scroll-restore.min.js")
+    val offlineCaptureJsFile = webviewScriptsDir.resolve("dist/offline-capture.min.js")
+    val offlineCaptureOutputFile = generatedKotlinDir.get().file("OfflineCaptureScriptGenerated.kt").asFile
+    val offlineReaderJsFile = webviewScriptsDir.resolve("dist/offline-reader.min.js")
+    val offlineReaderOutputFile = generatedKotlinDir.get().file("OfflineReaderScriptGenerated.kt").asFile
+    val offlineObservationJsFile = webviewScriptsDir.resolve("dist/offline-observation.min.js")
+    val offlineObservationOutputFile = generatedKotlinDir.get().file("OfflineObservationScriptGenerated.kt").asFile
     val trackingOutputFile = generatedKotlinDir.get().file("Ao3TrackingScriptGenerated.kt").asFile
     val scrollRestoreOutputFile = generatedKotlinDir.get().file("ScrollRestoreScriptGenerated.kt").asFile
 
     inputs.file(trackingJsFile)
     inputs.file(searchCheckJsFile)
     inputs.file(scrollRestoreJsFile)
+    inputs.file(offlineCaptureJsFile)
+    outputs.file(offlineCaptureOutputFile)
+    inputs.file(offlineReaderJsFile)
+    outputs.file(offlineReaderOutputFile)
+    inputs.file(offlineObservationJsFile)
+    outputs.file(offlineObservationOutputFile)
     outputs.file(trackingOutputFile)
     val searchCheckOutputFile = generatedKotlinDir.get().file("SearchCheckScriptGenerated.kt").asFile
     outputs.file(searchCheckOutputFile)
@@ -134,6 +146,38 @@ val generateWebviewScriptKotlin by tasks.registering {
 
         trackingOutputFile.parentFile.mkdirs()
         trackingOutputFile.writeText(trackingKotlinContent)
+
+        // Keep each literal below the JVM's 64 KiB constant limit.
+        val offlineChunks = offlineCaptureJsFile.readText().chunked(16_000).joinToString(",\n") {
+            "        " + groovy.json.JsonOutput.toJson(it).replace("$", "\\$")
+        }
+        offlineCaptureOutputFile.writeText("""
+            |package com.qcksys.ao3tracker.webview
+            |
+            |object OfflineCaptureScriptGenerated {
+            |    val script: String = listOf(
+            |$offlineChunks
+            |    ).joinToString("")
+            |}
+        """.trimMargin())
+
+        val offlineObservationLiteral = groovy.json.JsonOutput.toJson(offlineObservationJsFile.readText()).replace("$", "\\$")
+        offlineObservationOutputFile.writeText("""
+            |package com.qcksys.ao3tracker.webview
+            |
+            |object OfflineObservationScriptGenerated {
+            |    val script: String = $offlineObservationLiteral
+            |}
+        """.trimMargin())
+
+        val offlineReaderLiteral = groovy.json.JsonOutput.toJson(offlineReaderJsFile.readText()).replace("$", "\\$")
+        offlineReaderOutputFile.writeText("""
+            |package com.qcksys.ao3tracker.webview
+            |
+            |object OfflineReaderScriptGenerated {
+            |    val script: String = $offlineReaderLiteral
+            |}
+        """.trimMargin())
 
         val searchCheckContent = searchCheckJsFile.readText().replace("$", "\${'$'}")
         searchCheckOutputFile.writeText("""
@@ -205,6 +249,8 @@ kotlin {
     jvm()
 
     sourceSets {
+        androidMain { kotlin.srcDir("src/jvmSharedMain/kotlin") }
+        jvmMain { kotlin.srcDir("src/jvmSharedMain/kotlin") }
         commonMain {
             kotlin.srcDir(generatedKotlinDir)
             kotlin.srcDir(generatedBuildInfoDir)
@@ -212,6 +258,7 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.webkit)
             implementation(libs.koin.android)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.credentials)
@@ -276,6 +323,11 @@ kotlin {
         androidUnitTest.dependencies {
             implementation(libs.robolectric)
         }
+        androidInstrumentedTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.androidx.testExt.junit)
+            implementation(libs.androidx.espresso.core)
+        }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
@@ -325,6 +377,7 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = releaseVersionCode
         versionName = releaseVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "false")
         buildConfigField("String", "API_ENVIRONMENT", "\"PRODUCTION\"")

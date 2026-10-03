@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -24,6 +27,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +39,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import com.qcksys.ao3tracker.ui.components.Ao3WebView
+import com.qcksys.ao3tracker.ui.components.OfflineAo3WebView
+import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
+import com.qcksys.ao3tracker.data.offline.offlineLocation
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
@@ -46,11 +54,24 @@ private val WORK_URL_REGEX = Regex("/works/\\d+")
 fun ReadScreen() {
     val screenModel = koinInject<ReadScreenModel>()
     val appSettings = koinInject<AppSettings>()
+    val offline = koinInject<OfflineCoordinator>()
+    val savedChapter by screenModel.savedChapter.collectAsState()
+    val liveReaderSession by screenModel.liveReaderSession.collectAsState()
+    val capture by offline.capture.collectAsState()
+    val downloadMessage by offline.message.collectAsState()
+    val unavailableDestination by screenModel.unavailableDestination.collectAsState()
+    val downloads by offline.downloads.collectAsState()
     val incognitoModeEnabled by appSettings.incognitoModeEnabled.collectAsState()
     val currentUrl by screenModel.currentUrl.collectAsState()
     val scrollProgress by screenModel.scrollProgress.collectAsState()
     val tabNavigator = LocalTabNavigator.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    DisposableEffect(screenModel) { onDispose { screenModel.leaveReader() } }
+    LaunchedEffect(screenModel) { screenModel.resumeReader() }
+    LaunchedEffect(downloadMessage) {
+        downloadMessage?.let { snackbarHostState.showSnackbar(it); offline.dismissMessage() }
+    }
 
     LaunchedEffect(screenModel) {
         screenModel.linkActionMessage.collect { snackbarHostState.showSnackbar(it) }
@@ -76,6 +97,31 @@ fun ReadScreen() {
 
     val showProgressBar = remember(currentUrl) {
         WORK_URL_REGEX.containsMatchIn(currentUrl)
+    }
+
+    unavailableDestination?.let { destination ->
+        val location = runCatching { offlineLocation(destination) }.getOrNull()
+        val workId = location?.workId
+        val wholeWork = location?.representation == "whole"
+        val saved = downloads.firstOrNull { it.work.workId.toString() == workId }
+        AlertDialog(
+            onDismissRequest = screenModel::dismissUnavailableDestination,
+            title = { Text(if (wholeWork) "Read saved chapters" else if (location == null) "Connection required" else "Chapter not saved") },
+            text = {
+                Column {
+                    Text(if (wholeWork) "Offline downloads use chapter view. Choose a saved chapter, or open the whole-work view online. Your current page remains open."
+                        else "This destination is unavailable offline. Your current chapter remains open.")
+                    val available = saved?.chapters?.filter { it.id in saved.savedChapterIds }.orEmpty()
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 240.dp)) {
+                        items(if (wholeWork) available else available.takeLast(1), key = { it.id }) { chapter ->
+                            TextButton(onClick = { screenModel.openSavedOrLive(chapter.url, 0f) }) { Text("Open saved chapter ${chapter.number}") }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = screenModel::tryUnavailableOnline) { Text("Try online") } },
+            dismissButton = { TextButton(onClick = screenModel::dismissUnavailableDestination) { Text("Stay here") } }
+        )
     }
 
     // Dialog for the in-page "Save this search" button.
@@ -109,6 +155,7 @@ fun ReadScreen() {
                 }
             }
         }
+        OfflineReaderControls(offline, screenModel, currentUrl, savedChapter, incognitoModeEnabled)
         // Reading progress bar (only on work pages)
         if (showProgressBar) {
             LinearProgressIndicator(
@@ -121,7 +168,13 @@ fun ReadScreen() {
         }
 
         Box(Modifier.weight(1f)) {
-            Ao3WebView(
+            val opened = savedChapter
+            if (opened != null) key(opened.document.token) {
+                OfflineAo3WebView(opened.document, Modifier.fillMaxSize(),
+                    onEvent = { screenModel.handleOfflineEvent(opened, it) },
+                    onFailure = { offline.notify("This saved chapter could not be displayed. Update the saved work when connected.") },
+                    onBack = { if (!screenModel.goBack()) tabNavigator.current = TrackTab })
+            } else key(liveReaderSession) { Ao3WebView(
                 url = currentUrl,
                 modifier = Modifier.fillMaxSize(),
                 onNavigationStateChange = { back, forward ->
@@ -131,7 +184,7 @@ fun ReadScreen() {
                     screenModel.updateCurrentUrl(url)
                 },
                 onMessage = { message ->
-                    screenModel.handleWebViewMessage(message)
+                    if (screenModel.liveReaderSession.value == liveReaderSession) screenModel.handleWebViewMessage(message)
                 },
                 onLoadingStateChange = { isLoading ->
                     screenModel.updateLoadingState(isLoading)
@@ -140,8 +193,13 @@ fun ReadScreen() {
                     tabNavigator.current = TrackTab
                 },
                 jsInjectionFlow = screenModel.jsInjectionFlow,
-                onLinkAction = screenModel::handleLinkAction
-            )
+                onLinkAction = screenModel::handleLinkAction,
+                offlineCapture = capture,
+                onOfflinePage = screenModel::observeOfflinePage,
+                onNavigate = screenModel::interceptNavigation,
+                onBack = screenModel::goBack,
+                onLoadFailure = screenModel::liveLoadFailed
+            ) }
             SnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
         }
     }
