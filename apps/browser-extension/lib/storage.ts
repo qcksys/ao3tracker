@@ -20,6 +20,7 @@ export const browsingPreferencesItem = storage.defineItem<BrowsingPreferences>(
       hiddenWorkIds: [],
       hiddenWorkTitles: {},
       hideCaughtUp: false,
+      hideTracked: false,
       hiddenTags: [],
       languageFilterEnabled: false,
       searchLanguage: "en",

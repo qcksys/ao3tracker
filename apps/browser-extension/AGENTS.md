@@ -118,6 +118,8 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 - **Content-script matches**: keep `matches` patterns as narrow as possible. Currently `https://archiveofourown.org/*`.
 - **Tests**: `vp run test` runs Node Vitest regressions against the actual repositories and sync transport with in-memory extension storage and controlled fetch responses. Shared DOM/wire behavior is also tested in `packages/ao3-core` and `packages/ao3-sync-client`.
 
+The device-local `hideTracked` browsing preference defaults off and has its own "Hide all tracked works" switch. Send changes through `setHideTracked` under `withLocalState`; pass the field and latest badges to `applyHiddenWorks`. It collapses every tracked work, including unread works and new chapters, takes precedence over `hideCaughtUp`, and preserves the page-local Show action and separate manual hidden-work list.
+
 ## Cross-app contract
 
 Zero-progress navigation, including automatic next-chapter selection, opens at the top of `#chapters` through shared `consumeScrollToParam`. Nonzero progress retains restoration at the viewport bottom.

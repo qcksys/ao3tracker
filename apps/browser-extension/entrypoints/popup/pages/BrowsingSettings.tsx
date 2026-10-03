@@ -181,7 +181,27 @@ export function BrowsingSettings() {
         </Button>
       </div>
       <p className="text-muted-foreground text-xs">
-        Collapse these works in AO3 lists. Works with new chapters stay visible.
+        Collapse these works in AO3 lists. Works with new chapters stay visible unless all tracked
+        works are hidden.
+      </p>
+      <div className="flex items-center justify-between gap-2">
+        <Label htmlFor="hide-tracked">Hide all tracked works</Label>
+        <Button
+          id="hide-tracked"
+          role="switch"
+          aria-checked={preferences.hideTracked}
+          disabled={saving}
+          variant={preferences.hideTracked ? "default" : "outline"}
+          onClick={() =>
+            void save({ kind: "setHideTracked", hideTracked: !preferences.hideTracked })
+          }
+        >
+          {preferences.hideTracked ? "On" : "Off"}
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Collapse every tracked work in AO3 lists, including unread works and works with new
+        chapters. Use Show to reveal a work on the current page.
       </p>
       <p className="font-medium">Excluded tags</p>
       <div className="flex flex-wrap gap-2">

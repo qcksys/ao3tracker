@@ -292,6 +292,18 @@ class IncognitoReadingTest {
             f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$pageUrl"}""")
             advanceUntilIdle()
             assertTrue(scripts.any { it.contains("applyBrowsingState") && it.contains("savedSearchUrls") })
+            assertTrue(scripts.last().contains("\"hideTracked\":false"))
+
+            f.settings.setHideTracked(true)
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"hideTracked\":true"))
+            scripts.clear()
+            f.model.handleWebViewMessage("""{"type":"browsingReady","url":"$pageUrl"}""")
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"hideTracked\":true"))
+            f.settings.setHideTracked(false)
+            advanceUntilIdle()
+            assertTrue(scripts.last().contains("\"hideTracked\":false"))
 
             f.model.handleWebViewMessage("""{"type":"setWorkHidden","url":"$pageUrl","workId":123,"hidden":true}""")
             advanceUntilIdle()

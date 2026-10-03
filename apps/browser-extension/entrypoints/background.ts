@@ -32,6 +32,7 @@ import { withLocalState } from "@/lib/local-state";
 import {
   getBrowsingState,
   setHideCaughtUp,
+  setHideTracked,
   setHiddenTags,
   setSearchLanguage,
   setMaxFandoms,
@@ -175,11 +176,13 @@ async function handlePopupMessage(msg: PopupToBackground): Promise<BackgroundToP
     case "setSearchLanguage":
     case "setMaxFandoms":
     case "setHideCaughtUp":
+    case "setHideTracked":
       return withLocalState(async () => {
         if (msg.kind === "unhideWork") await setWorkHidden(msg.workId, false);
         else if (msg.kind === "setHiddenTags") await setHiddenTags(msg.hiddenTags);
         else if (msg.kind === "setMaxFandoms") await setMaxFandoms(msg.maxFandoms);
         else if (msg.kind === "setHideCaughtUp") await setHideCaughtUp(msg.hideCaughtUp);
+        else if (msg.kind === "setHideTracked") await setHideTracked(msg.hideTracked);
         else
           await setSearchLanguage({
             languageFilterEnabled: msg.languageFilterEnabled,

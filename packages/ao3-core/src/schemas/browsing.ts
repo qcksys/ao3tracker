@@ -7,6 +7,7 @@ export const browsingPreferencesSchema = z.object({
   hiddenWorkIds: z.array(z.number().int().positive()),
   hiddenWorkTitles: z.record(z.string(), z.string()).default({}),
   hideCaughtUp: z.boolean().default(false),
+  hideTracked: z.boolean().default(false),
   hiddenTags: z.array(z.string().trim().min(1)),
   languageFilterEnabled: z.boolean().default(false),
   maxFandoms: z.number().int().positive().max(2147483647).nullable().default(null),

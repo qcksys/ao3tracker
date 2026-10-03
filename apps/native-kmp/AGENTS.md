@@ -181,6 +181,8 @@ When the WebView loads an AO3 list page (anything with `<li id="work_{id}">` blu
 
 The status string set MUST stay in sync between `WorkBadgePayload` (Kotlin) and `WorkBadgeData` (TypeScript, defined in [`packages/ao3-core/src/badges.ts`](../../packages/ao3-core/src/badges.ts)) — any new status needs an entry in `formatBadge`'s `switch` and a clause in `buildBadgePayload`. The same status set is consumed by the browser extension's content script.
 
+The device-local `hideTracked` browsing preference defaults off and has its own "Hide all tracked works" switch. Include it in every `BrowsingState` payload alongside `hideCaughtUp`, including initial handshakes and live preference updates. The shared helper collapses every work with a badge, including unread works and new chapters, with a page-local Show action. It takes precedence over `hideCaughtUp`; manual hides remain separate.
+
 ### Reader link actions
 
 Android link long-presses open a Material 3 action sheet using the app theme. `ReaderLink` classifies trusted AO3 work/tag URLs and decodes AO3 tag escapes. Copy and Open in browser retain the complete URL; linked images resolve their anchor with `requestFocusNodeHref`. Text selection and editable-field menus remain native. `ReadScreenModel.handleLinkAction` adds works without navigating or creating chapter progress, or updates the existing device-local hidden tags/works. Explicit actions work in incognito. Adding an existing work preserves its metadata and progress; restoring a deleted work advances its sync reading clock. Account-generation checks guard queued tracking actions.
