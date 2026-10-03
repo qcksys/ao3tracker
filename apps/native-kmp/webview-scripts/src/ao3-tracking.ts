@@ -205,7 +205,8 @@ function init(): void {
   restoringScroll = consumeScrollToParam(document, window, startProgressTracking);
   if (!restoringScroll) startProgressTracking();
 
-  injectSaveSearchButton(document, window.location, (url) => {
+  injectSaveSearchButton(document, window.location, (href) => {
+    const url = withDefaultHiddenTags(href, browsingState.hiddenTags);
     diagnostics?.capture({ event: "webview_action", action: "save_search" });
     const message: SaveSearchMessage = {
       type: "saveSearch",

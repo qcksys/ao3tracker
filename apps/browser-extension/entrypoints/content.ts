@@ -123,7 +123,8 @@ export default defineContentScript({
 
     let dismissSaveSearch: (() => void) | undefined;
     ctx.onInvalidated(() => dismissSaveSearch?.());
-    injectSaveSearchButton(document, window.location, (url, button) => {
+    injectSaveSearchButton(document, window.location, (href, button) => {
+      const url = withDefaultHiddenTags(href, browsingState.hiddenTags);
       button.disabled = true;
       void savedSearchesItem
         .getValue()
