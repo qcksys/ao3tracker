@@ -53,6 +53,8 @@ Tracking uses the shared `observeChapterProgress` helper to report on load, scro
 
 After `vp run build`, the Gradle `generateWebviewScriptKotlin` task reads `dist/*.min.js` and emits Kotlin string constants under `apps/native-kmp/composeApp/build/generated/kotlin/webview/`.
 
+Saving a search merges the current default hidden tags into its URL before generating the name and posting `saveSearch`. The same URL feeds native create and update actions. Do not rely on the preference redirect having completed; retain manual exclusions and deduplicate tags through `withDefaultHiddenTags`.
+
 ## Conventions
 
 - **Formatting** uses workspace-root Oxfmt (`vp fmt`) with two-space indentation. Biome runs lint and import organization only, with its formatter disabled.
