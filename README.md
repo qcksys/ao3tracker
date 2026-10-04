@@ -18,11 +18,19 @@ The root [package.json](package.json) pins Node.js 24 through `engines.node`. Vi
 vp run ready
 ```
 
-- Run the tests:
+- Run the workspace JavaScript/TypeScript tests:
 
 ```bash
 vp run test -r
 ```
+
+- Run the full pre-push test hook:
+
+```bash
+git hook run pre-push
+```
+
+The pre-push hook runs the workspace tests, JVM tests, Android Debug unit tests, and Android Debug instrumented tests. It requires JDK 21, the Android SDK, and a running test emulator or connected test device. Any failure, including a missing device, blocks the push. `vp install` installs the hook dispatcher.
 
 - Build the monorepo:
 
