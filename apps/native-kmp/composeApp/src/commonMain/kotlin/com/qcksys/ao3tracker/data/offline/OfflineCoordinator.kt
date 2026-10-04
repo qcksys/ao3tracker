@@ -73,6 +73,7 @@ class OfflineCoordinator internal constructor(
 
     init {
         if (enabled) {
+            val initialAccount = accounts.generation to accounts.offlineReset.value
             scope.launch {
                 accounts.observe { it.workDao().getAllWorks() }
                     .map { works -> works.associate { it.id to (it.currentChapters to it.downloadUpdatedAt) } }.distinctUntilChanged().collect {
@@ -93,15 +94,19 @@ class OfflineCoordinator internal constructor(
                 }
             }
             scope.launch {
+                var previousAccount = initialAccount
                 combine(accounts.accountGeneration, accounts.offlineReset) { generation, reset -> generation to reset }
-                    .collect {
-                        downloadTask?.cancel()
-                        cancelCapture()
-                        observation.value = null
-                        workStates.value = emptyList()
-                        pendingSave = null
-                        automaticPage = null
-                        debugState.value = emptyList()
+                    .collect { account ->
+                        if (account != previousAccount) {
+                            downloadTask?.cancel()
+                            cancelCapture()
+                            observation.value = null
+                            workStates.value = emptyList()
+                            pendingSave = null
+                            automaticPage = null
+                            debugState.value = emptyList()
+                        }
+                        previousAccount = account
                         try {
                             store.initialize()
                             refresh()

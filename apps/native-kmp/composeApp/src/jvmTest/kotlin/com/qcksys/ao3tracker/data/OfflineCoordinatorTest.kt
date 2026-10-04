@@ -1,5 +1,6 @@
 package com.qcksys.ao3tracker.data
 
+import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.offline.*
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.OfflinePreferences
@@ -8,9 +9,42 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.*
 
 class OfflineCoordinatorTest {
+    @Test
+    fun `initial account observation preserves a readable page received during startup`() = runBlocking {
+        fixture(databaseContext = Dispatchers.Unconfined) { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.liveNavigation(url)
+            val event = OfflinePageObservation(url, "user:fixture", true)
+            coordinator.observed(event)
+            withTimeout(5000) { coordinator.page.first { it == event } }
+            coordinator.saveWork(123)
+            val request = withTimeout(5000) { coordinator.capture.first { it != null }!! }
+            assertEquals(event, coordinator.page.value)
+            assertTrue(request.isCurrent())
+        }
+    }
+
+    @Test
+    fun `an actual account change still clears the observed page and cancels its capture`() = runBlocking {
+        fixture(databaseContext = Dispatchers.Unconfined) { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.liveNavigation(url)
+            val event = OfflinePageObservation(url, "user:fixture", true)
+            coordinator.observed(event)
+            withTimeout(5000) { coordinator.page.first { it == event } }
+            coordinator.saveWork(123)
+            val request = withTimeout(5000) { coordinator.capture.first { it != null }!! }
+            activate("production:replacement")
+            withTimeout(5000) { coordinator.page.first { it == null } }
+            assertNull(coordinator.capture.value)
+            assertFalse(request.isCurrent())
+        }
+    }
+
     @Test
     fun `discovery follows the first chapter then downloads each remaining chapter without changing reading progress`() = runBlocking {
         fixture { coordinator, _ ->
@@ -254,9 +288,9 @@ class OfflineCoordinatorTest {
         }
     }
 
-    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, block: suspend (OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
+    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")
-        val accounts = createTestAccounts(directory)
+        val accounts = createTestAccounts(directory, databaseContext)
         // Match the app's main-thread confinement for coordinator calls and jobs.
         val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
         try {
@@ -264,7 +298,7 @@ class OfflineCoordinatorTest {
             store.observeIdentity("user:fixture")
             val network = MutableStateFlow(OfflineNetwork(true, true))
             val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync)
-            block(coordinator, network)
+            accounts.block(coordinator, network)
             assertTrue(accounts.database.chapterDao().getAllChaptersIncludingDeletedOnce().isEmpty())
             assertTrue(accounts.database.workDao().getAllWorksIncludingDeletedOnce().isEmpty())
         } finally {
