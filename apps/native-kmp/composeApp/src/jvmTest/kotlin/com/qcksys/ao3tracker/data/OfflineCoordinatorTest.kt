@@ -257,7 +257,8 @@ class OfflineCoordinatorTest {
     private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, block: suspend (OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")
         val accounts = createTestAccounts(directory)
-        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        // Match the app's main-thread confinement for coordinator calls and jobs.
+        val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
         try {
             val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
             store.observeIdentity("user:fixture")
