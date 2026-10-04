@@ -75,7 +75,19 @@ Run the setup commands from `apps/api/`. [Varlock's 1Password plugin](https://va
 4. If migrating an existing checkout, verify the stored values in 1Password before removing the old `.dev.vars` and `.dev.vars.*` files. Wrangler loads those files ahead of the injected process environment. Remove any remaining plaintext secrets from `.env*` files too.
 5. Run `vp run dev` here or at the repository root. Approve the 1Password unlock prompt if shown.
 
-The dev server, preview, database commands, and Better Auth schema generator use [`varlock run`](https://varlock.dev/reference/cli/load-and-run/) with [`@setValuesBulk`](https://varlock.dev/reference/root-decorators/#setvaluesbulk). Varlock resolves the note through the installed 1Password CLI, parses its dotenv content, validates required variables, and injects the child process environment. No custom loader or plaintext secret file is needed. The schema uses in-memory caching and marks all values sensitive. Existing process variables and local `.env` overrides take precedence, so clear stale overrides when switching to 1Password. Restart the command after changing the note. `vp run preview` requires a prior local `vp run build`.
+The dev server, preview, database commands, and Better Auth schema generator use [`varlock run`](https://varlock.dev/reference/cli/load-and-run/) with [`@setValuesBulk`](https://varlock.dev/reference/root-decorators/#setvaluesbulk). Varlock resolves the note through the installed 1Password CLI, parses its dotenv content, validates required variables, and injects the child process environment. No custom loader or plaintext secret file is needed. All values are marked sensitive. Existing process variables and local `.env` overrides take precedence, so clear stale overrides when switching to 1Password. `vp run preview` requires a prior local `vp run build`.
+
+The 1Password plugin caches the note for one hour (`cacheTtl=1h`). [`@cache=auto`](https://varlock.dev/guides/caching/) uses encrypted disk storage when a native encryption backend is available locally, so commands reuse the note across restarts. It falls back to memory when secure persistence is unavailable. CI uses memory unless `_VARLOCK_CACHE_KEY` is provided; builds and tests do not need that key. Disk cache entries live in the user's Varlock config directory, outside the checkout, and are shared across projects.
+
+After editing the note in 1Password, clear the plugin's cached values and restart the command. Run these commands from `apps/api/`:
+
+```bash
+vp exec varlock cache status
+vp exec varlock cache clear --plugin 1password --yes
+vp run dev
+```
+
+Clearing the plugin cache affects all projects using that user's 1Password cache. For a single uncached invocation without changing the cache, use `vp exec varlock run --skip-cache --inject vars -- <command>`.
 
 Wrangler's [`secrets.required`](https://developers.cloudflare.com/workers/configuration/secrets/) list selects which injected values become local Worker bindings and generates their types without reading a vault. Empty optional values keep the corresponding integrations unavailable. Keep reference files out of the extension and native app: these secrets belong to the API. Builds, tests, type generation, and CI do not require 1Password. Deployments continue using secrets configured in Cloudflare and check that the declared secret names exist there.
 
