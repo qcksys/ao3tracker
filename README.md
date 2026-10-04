@@ -45,3 +45,9 @@ Configure the API's [1Password local secrets](apps/api/README.md#local-secrets-i
 ```bash
 vp run dev
 ```
+
+## License
+
+Original code and documentation in this repository are licensed under the [MIT License](LICENSE).
+
+Third-party materials retain their own licenses. The [AO3 stylesheet fixtures](apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins/README.md) are licensed under [GPLv2](apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins/LICENSE.txt); their upstream license and attribution are included alongside the fixtures.
