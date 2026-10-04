@@ -38,11 +38,35 @@ class BrowsingSettingsStorageTest {
     @Test
     fun bridgeAlwaysIncludesTheSelectedLanguageEvenWhenEnglish() {
         for (maxFandoms in listOf(null, 1, 3)) {
-            val payload = JsonConfig.json.encodeToString(BrowsingState(emptyList(), emptyList(), emptyList(), true, "en", maxFandoms, false))
+            val payload = JsonConfig.json.encodeToString(BrowsingState(emptyList(), emptyList(), emptyList(), true, "en", maxFandoms, false, false))
             val json = JsonConfig.json.parseToJsonElement(payload).jsonObject
             assertEquals("en", json.getValue("searchLanguage").jsonPrimitive.content)
             assertEquals("true", json.getValue("languageFilterEnabled").jsonPrimitive.content)
             assertEquals(maxFandoms, json["maxFandoms"]?.jsonPrimitive?.content?.toIntOrNull())
+        }
+    }
+
+    @Test
+    fun trackedFilteringDefaultsOffAndPersistsIndependently() {
+        val storage = SettingsStorage()
+        val previous = storage.getBrowsingPreferences()
+        try {
+            storage.setBrowsingPreferences("""{"hiddenWorkIds":[123],"hiddenTags":["Angst"],"hideCaughtUp":true}""")
+            val settings = AppSettings(storage)
+            assertEquals(false, settings.browsingPreferences.value.hideTracked)
+            settings.setHideTracked(true)
+            val restarted = AppSettings(SettingsStorage())
+            assertEquals(BrowsingPreferences(listOf(123), listOf("Angst"), hideCaughtUp = true, hideTracked = true), restarted.browsingPreferences.value)
+            restarted.setHideTracked(false)
+            assertEquals(BrowsingPreferences(listOf(123), listOf("Angst"), hideCaughtUp = true), AppSettings(SettingsStorage()).browsingPreferences.value)
+            for (hideTracked in listOf(true, false)) {
+                val payload = JsonConfig.json.encodeToString(BrowsingState(emptyList(), emptyList(), emptyList(), false, "en", null, false, hideTracked))
+                val json = JsonConfig.json.parseToJsonElement(payload).jsonObject
+                assertEquals(hideTracked.toString(), json.getValue("hideTracked").jsonPrimitive.content)
+            }
+        } finally {
+            if (previous == null) Preferences.userNodeForPackage(SettingsStorage::class.java).remove("browsing_preferences")
+            else storage.setBrowsingPreferences(previous)
         }
     }
 

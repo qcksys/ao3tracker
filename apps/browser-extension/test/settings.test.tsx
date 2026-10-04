@@ -29,6 +29,7 @@ vi.mock("~popup/lib/state", () => ({
         hiddenWorkIds: [123],
         hiddenWorkTitles: { 123: "A Hidden Story" },
         hideCaughtUp: false,
+        hideTracked: false,
         languageFilterEnabled: false,
         searchLanguage: "en",
         maxFandoms: null,
@@ -153,6 +154,21 @@ describe("settings sections", () => {
       kind: "setHideCaughtUp",
       hideCaughtUp: true,
     });
+  });
+
+  it("offers a separate tracked-work filter and reports save failures", async () => {
+    await act(async () => button("Search preferences").click());
+    const toggle = container.querySelector<HTMLButtonElement>("#hide-tracked")!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    mocks.dispatch.mockResolvedValueOnce({ ok: false, error: "Save failed" });
+    await act(async () => toggle.click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setHideTracked", hideTracked: true });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Save failed");
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await act(async () => toggle.click());
+    expect(mocks.dispatch).toHaveBeenLastCalledWith({ kind: "setHideTracked", hideTracked: true });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(container.querySelector("#hide-caught-up")?.getAttribute("aria-checked")).toBe("false");
   });
 
   it("validates, saves and clears the fandom limit, retaining drafts after save failures", async () => {

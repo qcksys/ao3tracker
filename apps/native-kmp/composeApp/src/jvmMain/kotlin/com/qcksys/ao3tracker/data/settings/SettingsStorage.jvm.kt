@@ -58,6 +58,8 @@ actual class SettingsStorage {
     }
 
     actual fun getBrowsingPreferences(): String? = prefs.get("browsing_preferences", null)
+    actual fun getOfflinePreferences(): String? = prefs.get("offline_preferences", null)
+    actual fun setOfflinePreferences(preferences: String) { prefs.put("offline_preferences", preferences) }
 
     actual fun setBrowsingPreferences(preferences: String) {
         prefs.put("browsing_preferences", preferences)

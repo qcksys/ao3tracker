@@ -88,6 +88,7 @@ function setDiagnosticsEnabled(enabled: boolean): void {
 
 let browsingState: BrowsingState = {
   hideCaughtUp: false,
+  hideTracked: false,
   hiddenWorkTitles: {},
   hiddenWorkIds: [],
   hiddenTags: [],
@@ -136,7 +137,7 @@ export function applyBrowsingState(payloadJson: string): void {
         } satisfies SetWorkHiddenMessage),
       );
     },
-    { hideCaughtUp: browsingState.hideCaughtUp, badges },
+    { hideCaughtUp: browsingState.hideCaughtUp, hideTracked: browsingState.hideTracked, badges },
   );
   applyFandomLimit(document, browsingState.maxFandoms);
 }
@@ -173,6 +174,37 @@ function reportPageMetadata(): void {
 
 let restoringScroll = false;
 
+function observeReadingProgress(): void {
+  let layoutChanged = false;
+  const pause = () => {
+    layoutChanged = true;
+  };
+  const resume = () => {
+    layoutChanged = false;
+  };
+  const appearance = window.matchMedia("(prefers-color-scheme: dark)");
+  const interactionEvents = ["touchstart", "wheel", "keydown", "pointerdown"];
+  window.addEventListener("resize", pause);
+  appearance.addEventListener("change", pause);
+  for (const type of interactionEvents) document.addEventListener(type, resume, { passive: true });
+  const stop = observeChapterProgress(
+    document,
+    window,
+    (message) => postMessage(JSON.stringify(message)),
+    () => !layoutChanged,
+  );
+  window.addEventListener(
+    "pagehide",
+    () => {
+      stop();
+      window.removeEventListener("resize", pause);
+      appearance.removeEventListener("change", pause);
+      for (const type of interactionEvents) document.removeEventListener(type, resume);
+    },
+    { once: true },
+  );
+}
+
 export function reportReadingActivity(): void {
   reportPageMetadata();
   if (restoringScroll || !classifyAo3Url(window.location.href).isWork) return;
@@ -198,13 +230,14 @@ function init(): void {
   const startProgressTracking = (): void => {
     restoringScroll = false;
     if (classifyAo3Url(window.location.href).isWork) {
-      observeChapterProgress(document, window, (message) => postMessage(JSON.stringify(message)));
+      observeReadingProgress();
     }
   };
   restoringScroll = consumeScrollToParam(document, window, startProgressTracking);
   if (!restoringScroll) startProgressTracking();
 
-  injectSaveSearchButton(document, window.location, (url) => {
+  injectSaveSearchButton(document, window.location, (href) => {
+    const url = withDefaultHiddenTags(href, browsingState.hiddenTags);
     diagnostics?.capture({ event: "webview_action", action: "save_search" });
     const message: SaveSearchMessage = {
       type: "saveSearch",

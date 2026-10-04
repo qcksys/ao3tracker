@@ -8,17 +8,23 @@ import com.qcksys.ao3tracker.data.database.MIGRATION_6_7
 import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
 import com.qcksys.ao3tracker.data.database.MIGRATION_8_9
 import com.qcksys.ao3tracker.data.database.MIGRATION_9_10
+import com.qcksys.ao3tracker.data.database.MIGRATION_10_11
+import com.qcksys.ao3tracker.data.database.MIGRATION_11_12
 import java.nio.file.Path
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.Dispatchers
 
-internal fun createTestAccounts(directory: Path, context: CoroutineContext = Dispatchers.IO): AccountDataStore {
+internal fun createTestAccounts(
+    directory: Path,
+    context: CoroutineContext = Dispatchers.IO,
+    removeOfflineContext: suspend (String, String) -> Unit = { _, _ -> }
+): AccountDataStore {
     val openDatabase = { fileName: String ->
         Room.databaseBuilder<Ao3Database>(directory.resolve(fileName).toString())
             .setDriver(BundledSQLiteDriver())
             .setQueryCoroutineContext(context)
-            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+            .addMigrations(MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
             .build()
     }
-    return AccountDataStore(openDatabase("test.db"), openDatabase)
+    return AccountDataStore(openDatabase("test.db"), openDatabase, removeOfflineContext)
 }

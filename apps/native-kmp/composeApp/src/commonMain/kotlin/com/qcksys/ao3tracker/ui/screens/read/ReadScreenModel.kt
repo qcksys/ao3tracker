@@ -4,6 +4,11 @@ import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import com.qcksys.ao3tracker.data.model.DataException
 import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
+import com.qcksys.ao3tracker.data.offline.OfflineReaderEvent
+import com.qcksys.ao3tracker.data.offline.OfflinePageObservation
+import com.qcksys.ao3tracker.data.offline.OpenOfflineChapter
+import com.qcksys.ao3tracker.data.offline.offlineLocation
 import com.qcksys.ao3tracker.data.model.ListWorksEvent
 import com.qcksys.ao3tracker.data.model.SaveSearchEvent
 import com.qcksys.ao3tracker.data.model.BrowsingReadyEvent
@@ -42,17 +47,31 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import io.ktor.http.URLBuilder
 
 class ReadScreenModel(
     private val repository: Ao3Repository,
     private val savedSearchRepository: SavedSearchRepository,
     private val syncTriggers: SyncTriggers,
     private val accountData: AccountDataStore,
-    private val appSettings: AppSettings
+    private val appSettings: AppSettings,
+    private val offline: OfflineCoordinator? = null
 ) : ScreenModel {
 
     private val _currentUrl = MutableStateFlow("https://archiveofourown.org")
     val currentUrl: StateFlow<String> = _currentUrl.asStateFlow()
+    private val _savedChapter = MutableStateFlow<OpenOfflineChapter?>(null)
+    internal val savedChapter = _savedChapter.asStateFlow()
+    private val _unavailableDestination = MutableStateFlow<String?>(null)
+    internal val unavailableDestination = _unavailableDestination.asStateFlow()
+    private var navigationVersion = 0L
+    private val readerHistory = mutableListOf<ReadNavigation>()
+    private var historyIndex = -1
+    private var needsSavedRestore = false
+    private data class LiveFallback(val chapter: OpenOfflineChapter, val url: String, val progress: Float, val historyIndex: Int)
+    private var liveFallback: LiveFallback? = null
+    private val liveReaderVersion = MutableStateFlow(0L)
+    internal val liveReaderSession = liveReaderVersion.asStateFlow()
 
     // Set when the in-page "Save this search" button is tapped; the UI shows a
     // save/update dialog and clears this on confirm/cancel.
@@ -96,6 +115,35 @@ class ReadScreenModel(
     }
 
     init {
+        offline?.takeIf { it.enabled }?.let { coordinator ->
+            screenModelScope.launch {
+                var previous = Triple(coordinator.store.context.value, accountData.generation, accountData.offlineReset.value)
+                combine(coordinator.store.context, accountData.accountGeneration, accountData.offlineReset) { context, generation, reset -> Triple(context, generation, reset) }.collect { current ->
+                    val saved = _savedChapter.value
+                    val contextChanged = previous.first != null && previous.first != current.first
+                    if (contextChanged || previous.second != current.second || previous.third != current.third ||
+                        saved != null && !saved.document.isActive() || liveFallback?.chapter?.document?.isActive() == false) {
+                        closeSavedChapter()
+                        coordinator.leaveLivePage()
+                        readerHistory.clear()
+                        historyIndex = -1
+                        updateHistoryControls()
+                        _unavailableDestination.value = null
+                        navigationVersion++
+                        liveReaderVersion.value++
+                        _currentUrl.value = "https://archiveofourown.org"
+                        _scrollProgress.value = 0f
+                        _isLoading.value = false
+                        previousChapter = null
+                        pendingWorkInfo = null
+                        pendingWorkTags = null
+                        browsingUrl = null
+                        _pendingSaveSearch.value = null
+                    }
+                    previous = current
+                }
+            }
+        }
         screenModelScope.launch {
             appSettings.diagnosticSession.collect {
                 updateWebViewDiagnostics()
@@ -103,7 +151,7 @@ class ReadScreenModel(
         }
         screenModelScope.launch {
             combine(appSettings.browsingPreferences, savedSearchRepository.observeLive()) { preferences, searches ->
-                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp)
+                BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp, preferences.hideTracked)
             }.collect { state ->
                 browsingUrl?.let { emitBrowsingState(it, state) }
             }
@@ -133,30 +181,222 @@ class ReadScreenModel(
     }
 
     fun updateNavigationState(canGoBack: Boolean, canGoForward: Boolean) {
+        if (offline?.enabled == true) { updateHistoryControls(); return }
         _canGoBack.value = canGoBack
         _canGoForward.value = canGoForward
     }
 
     fun updateLoadingState(isLoading: Boolean) {
         _isLoading.value = isLoading
+        offline?.interactiveLoading(isLoading)
     }
 
     fun updateCurrentUrl(url: String) {
+        if (_savedChapter.value != null) return
         if (url != browsingUrl) browsingUrl = null
+        offline?.liveNavigation(url)
+        if (offline?.enabled == true && isTrustedAo3Url(url)) rememberDestination(url, null)
         _currentUrl.value = url
     }
 
+    internal fun observeOfflinePage(event: OfflinePageObservation) {
+        offline?.observed(event)
+        if (event.readable) { liveFallback?.chapter?.document?.close(); liveFallback = null }
+    }
+
+    internal fun liveLoadFailed(status: Int?, retryAfter: String?) {
+        if (_savedChapter.value != null) return
+        updateLoadingState(false)
+        if (status in setOf(429, 503)) offline?.gate?.pause(retryAfter)
+        val fallback = liveFallback
+        liveFallback = null
+        if (fallback != null && fallback.chapter.document.isActive()) {
+            fallback.chapter.document.restoreAt(fallback.progress * 100)
+            _savedChapter.value = fallback.chapter
+            _currentUrl.value = fallback.url
+            _scrollProgress.value = fallback.progress
+            historyIndex = fallback.historyIndex
+            while (readerHistory.lastIndex > historyIndex) readerHistory.removeAt(readerHistory.lastIndex)
+            updateHistoryControls()
+            offline?.leaveLivePage()
+        } else fallback?.chapter?.document?.close()
+        offline?.notify("AO3 could not load this page. Your saved chapters remain available.")
+    }
+
+    internal fun leaveReader() {
+        offline?.leaveLivePage()
+        needsSavedRestore = _savedChapter.value != null
+        saveHistoryPosition()
+    }
+
+    internal suspend fun resumeReader() {
+        if (!needsSavedRestore) return
+        needsSavedRestore = false
+        if (_savedChapter.value != null) openDestination(_currentUrl.value, _scrollProgress.value, historyTarget = historyIndex.takeIf { it >= 0 })
+    }
+
+    internal fun interceptNavigation(url: String): Boolean {
+        if (offline?.enabled != true || !isTrustedAo3Url(url)) return false
+        val location = runCatching { offlineLocation(url) }.getOrNull()
+        val saved = location?.let { target -> offline.downloads.value.any { status ->
+            status.work.workId.toString() == target.workId && status.savedChapterIds.isNotEmpty()
+        } } == true
+        if (!saved && offline.network.value.connected) return false
+        screenModelScope.launch { openDestination(url, null) }
+        return true
+    }
+
+    internal fun openSavedOrLive(url: String, progress: Float? = null) {
+        screenModelScope.launch { openDestination(url, progress) }
+    }
+
+    internal fun reloadOnline() {
+        screenModelScope.launch { openDestination(_currentUrl.value, _scrollProgress.value, forceLive = true) }
+    }
+
+    internal fun dismissUnavailableDestination() { _unavailableDestination.value = null }
+
+    internal fun tryUnavailableOnline() {
+        val url = _unavailableDestination.value ?: return
+        _unavailableDestination.value = null
+        screenModelScope.launch { openDestination(url, null, forceLive = true) }
+    }
+
+    internal fun goBack(): Boolean = navigateHistory(-1)
+    internal fun goForward(): Boolean = navigateHistory(1)
+
+    private fun navigateHistory(step: Int): Boolean {
+        val target = historyIndex + step
+        if (offline?.enabled != true || target !in readerHistory.indices) return false
+        val destination = readerHistory[target]
+        screenModelScope.launch { openDestination(destination.url, destination.scrollProgress, historyTarget = target) }
+        return true
+    }
+
+    private fun rememberDestination(url: String, progress: Float?) {
+        val canonical = historyUrl(url)
+        if (historyIndex >= 0 && readerHistory[historyIndex].url.substringBefore('#') == canonical.substringBefore('#')) return
+        saveHistoryPosition()
+        while (readerHistory.lastIndex > historyIndex) readerHistory.removeAt(readerHistory.lastIndex)
+        readerHistory.add(ReadNavigation(canonical, progress))
+        historyIndex = readerHistory.lastIndex
+        updateHistoryControls()
+    }
+
+    private fun saveHistoryPosition() {
+        if (historyIndex in readerHistory.indices) readerHistory[historyIndex] = readerHistory[historyIndex].copy(scrollProgress = _scrollProgress.value)
+    }
+
+    private fun updateHistoryControls() {
+        _canGoBack.value = historyIndex > 0
+        _canGoForward.value = historyIndex < readerHistory.lastIndex
+    }
+
+    private fun closeSavedChapter() {
+        _savedChapter.value?.document?.close()
+        _savedChapter.value = null
+        liveFallback?.chapter?.document?.close()
+        liveFallback = null
+    }
+
+    private fun historyUrl(url: String): String = URLBuilder(url).apply {
+        parameters.remove("scrollTo")
+        parameters.remove("_t")
+    }.buildString()
+
+    private suspend fun openDestination(url: String, progress: Float?, forceLive: Boolean = false, historyTarget: Int? = null) {
+        if (!isTrustedAo3Url(url)) return
+        val coordinator = offline?.takeIf { it.enabled }
+        val version = ++navigationVersion
+        val generation = accountData.generation
+        val saved = try {
+            if (!forceLive) coordinator?.open(url, (progress ?: 0f) * 100, if (progress == null) url.substringAfter('#', "") else "") else null
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            coordinator?.notify("The saved chapter could not be opened. Your current page remains available.")
+            return
+        }
+        if (version != navigationVersion || generation != accountData.generation) { saved?.document?.close(); return }
+        val wholeWorkChoice = runCatching { offlineLocation(url) }.getOrNull()?.takeIf { it.representation == "whole" }?.let { location ->
+            coordinator?.downloads?.value?.any { it.work.workId.toString() == location.workId && it.savedChapterIds.isNotEmpty() }
+        } == true
+        if (coordinator != null && saved == null && (!coordinator.network.value.connected || wholeWorkChoice) && !forceLive) {
+            _unavailableDestination.value = url
+            coordinator.notify("This page is not saved. Choose an available chapter or reconnect to AO3.")
+            return
+        }
+        _unavailableDestination.value = null
+        val fallback = if (saved == null) _savedChapter.value?.let { LiveFallback(it, _currentUrl.value, _scrollProgress.value, historyIndex) } else null
+        if (historyTarget != null) {
+            saveHistoryPosition()
+            historyIndex = historyTarget
+            updateHistoryControls()
+        } else if (coordinator != null) rememberDestination(url, progress)
+        if (fallback != null) {
+            liveFallback?.chapter?.document?.close()
+            liveFallback = fallback
+            _savedChapter.value = null
+        } else closeSavedChapter()
+        pendingWorkInfo = null
+        pendingWorkTags = null
+        _scrollProgress.value = progress ?: 0f
+        if (saved != null) {
+            coordinator?.leaveLivePage()
+            _savedChapter.value = saved
+            _currentUrl.value = saved.document.page.url + url.substringAfter('#', "").let { if (it.isEmpty()) "" else "#$it" }
+            _isLoading.value = false
+        } else {
+            if (progress == null) _currentUrl.value = url else setLiveUrlWithScroll(url, progress)
+            coordinator?.liveNavigation(_currentUrl.value)
+        }
+    }
+
+    internal fun handleOfflineEvent(opened: OpenOfflineChapter, event: OfflineReaderEvent) {
+        if (_savedChapter.value !== opened || !opened.document.isActive()) return
+        when (event) {
+            is OfflineReaderEvent.Navigate -> openSavedOrLive(event.url)
+            else -> {
+                val percentage = (event as? OfflineReaderEvent.Progress)?.percentage
+                if (percentage != null) _scrollProgress.value = percentage / 100f
+                val tracking = appSettings.captureTrackingSession() ?: return
+                val canTrack = { _savedChapter.value === opened && opened.document.isActive() && appSettings.isTrackingSessionCurrent(tracking) }
+                val page = opened.document.page
+                if (event == OfflineReaderEvent.Ready) offline?.readingSaved(page, canTrack)
+                val chapter = page.chapters.firstOrNull { it.id == page.chapterId } ?: return
+                screenModelScope.launch {
+                    if (!canTrack()) return@launch
+                    repository.recordOfflineReading(page.workId.toLong(), page.chapterId.toLong(), chapter.number, percentage, canTrack)
+                    if (event == OfflineReaderEvent.Ready) {
+                        val previous = previousChapter
+                        previousChapter = ChapterLocation(page.workId.toLong(), page.chapterId.toLong())
+                        if (previous != null && previous.workId == page.workId.toLong() && previous.chapterId != page.chapterId.toLong()) {
+                            repository.markChapterAsRead(previous.chapterId, previous.workId, canTrack)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onDispose() {
+        closeSavedChapter()
+        offline?.leaveLivePage()
+    }
+
     fun handleWebViewMessage(messageJson: String) {
+        if (_savedChapter.value != null) return
         val owner = accountData.active.value?.owner
         val accountGeneration = accountData.generation
         val trackingSession = appSettings.captureTrackingSession()
         val diagnosticSession = appSettings.captureDiagnosticSession()
+        val readerVersion = liveReaderVersion.value
         val canTrack = {
             trackingSession != null && appSettings.isTrackingSessionCurrent(trackingSession) &&
-                accountData.generation == accountGeneration && accountData.active.value?.owner == owner
+                accountData.generation == accountGeneration && accountData.active.value?.owner == owner && liveReaderVersion.value == readerVersion
         }
         screenModelScope.launch {
-            if (accountData.generation != accountGeneration || accountData.active.value?.owner != owner) return@launch
+            if (accountData.generation != accountGeneration || accountData.active.value?.owner != owner || liveReaderVersion.value != readerVersion) return@launch
             try {
                 val message = parseWebViewMessage(messageJson)
                 if (message is WebViewMessage.Diagnostic &&
@@ -357,7 +597,7 @@ class ReadScreenModel(
     private suspend fun refreshBrowsingState(url: String) {
         val preferences = appSettings.browsingPreferences.value
         val searches = savedSearchRepository.observeLive().first()
-        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp))
+        emitBrowsingState(url, BrowsingState(preferences.hiddenWorkIds, preferences.hiddenTags, searches.map { it.url }, preferences.languageFilterEnabled, preferences.searchLanguage, preferences.maxFandoms, preferences.hideCaughtUp, preferences.hideTracked))
     }
 
     private suspend fun emitBrowsingState(url: String, state: BrowsingState) {
@@ -439,15 +679,12 @@ class ReadScreenModel(
         pendingWorkInfo = null
         pendingWorkTags = null
         previousChapter = null
-        if (destination.scrollProgress == null) {
-            navigateToExternalUrl(destination.url)
-        } else {
-            navigateToUrlWithScroll(destination.url, destination.scrollProgress)
-        }
+        openDestination(destination.url, destination.scrollProgress)
     }
 
     fun navigateToUrl(url: String) {
         if (!isTrustedAo3Url(url)) return
+        if (offline?.enabled == true) { openSavedOrLive(addChaptersFragment(url)); return }
         // Reset scroll progress when navigating to a new page
         _scrollProgress.value = 0f
         // Add #chapters fragment for work URLs to auto-scroll to content
@@ -456,11 +693,14 @@ class ReadScreenModel(
 
     fun navigateToExternalUrl(url: String) {
         if (!isTrustedAo3Url(url)) return
+        if (offline?.enabled == true) { openSavedOrLive(url); return }
         _scrollProgress.value = 0f
         _currentUrl.value = url
     }
 
     fun navigateToHome() {
+        closeSavedChapter()
+        offline?.leaveLivePage()
         _scrollProgress.value = 0f
         _currentUrl.value = "https://archiveofourown.org"
     }
@@ -475,15 +715,21 @@ class ReadScreenModel(
     @OptIn(ExperimentalTime::class)
     fun navigateToUrlWithScroll(url: String, scrollProgress: Float) {
         if (!isTrustedAo3Url(url)) return
+        if (offline?.enabled == true) { openSavedOrLive(url, scrollProgress); return }
+        setLiveUrlWithScroll(url, scrollProgress)
+    }
+
+    private fun setLiveUrlWithScroll(url: String, scrollProgress: Float) {
         // Build URL with scrollTo param and timestamp to force reload
         val timestamp = Clock.System.now().toEpochMilliseconds()
         val scrollPercent = (scrollProgress * 100).toInt()
 
         // Add query params first, then fragment (fragments must come last in URL)
-        val urlWithParams = if (url.contains("?")) {
-            "$url&scrollTo=$scrollPercent&_t=$timestamp"
+        val base = historyUrl(url).substringBefore('#')
+        val urlWithParams = if (base.contains("?")) {
+            "$base&scrollTo=$scrollPercent&_t=$timestamp"
         } else {
-            "$url?scrollTo=$scrollPercent&_t=$timestamp"
+            "$base?scrollTo=$scrollPercent&_t=$timestamp"
         }
         // Add #chapters fragment at the end for auto-scroll to content area
         _currentUrl.value = addChaptersFragment(urlWithParams)

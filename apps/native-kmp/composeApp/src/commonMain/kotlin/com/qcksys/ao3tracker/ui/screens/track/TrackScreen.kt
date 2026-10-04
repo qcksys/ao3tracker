@@ -44,6 +44,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -76,6 +77,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,6 +97,7 @@ import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
+import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.components.WorkMetadata
@@ -111,6 +114,11 @@ fun TrackScreen() {
     val navigator = LocalNavigator.currentOrThrow
     val tabNavigator = LocalTabNavigator.current
     val works by screenModel.works.collectAsState()
+    val offline = koinInject<OfflineCoordinator>()
+    val downloads by offline.downloads.collectAsState()
+    var offlineOnly by rememberSaveable { mutableStateOf(false) }
+    val availableIds = downloads.filter { it.savedChapterIds.isNotEmpty() }.map { it.work.workId }.toSet()
+    val visibleWorks = if (offlineOnly && offline.enabled) works.filter { it.id in availableIds } else works
     val totalWorksCount by screenModel.totalWorksCount.collectAsState()
     val filterState by screenModel.filterState.collectAsState()
     val isFilterSheetVisible by screenModel.isFilterSheetVisible.collectAsState()
@@ -466,14 +474,18 @@ fun TrackScreen() {
                 }
             }
 
+            if (offline.enabled) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                FilterChip(selected = offlineOnly, onClick = { offlineOnly = !offlineOnly }, label = { Text("Available offline") })
+                TextButton(onClick = { navigator.push(DownloadsScreen()) }) { Text("Downloads") }
+            }
             // Works list
-            if (works.isEmpty()) {
+            if (visibleWorks.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (filterState.hasActiveFilters) {
+                        text = if (filterState.hasActiveFilters || offlineOnly) {
                             "No works match your filters"
                         } else {
                             "No tracked works yet.\nVisit AO3 in the Read tab to start tracking!"
@@ -489,7 +501,7 @@ fun TrackScreen() {
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    items(works, key = { it.id }) { work ->
+                    items(visibleWorks, key = { it.id }) { work ->
                         WorkCard(
                             work = work,
                             onClick = {
@@ -497,7 +509,10 @@ fun TrackScreen() {
                                 tabNavigator.current = ReadTab
                             },
                             onFavourite = { screenModel.toggleFavourite(work.id, work.favourite) },
-                            onDetails = { navigator.push(WorkDetailScreen(work.id)) }
+                            onDetails = { navigator.push(WorkDetailScreen(work.id)) },
+                            offlineCoverage = downloads.firstOrNull { it.work.workId == work.id && it.savedChapterIds.isNotEmpty() }?.let {
+                                "Available offline · ${it.savedChapterIds.size}/${it.publishedChapters} chapters"
+                            }
                         )
                     }
                 }
@@ -528,7 +543,8 @@ internal fun WorkCard(
     work: Work,
     onClick: () -> Unit,
     onFavourite: () -> Unit,
-    onDetails: () -> Unit
+    onDetails: () -> Unit,
+    offlineCoverage: String? = null
 ) {
     val lastChapter = work.lastChapterRead
 
@@ -592,6 +608,7 @@ internal fun WorkCard(
                 }
             }
 
+            offlineCoverage?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
             Spacer(modifier = Modifier.height(4.dp))
 
             // Current chapter info

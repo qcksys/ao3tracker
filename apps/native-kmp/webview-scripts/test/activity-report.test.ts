@@ -26,6 +26,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  window.dispatchEvent(new Event("pagehide"));
   for (const listener of scrollListeners) window.removeEventListener("scroll", listener);
   for (const listener of resizeListeners) window.removeEventListener("resize", listener);
   delete window.AndroidBridge;
@@ -33,17 +34,53 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("restores a cleared chapter to the start before reporting reading progress", async () => {
+it("does not publish progress or change its URL after rotation or appearance reflow until interaction", async () => {
+  document.body.innerHTML = workPageHtml;
+  window.history.replaceState({}, "", "/works/10828137/chapters/24029673?scroll=50");
+  const bounds = vi
+    .spyOn(required(document.getElementById("chapters")), "getBoundingClientRect")
+    .mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight * 2));
+  const appearance = window.matchMedia("(prefers-color-scheme: dark)");
+  vi.spyOn(window, "matchMedia").mockReturnValue(appearance);
+  const postMessage = vi.fn<(message: string) => void>();
+  window.AndroidBridge = { postMessage };
+  await import("~/ao3-tracking");
+  postMessage.mockClear();
+  const progress = () =>
+    postMessage.mock.calls
+      .map(([raw]) => JSON.parse(raw))
+      .filter((message) => message.type === "scrollProgress");
+  bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
+  window.dispatchEvent(new Event("resize"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([]);
+  expect(new URL(window.location.href).searchParams.get("scroll")).toBe("50");
+  bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight / 0.75));
+  document.dispatchEvent(new Event("touchstart"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([expect.objectContaining({ scrollPercentage: 75 })]);
+  postMessage.mockClear();
+  bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
+  appearance.dispatchEvent(new Event("change"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([]);
+  expect(new URL(window.location.href).searchParams.get("scroll")).toBe("75");
+  document.dispatchEvent(new Event("wheel"));
+  window.dispatchEvent(new Event("scroll"));
+  expect(progress()).toEqual([expect.objectContaining({ scrollPercentage: 100 })]);
+});
+
+it("restores a chapter to the body start before reporting reading progress", async () => {
   vi.useFakeTimers();
   document.body.innerHTML = workPageHtml;
   window.history.replaceState({}, "", "/works/10828137/chapters/24029673?scrollTo=0&_t=1#chapters");
   const chapters = required(document.getElementById("chapters"));
   const bounds = vi
     .spyOn(chapters, "getBoundingClientRect")
-    .mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight));
-  vi.spyOn(chapters, "offsetTop", "get").mockReturnValue(window.innerHeight);
+    .mockReturnValue(new DOMRect(0, -window.innerHeight * 9, 100, window.innerHeight * 10));
+  vi.spyOn(window, "scrollY", "get").mockReturnValue(window.innerHeight * 10);
   const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {
-    bounds.mockReturnValue(new DOMRect(0, window.innerHeight, 100, window.innerHeight));
+    bounds.mockReturnValue(new DOMRect(0, 0, 100, window.innerHeight * 10));
     window.dispatchEvent(new Event("scroll"));
   });
   const postMessage = vi.fn<(message: string) => void>();
@@ -57,12 +94,12 @@ it("restores a cleared chapter to the start before reporting reading progress", 
   );
 
   await vi.advanceTimersByTimeAsync(150);
-  expect(scrollTo).toHaveBeenCalledWith(0, 0);
+  expect(scrollTo).toHaveBeenCalledWith(0, window.innerHeight);
   expect(
     postMessage.mock.calls
       .map(([raw]) => JSON.parse(raw))
       .filter((message) => message.type === "scrollProgress"),
-  ).toEqual([expect.objectContaining({ chapterId: "24029673", scrollPercentage: 0 })]);
+  ).toEqual([expect.objectContaining({ chapterId: "24029673", scrollPercentage: 10 })]);
 });
 
 it("marks a short chapter fully read on load when its bottom Next Chapter button is visible", async () => {

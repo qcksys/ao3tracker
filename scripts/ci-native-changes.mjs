@@ -128,7 +128,15 @@ export async function findBaselines({
             jobs.some(
               (job) =>
                 job.conclusion === "success" &&
-                job.name.startsWith(`${prefix} / deploy / ${store} /`),
+                job.name.startsWith(`${prefix} / deploy / ${store} /`) &&
+                !(
+                  store === "chrome" &&
+                  job.steps?.some(
+                    (step) =>
+                      step.name === "Record deferred Chrome upload" &&
+                      step.conclusion === "success",
+                  )
+                ),
             )
           )
             result[store] ??= run.head_sha;

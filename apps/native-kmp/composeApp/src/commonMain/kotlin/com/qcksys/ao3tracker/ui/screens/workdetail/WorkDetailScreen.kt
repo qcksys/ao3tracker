@@ -78,6 +78,7 @@ import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.ui.components.WorkMetadata
 import com.qcksys.ao3tracker.ui.components.formatWorkTimestamp
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.components.OfflineWorkCard
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
 import com.qcksys.ao3tracker.ui.navigation.TrackTab
 import kotlinx.serialization.encodeToString
@@ -179,6 +180,8 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
                         onToggleFavourite = { screenModel.toggleFavourite() }
                     )
                 }
+
+                item { OfflineWorkCard(workData.id) }
 
                 // Tags section
                 if (workData.tags.isNotEmpty()) {

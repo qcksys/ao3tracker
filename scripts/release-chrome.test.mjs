@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   createChromeUpload,
   extensionIdFromKey,
+  uploadChrome,
   verifyBetaApiOrigin,
   verifyRelease,
 } from "./release-chrome.mjs";
@@ -20,6 +24,67 @@ const apiConfig = {
     prod: { vars: { ALLOWED_ORIGINS: `https://ao3tracker.com,${origin}` } },
   },
 };
+
+const pendingReviewError = `Chrome Web Store Error: Fetch request failed with code 400 Bad Request: ${JSON.stringify(
+  {
+    error: {
+      code: 400,
+      message: "You may not edit or publish an item that is in review.",
+      status: "FAILED_PRECONDITION",
+      details: [{ reason: "NOT_UPDATEABLE", domain: "chromewebstore.googleapis.com" }],
+    },
+  },
+)}`;
+
+test("beta review conflicts defer the upload and report it without cancelling review", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "chrome-release-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const releaseEnv = {
+    GITHUB_OUTPUT: join(directory, "output"),
+    GITHUB_STEP_SUMMARY: join(directory, "summary"),
+  };
+  const uploaded = await uploadChrome({
+    release: { channel: "beta" },
+    upload: { args: ["wxt", "submit"], env: {} },
+    env: releaseEnv,
+    run: (_command, args) => {
+      assert.deepEqual(args, ["wxt", "submit"]);
+      return { status: 1, stderr: pendingReviewError };
+    },
+  });
+  assert.equal(uploaded, false);
+  assert.equal(await readFile(releaseEnv.GITHUB_OUTPUT, "utf8"), "deferred=true\n");
+  assert.match(await readFile(releaseEnv.GITHUB_STEP_SUMMARY, "utf8"), /not uploaded/);
+});
+
+test("only the known beta review conflict is deferred; other upload failures still fail", async () => {
+  for (const [channel, result] of [
+    ["production", { status: 1, stderr: pendingReviewError }],
+    ["beta", { status: 1, stderr: "Invalid credentials" }],
+    ["beta", { status: 1, stderr: pendingReviewError.replace("NOT_UPDATEABLE", "OTHER_ERROR") }],
+    ["beta", { status: 1, stderr: pendingReviewError.replace("in review", "disabled") }],
+    ["beta", { status: null, error: new Error("spawn failed"), stderr: pendingReviewError }],
+  ]) {
+    await assert.rejects(
+      uploadChrome({
+        release: { channel },
+        upload: { args: [], env: {} },
+        env: {},
+        run: () => result,
+      }),
+      /Chrome upload failed/,
+    );
+  }
+  assert.equal(
+    await uploadChrome({
+      release: { channel: "beta" },
+      upload: { args: [], env: {} },
+      env: {},
+      run: () => ({ status: 0 }),
+    }),
+    true,
+  );
+});
 
 test("derives the Chrome ID from the manifest public key", () => {
   assert.equal(extensionIdFromKey(key), extensionId);

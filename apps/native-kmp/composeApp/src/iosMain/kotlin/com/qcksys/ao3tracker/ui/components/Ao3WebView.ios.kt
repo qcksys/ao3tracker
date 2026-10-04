@@ -30,6 +30,8 @@ import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.WebKit.WKWebsiteDataStore
 import platform.darwin.NSObject
+import com.qcksys.ao3tracker.data.offline.OfflineCaptureRequest
+import com.qcksys.ao3tracker.data.offline.OfflinePageObservation
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
@@ -43,7 +45,12 @@ actual fun Ao3WebView(
     onBackAtRoot: () -> Unit,
     jsInjectionFlow: SharedFlow<String>?,
     pageScript: String?,
-    onLinkAction: (ReaderLinkAction) -> Unit
+    onLinkAction: (ReaderLinkAction) -> Unit,
+    offlineCapture: OfflineCaptureRequest?,
+    onOfflinePage: (OfflinePageObservation) -> Unit,
+    onLoadFailure: (Int?, String?) -> Unit,
+    onNavigate: (String) -> Boolean,
+    onBack: () -> Boolean
 ) {
     var webViewRef by remember { mutableStateOf<WKWebView?>(null) }
 

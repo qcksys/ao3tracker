@@ -5,6 +5,8 @@ import androidx.room.useWriterConnection
 import com.qcksys.ao3tracker.util.JsonConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +20,8 @@ import kotlin.uuid.Uuid
 
 class AccountDataStore(
     private val legacyDatabase: Ao3Database,
-    private val openDatabase: (String) -> Ao3Database
+    private val openDatabase: (String) -> Ao3Database,
+    private val removeOfflineContext: suspend (owner: String, contextId: String) -> Unit = { _, _ -> }
 ) {
     private val mutex = Mutex()
     private val databases = mutableMapOf<String, Ao3Database>()
@@ -28,6 +31,10 @@ class AccountDataStore(
     val active = _active.asStateFlow()
     private val generationState = MutableStateFlow(0L)
     val generation: Long get() = generationState.value
+    val accountGeneration = generationState.asStateFlow()
+    private val offlineResetState = MutableStateFlow(0L)
+    val offlineReset = offlineResetState.asStateFlow()
+    private var clearedOfflineData = false
     var localRevision = 0L
         private set
 
@@ -42,13 +49,14 @@ class AccountDataStore(
         _active.value?.let { return it }
         val selected = legacyDatabase.accountDao().getSelectedDatabase()
         val db = if (selected == null) legacyDatabase else databaseFor(selected.owner)
+        finishOfflineCleanup(db)
         val state = db.accountDao().getActive() ?: ActiveAccountEntity(owner = GUEST)
         currentDatabase.value = db
         _active.value = state
         return state
     }
 
-    suspend fun activate(owner: String, claimLegacy: Boolean = false) = mutex.withLock {
+    suspend fun activate(owner: String, claimLegacy: Boolean = false, preserveCurrent: Boolean = false) = mutex.withLock {
         // Once assigned, the legacy rows retain this owner for all migration retries.
         if (legacyDatabase.accountDao().getActive() == null) {
             legacyDatabase.accountDao().setActive(ActiveAccountEntity(owner = if (claimLegacy) owner else GUEST))
@@ -56,6 +64,7 @@ class AccountDataStore(
         val nextDatabase = databaseFor(owner)
         val next = requireNotNull(nextDatabase.accountDao().getActive())
         legacyDatabase.accountDao().selectDatabase(owner)
+        if (preserveCurrent && currentDatabase.value === nextDatabase && _active.value?.owner == owner) return@withLock
         generationState.value++
         currentDatabase.value = nextDatabase
         _active.value = next
@@ -78,6 +87,7 @@ class AccountDataStore(
             }
             transaction(db) {
                 if (snapshot != null) restore(db, snapshot)
+                if (legacy?.owner == owner) copyLegacyDownloads(legacyDatabase.offlineDao(), db.offlineDao())
                 db.accountDao().setActive(ActiveAccountEntity(
                     owner = owner,
                     remoteCursor = if (legacy?.owner == owner) legacy.remoteCursor else archive?.remoteCursor,
@@ -85,6 +95,7 @@ class AccountDataStore(
                 ))
             }
         }
+        finishOfflineCleanup(db)
         return db
     }
 
@@ -95,6 +106,15 @@ class AccountDataStore(
     suspend fun <T> read(block: suspend (Ao3Database) -> T): T = mutex.withLock {
         initializeLocked()
         block(database)
+    }
+
+    internal suspend fun <T> offlineDatabases(block: suspend (Map<String, Ao3Database>) -> T): T = mutex.withLock {
+        initializeLocked()
+        val entries = legacyDatabase.accountDao().getDatabases()
+        val all = entries.associate { it.owner to databaseFor(it.owner) }.toMutableMap()
+        val legacyOwner = legacyDatabase.accountDao().getActive()?.owner ?: GUEST
+        if (legacyOwner !in all) all[legacyOwner] = legacyDatabase
+        block(all)
     }
 
     suspend fun <T> edit(isCurrentOperation: () -> Boolean = { true }, block: suspend () -> T): T {
@@ -120,11 +140,45 @@ class AccountDataStore(
             block().also {
                 if (!isCurrentSession()) throw CancellationException("Account changed")
             }
-        }.also { _active.value = database.accountDao().getActive() }
+        }.also { _active.value = database.accountDao().getActive() ?: _active.value }
     }
 
-    private suspend fun <T> transaction(db: Ao3Database, block: suspend () -> T): T = db.useWriterConnection { connection ->
-        connection.immediateTransaction { block() }
+    private suspend fun <T> transaction(db: Ao3Database, block: suspend () -> T): T {
+        clearedOfflineData = false
+        try {
+            val result = db.useWriterConnection { connection -> connection.immediateTransaction { block() } }
+            if (clearedOfflineData) withContext(NonCancellable) {
+                offlineResetState.value++
+                finishOfflineCleanup(db)
+            }
+            return result
+        } finally {
+            clearedOfflineData = false
+        }
+    }
+
+    private suspend fun finishOfflineCleanup(db: Ao3Database) {
+        for (entry in db.offlineDao().pendingCleanup()) {
+            try {
+                removeOfflineContext(entry.owner, entry.contextId)
+                db.offlineDao().finishCleanup(entry.contextId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Keep the deletion record so startup can retry after a file-system failure.
+            }
+        }
+    }
+
+    private suspend fun copyLegacyDownloads(source: OfflineDao, destination: OfflineDao) {
+        for (context in source.contexts()) {
+            destination.saveContext(context)
+            source.works(context.id).forEach { destination.saveWork(it) }
+            source.chapters(context.id).forEach { destination.saveChapter(it) }
+            source.skins(context.id).forEach { destination.saveSkin(it) }
+            destination.saveResources(source.resources(context.id))
+            source.jobs(context.id).forEach { destination.saveJob(it) }
+        }
     }
 
     suspend fun saveSyncCursors(remote: String, local: Long) {
@@ -133,6 +187,16 @@ class AccountDataStore(
     }
 
     suspend fun clearActiveData() {
+        val offline = database.offlineDao()
+        val owner = requireNotNull(_active.value).owner
+        offline.enqueueCleanup(offline.contexts().map { OfflineCleanupEntity(it.id, owner) })
+        offline.deleteJobs()
+        offline.deleteChapters()
+        offline.deleteWorks()
+        offline.deleteSkins()
+        offline.deleteResources()
+        offline.deleteContexts()
+        clearedOfflineData = true
         database.tagDao().deleteAllTags()
         database.chapterDao().deleteAllChapters()
         database.workDao().deleteAllWorks()

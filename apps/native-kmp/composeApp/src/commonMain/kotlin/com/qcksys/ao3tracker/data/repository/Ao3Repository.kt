@@ -458,6 +458,30 @@ class Ao3Repository(private val accountData: AccountDataStore) {
         }
     }
 
+    internal suspend fun recordOfflineReading(
+        workId: Long,
+        chapterId: Long,
+        number: Int,
+        percentage: Int?,
+        canTrack: () -> Boolean
+    ) = accountData.edit(canTrack) {
+        val work = workDao.getWorkById(workId) ?: return@edit
+        val canonicalId = if (chapterId == 0L) {
+            chapterDao.getChapterByWorkAndNumber(workId, 1)?.chapterId ?: 0L
+        } else chapterId
+        val existing = chapterDao.getChapterByIdIncludingDeleted(canonicalId, workId)
+        if (existing?.rowDeletedAt != null || number <= 0 || percentage != null && percentage !in 0..100) return@edit
+        val now = maxOf(getCurrentTimestamp(), work.lastRead ?: 0, existing?.lastReadAt ?: 0)
+        val chapter = existing ?: ChapterEntity(workId, canonicalId, number, rowCreatedAt = now, rowUpdatedAt = now)
+        chapterDao.upsertChapter(chapter.copy(
+            readProgress = percentage?.let { maxOf(chapter.readProgress ?: 0f, it / 100f) } ?: chapter.readProgress,
+            lastReadAt = now,
+            rowUpdatedAt = now
+        ))
+        workDao.updateLastRead(workId, now, now)
+        if (percentage != null) markWorkCaughtUp(workId, now)
+    }
+
     suspend fun deleteWork(workId: Long) = accountData.edit {
         val work = workDao.getWorkByIdIncludingDeleted(workId) ?: return@edit
         val now = getCurrentTimestamp()
@@ -494,6 +518,7 @@ class Ao3Repository(private val accountData: AccountDataStore) {
         workId: Long,
         canTrack: () -> Boolean = { true }
     ) = accountData.edit(canTrack) {
+        if (workDao.getWorkById(workId) == null || chapterDao.getChapterById(chapterId, workId) == null) return@edit
         val now = getCurrentTimestamp()
         chapterDao.markChapterAsRead(chapterId, workId, now, now, now)
         workDao.updateLastRead(workId, now, now)

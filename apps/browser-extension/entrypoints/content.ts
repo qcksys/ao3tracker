@@ -37,6 +37,7 @@ export default defineContentScript({
 
     let browsingState: BrowsingState = {
       hideCaughtUp: false,
+      hideTracked: false,
       hiddenWorkTitles: {},
       hiddenTags: [],
       hiddenWorkIds: [],
@@ -76,7 +77,7 @@ export default defineContentScript({
             })
             .catch(() => window.alert("Could not update hidden works. Please try again."));
         },
-        { hideCaughtUp: state.hideCaughtUp, badges },
+        { hideCaughtUp: state.hideCaughtUp, hideTracked: state.hideTracked, badges },
       );
       applyFandomLimit(document, state.maxFandoms);
     };
@@ -122,7 +123,8 @@ export default defineContentScript({
 
     let dismissSaveSearch: (() => void) | undefined;
     ctx.onInvalidated(() => dismissSaveSearch?.());
-    injectSaveSearchButton(document, window.location, (url, button) => {
+    injectSaveSearchButton(document, window.location, (href, button) => {
+      const url = withDefaultHiddenTags(href, browsingState.hiddenTags);
       button.disabled = true;
       void savedSearchesItem
         .getValue()

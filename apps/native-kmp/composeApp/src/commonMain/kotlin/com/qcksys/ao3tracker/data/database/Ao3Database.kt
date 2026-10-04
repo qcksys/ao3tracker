@@ -15,9 +15,16 @@ import androidx.room.RoomDatabaseConstructor
         SearchCheckEntity::class,
         ActiveAccountEntity::class,
         AccountArchiveEntity::class,
-        AccountDatabaseEntity::class
+        AccountDatabaseEntity::class,
+        OfflineContextEntity::class,
+        OfflineWorkEntity::class,
+        OfflineChapterEntity::class,
+        OfflineSkinEntity::class,
+        OfflineResourceEntity::class,
+        OfflineJobEntity::class,
+        OfflineCleanupEntity::class
     ],
-    version = 10,
+    version = 12,
     exportSchema = true
 )
 @ConstructedBy(Ao3DatabaseConstructor::class)
@@ -29,6 +36,7 @@ abstract class Ao3Database : RoomDatabase() {
     abstract fun savedSearchDao(): SavedSearchDao
     abstract fun searchCheckDao(): SearchCheckDao
     abstract fun accountDao(): AccountDao
+    abstract fun offlineDao(): OfflineDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")

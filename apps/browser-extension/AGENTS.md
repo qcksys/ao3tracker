@@ -105,6 +105,8 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 
 **Search preferences**: Settings edits device-local `browsingPreferencesItem` (`hiddenWorkIds`, `hiddenWorkTitles`, `hiddenTags`, `hideCaughtUp`, `languageFilterEnabled`, `searchLanguage`, `maxFandoms`), outside account sync. Background mutations use `withLocalState`; message schemas derive from the shared browsing schemas. `@qcksys/ao3tracker-core/dom` adds tag defaults to AO3 work/bookmark GET searches while preserving explicit exclusions, and collapses hidden works with an Unhide action. Tag and work lists start empty and remain when accounts change. Language filtering starts disabled with English selected; when enabled, it replaces language filters in work/bookmark URLs and GET forms, including saved searches. The popup uses the shared `/languages` catalog. Excluded tags use removable chips; the hidden-work count opens `/settings/hidden-works` for title/ID search, work links, and Unhide. Capture the optional `setWorkHidden.title` when hiding; older entries fall back to local metadata or the work ID. `hideCaughtUp` defaults off and collapses `caught-up`/`finished` AO3 blurbs with a linked title and reason, without adding them to the manual list. Badge `currentChapters` lets the shared helper keep new chapters visible when the page is newer than local metadata. Work percentages average live chapter progress over published chapters; planned chapters are excluded.
 
+Saving or updating a search merges the current default hidden tags into its URL before naming or sending it. Do not rely on the preference redirect having completed; retain manual exclusions and deduplicate tags through `withDefaultHiddenTags`.
+
 ## Conventions
 
 - **Saved-search layout**: names use the full row width, followed by up to five tag labels and a `+N more` count, with actions underneath. `savedSearchTags` from the shared core decodes tags from the stored URL, marks exclusions, deduplicates labels, and uses explicit type/ID labels when the URL lacks a tag name. Keep extraction aligned with native `SavedSearchTags.kt`; this display does not modify or fetch saved searches.
@@ -118,7 +120,11 @@ The store public key fixes the unpacked and Web Store Chrome ID as `hjonebioheca
 - **Content-script matches**: keep `matches` patterns as narrow as possible. Currently `https://archiveofourown.org/*`.
 - **Tests**: `vp run test` runs Node Vitest regressions against the actual repositories and sync transport with in-memory extension storage and controlled fetch responses. Shared DOM/wire behavior is also tested in `packages/ao3-core` and `packages/ao3-sync-client`.
 
+The device-local `hideTracked` browsing preference defaults off and has its own "Hide all tracked works" switch. Send changes through `setHideTracked` under `withLocalState`; pass the field and latest badges to `applyHiddenWorks`. It collapses every tracked work, including unread works and new chapters, takes precedence over `hideCaughtUp`, and preserves the page-local Show action and separate manual hidden-work list.
+
 ## Cross-app contract
+
+Zero-progress navigation, including automatic next-chapter selection, opens at the top of `#chapters` through shared `consumeScrollToParam`. Nonzero progress retains restoration at the viewport bottom.
 
 This extension consumes the API at `https://ao3tracker.com` ([apps/api/AGENTS.md](../api/AGENTS.md)). The wire schemas in `@qcksys/ao3tracker-core/schemas` mirror those in [apps/api/src/routes/api.track.ts](../api/src/routes/api.track.ts) — when the server contract changes, update both the api routes AND the schemas package in the same PR.
 

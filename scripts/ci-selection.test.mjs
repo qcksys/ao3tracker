@@ -181,6 +181,31 @@ test("history handles workflow and job pagination", async (t) => {
   assert.equal(requests.length, 4);
 });
 
+test("a deferred Chrome upload does not advance its release baseline", async (t) => {
+  const repo = await repository(t);
+  const head = await repo.commit("apps/browser-extension/new.ts");
+  for (const conclusion of ["success", "skipped"]) {
+    const baselines = await findBaselines({
+      branch: "dev",
+      head,
+      runId: 99,
+      cwd: repo.cwd,
+      stores: true,
+      request: async (path) => {
+        if (path.includes("workflows/"))
+          return { workflow_runs: [run(2, head), run(1, repo.base)] };
+        const chrome = job("chrome");
+        if (path.includes("/2/"))
+          chrome.steps = [{ name: "Record deferred Chrome upload", conclusion }];
+        return { jobs: [job("android"), chrome], total_count: 2 };
+      },
+    });
+    const deferred = conclusion === "success";
+    assert.equal(baselines.chrome, deferred ? repo.base : head);
+    assert.equal(storePlan(baselines, head, repo.cwd).chrome, deferred);
+  }
+});
+
 test("app-specific changes stay scoped and shared or unknown inputs rebuild both stores", () => {
   for (const path of [
     "README.md",

@@ -20,6 +20,7 @@ import {
   setWorkHidden,
   setMaxFandoms,
   setHideCaughtUp,
+  setHideTracked,
 } from "../lib/browsing-repo";
 import { contentToBackgroundSchema, popupToBackgroundSchema } from "../lib/messaging";
 import { browsingPreferencesItem, savedSearchesItem } from "../lib/storage";
@@ -28,6 +29,39 @@ import { withLocalState } from "../lib/local-state";
 beforeEach(() => persisted.clear());
 
 describe("browsing preferences", () => {
+  it("defaults tracked filtering off for older installs and persists it independently", async () => {
+    persisted.set("local:browsingPreferences", {
+      hiddenTags: ["Angst"],
+      hiddenWorkIds: [123],
+      hideCaughtUp: true,
+    });
+    expect((await getBrowsingState()).hideTracked).toBe(false);
+    await withLocalState(() => setHideTracked(true));
+    expect(await getBrowsingState()).toMatchObject({
+      hideTracked: true,
+      hideCaughtUp: true,
+      hiddenWorkIds: [123],
+      hiddenTags: ["Angst"],
+    });
+    expect((await browsingPreferencesItem.getValue()).hideTracked).toBe(true);
+    await withLocalState(() => setHideTracked(false));
+    expect(await getBrowsingState()).toMatchObject({
+      hideTracked: false,
+      hideCaughtUp: true,
+      hiddenWorkIds: [123],
+    });
+    for (const hideTracked of [true, false]) {
+      expect(
+        popupToBackgroundSchema.safeParse({ kind: "setHideTracked", hideTracked }).success,
+      ).toBe(true);
+    }
+    for (const hideTracked of [undefined, null, "true", 1]) {
+      expect(
+        popupToBackgroundSchema.safeParse({ kind: "setHideTracked", hideTracked }).success,
+      ).toBe(false);
+    }
+  });
+
   it("persists titles and caught-up filtering across reads and removes titles when restored", async () => {
     persisted.set("local:browsingPreferences", { hiddenTags: ["Angst"], hiddenWorkIds: [] });
     await setWorkHidden(123, true, "A hidden story");
@@ -65,6 +99,7 @@ describe("browsing preferences", () => {
       maxFandoms: null,
       hiddenWorkTitles: {},
       hideCaughtUp: false,
+      hideTracked: false,
     });
     await Promise.all([
       withLocalState(() => setWorkHidden(123, true)),
@@ -80,6 +115,7 @@ describe("browsing preferences", () => {
       maxFandoms: null,
       hiddenWorkTitles: {},
       hideCaughtUp: false,
+      hideTracked: false,
     });
     await setWorkHidden(123, false);
     await setHiddenTags([]);
@@ -92,6 +128,7 @@ describe("browsing preferences", () => {
       maxFandoms: null,
       hiddenWorkTitles: {},
       hideCaughtUp: false,
+      hideTracked: false,
     });
   });
 

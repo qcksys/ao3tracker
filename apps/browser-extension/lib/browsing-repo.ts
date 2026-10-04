@@ -54,6 +54,13 @@ export async function setHideCaughtUp(hideCaughtUp: boolean): Promise<void> {
   );
 }
 
+export async function setHideTracked(hideTracked: boolean): Promise<void> {
+  const preferences = await browsingPreferencesItem.getValue();
+  await browsingPreferencesItem.setValue(
+    browsingPreferencesSchema.parse({ ...preferences, hideTracked }),
+  );
+}
+
 export async function setHiddenTags(tags: string[]): Promise<void> {
   const preferences = await browsingPreferencesItem.getValue();
   await browsingPreferencesItem.setValue({ ...preferences, hiddenTags: normalizeHiddenTags(tags) });

@@ -111,5 +111,9 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
       - name: Upload to Chrome Web Store (beta submits for review)
+        id: upload
         if: ${{ !inputs.build_only }}
         run: vp node scripts/release-chrome.mjs upload
+      - name: Record deferred Chrome upload
+        if: steps.upload.outputs.deferred == 'true'
+        run: echo "Chrome Beta was not uploaded; retain the previous successful store baseline."

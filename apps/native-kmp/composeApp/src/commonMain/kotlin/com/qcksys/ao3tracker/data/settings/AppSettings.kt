@@ -6,6 +6,9 @@ import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.json.Json
+
+private val offlinePreferencesJson = Json(JsonConfig.json) { explicitNulls = true }
 
 enum class ApiEnvironment(
     val authBaseUrl: String,
@@ -53,6 +56,15 @@ class AppSettings(
 
     private val _incognitoModeEnabled = MutableStateFlow(settingsStorage?.isIncognitoModeEnabled() ?: false)
     val incognitoModeEnabled: StateFlow<Boolean> = _incognitoModeEnabled.asStateFlow()
+    private val _offlinePreferences = MutableStateFlow(settingsStorage?.getOfflinePreferences()?.let {
+        runCatching { JsonConfig.json.decodeFromString<OfflinePreferences>(it) }.getOrNull()
+    } ?: OfflinePreferences())
+    val offlinePreferences = _offlinePreferences.asStateFlow()
+
+    fun setOfflinePreferences(preferences: OfflinePreferences) {
+        settingsStorage?.setOfflinePreferences(offlinePreferencesJson.encodeToString(preferences))
+        _offlinePreferences.value = preferences
+    }
     private val _diagnosticDataEnabled = MutableStateFlow(settingsStorage?.isDiagnosticDataEnabled() ?: true)
     val diagnosticDataEnabled: StateFlow<Boolean> = _diagnosticDataEnabled.asStateFlow()
     private val _diagnosticSession = MutableStateFlow(
@@ -119,6 +131,10 @@ class AppSettings(
 
     fun setHideCaughtUp(enabled: Boolean) {
         setBrowsingPreferences(_browsingPreferences.value.copy(hideCaughtUp = enabled))
+    }
+
+    fun setHideTracked(enabled: Boolean) {
+        setBrowsingPreferences(_browsingPreferences.value.copy(hideTracked = enabled))
     }
 
     fun setWorkHidden(workId: Long, hidden: Boolean, title: String? = null) {

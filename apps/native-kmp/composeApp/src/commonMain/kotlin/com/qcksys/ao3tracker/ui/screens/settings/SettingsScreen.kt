@@ -94,6 +94,7 @@ import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.screens.track.DownloadsScreen
 import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
@@ -330,13 +331,15 @@ fun SettingsScreen() {
                         )
                     }
                     Text(
-                        "Stops saving works, chapters and reading progress on this device. " +
-                            "AO3 stays signed in, and your existing library can still sync.",
+                        "Pauses automatic saves and reading progress on this device. " +
+                            "Explicit downloads are still saved. AO3 stays signed in, and your existing library can still sync.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Ao3LinkSettings()
                 }
             }
+
+            OfflineStorageSettings(appSettings, onManageDownloads = { navigator.push(DownloadsScreen()) })
 
             BrowsingSettings(appSettings, onOpenHiddenWorks = { navigator.push(HiddenWorksScreen()) })
 

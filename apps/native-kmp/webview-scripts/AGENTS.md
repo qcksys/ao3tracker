@@ -47,9 +47,13 @@ Vite refuses multi-entry IIFE bundles in library config mode (see [vitejs/vite#1
 - [test/ao3-tracking.test.ts](./test/ao3-tracking.test.ts) — drives the shared `@qcksys/ao3tracker-core/dom` helpers against real AO3 fixture HTML; exercises the JSON-bridge wrapper for `applyListBadges`.
 - [test/fixtures.ts](./test/fixtures.ts) — real AO3 HTML fixture (XCOM: The Advent Directive) used by the test above.
 
+`BrowsingState` also includes opt-in `hideTracked`. Pass it and the latest badges to `applyHiddenWorks` regardless of response order. It collapses all tracked works, including unread works and new chapters, takes precedence over `hideCaughtUp`, and preserves page-local Show and manual Unhide actions.
+
 Tracking uses the shared `observeChapterProgress` helper to report on load, scroll, resize, and bottom Next Chapter button visibility changes. A partially visible bottom button reports 100%; the top navigation link does not. When `scrollTo` is present, start progress tracking only after `consumeScrollToParam` calls its restoration callback, and suppress explicit progress reports while restoration is pending. Otherwise the initial viewport can overwrite a chapter's cleared status before it returns to the start.
 
 After `vp run build`, the Gradle `generateWebviewScriptKotlin` task reads `dist/*.min.js` and emits Kotlin string constants under `apps/native-kmp/composeApp/build/generated/kotlin/webview/`.
+
+Saving a search merges the current default hidden tags into its URL before generating the name and posting `saveSearch`. The same URL feeds native create and update actions. Do not rely on the preference redirect having completed; retain manual exclusions and deduplicate tags through `withDefaultHiddenTags`.
 
 ## Conventions
 
@@ -58,6 +62,8 @@ After `vp run build`, the Gradle `generateWebviewScriptKotlin` task reads `dist/
 - **`~/` aliases are fine here** because this package is a leaf consumer — nothing else compiles our source. Use them for cross-directory imports (e.g. tests reference `~/ao3-tracking` and `~/fixtures`). Sibling barrels can still use `./`.
 - **No top-level side effects in modules that are only imported.** The entry files own the IIFE side effects; everything else must be pure to keep tree-shaking honest.
 - **Bridge contract is sacred.** The shape of messages posted via `AndroidBridge.postMessage` / `webkit.messageHandlers.ao3Handler.postMessage` is the canonical `WebViewMessage` in `@qcksys/ao3tracker-core/schemas`. Don't add fields here without updating the schema and the Kotlin parser in lockstep.
+- **Offline capture revisions**: shared `OfflinePage.downloadUpdatedAt` carries the optional UTC timestamp extracted from the AO3 download URL. Preserve it through preparation and transfer so native can compare each saved chapter with newer work downloads. Native accepts old bundles without the field.
+- **Offline chapter discovery**: Android's download service enables `__ao3OfflineOptions.discoverChapter`. Before capturing a work-level discovery URL, follow its first trusted chapter-heading link for the same work. AO3 treats a present `view_full_work=false` parameter as an entire-work request, and account preferences can also return every chapter. Keep foreground captures on their current page and retain the shared rejection of multiple chapters presented as one chapter.
 - **Bundle target is ES2018** (see `vite.config.ts`) so older Android WebView engines accept the output. Don't raise it without checking the lowest-supported Android version in the KMP build.
 
 ## Tests

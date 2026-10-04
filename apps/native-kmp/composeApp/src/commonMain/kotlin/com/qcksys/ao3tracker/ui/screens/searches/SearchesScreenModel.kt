@@ -5,6 +5,7 @@ import cafe.adriel.voyager.core.model.screenModelScope
 import com.qcksys.ao3tracker.data.database.SavedSearchEntity
 import com.qcksys.ao3tracker.data.database.SearchCheckEntity
 import com.qcksys.ao3tracker.data.model.SearchCheckMessage
+import com.qcksys.ao3tracker.data.offline.Ao3RequestGate
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.repository.SearchCheckRepository
 import com.qcksys.ao3tracker.data.repository.SearchCheckRequest
@@ -40,7 +41,8 @@ class SearchesScreenModel(
     private val syncTriggers: SyncTriggers,
     private val checkRepository: SearchCheckRepository,
     private val settings: AppSettings,
-    private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() }
+    private val now: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val ao3Gate: Ao3RequestGate = Ao3RequestGate(now)
 ) : ScreenModel {
     val savedSearches: StateFlow<List<SavedSearchEntity>> = savedSearchRepository
         .observeLive()
@@ -68,6 +70,7 @@ class SearchesScreenModel(
 
     private fun startChecks(id: String?, automatic: Boolean, fullScan: Boolean = false) {
         if (checkJob?.isCompleted == false) return
+        retryAt = maxOf(retryAt, ao3Gate.cooldown.value)
         if (now() < retryAt) {
             _checkStatus.value = "AO3 checks are paused. Try again in ${(retryAt - now()) / 1000 + 1} seconds."
             return
@@ -85,27 +88,28 @@ class SearchesScreenModel(
                         if (checkedAny) delay(1500)
                         checkedAny = true
                         _errors.value -= search.id
-                        val channel = Channel<SearchCheckMessage>(Channel.UNLIMITED)
-                        messages = channel
-                        _runningCheck.value = RunningSearchCheck(++nextRunId, request, settings.browsingPreferences.value, fullScan = fullScan)
-                        while (true) {
-                            val message = withTimeout(60_000) { channel.receive() }
-                            when (message.type) {
-                                "searchCheckProgress" -> _runningCheck.value = _runningCheck.value?.copy(pages = message.pages)
-                                "searchCheckResult" -> {
-                                    checkRepository.record(request, message)
-                                    break
-                                }
-                                "searchCheckError" -> {
-                                    message.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
-                                        retryAt = now() + seconds.coerceAtMost(Long.MAX_VALUE / 2000) * 1000
-                                        _checkStatus.value = "AO3 checks are paused. Try again in $seconds seconds."
-                                        _errors.value += search.id to message.error
-                                        return@launch
+                        ao3Gate.background {
+                            val channel = Channel<SearchCheckMessage>(Channel.UNLIMITED)
+                            messages = channel
+                            _runningCheck.value = RunningSearchCheck(++nextRunId, request, settings.browsingPreferences.value, fullScan = fullScan)
+                            while (true) {
+                                val message = withTimeout(60_000) { channel.receive() }
+                                when (message.type) {
+                                    "searchCheckProgress" -> _runningCheck.value = _runningCheck.value?.copy(pages = message.pages)
+                                    "searchCheckResult" -> {
+                                        checkRepository.record(request, message)
+                                        break
                                     }
-                                    error(message.error)
+                                    "searchCheckError" -> {
+                                        message.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
+                                            retryAt = ao3Gate.pause(seconds.toString())
+                                            _checkStatus.value = "AO3 checks are paused. Try again in $seconds seconds."
+                                            _errors.value += search.id to message.error
+                                        }
+                                        error(message.error)
+                                    }
+                                    else -> error("Could not read the search results.")
                                 }
-                                else -> error("Could not read the search results.")
                             }
                         }
                     } catch (_: TimeoutCancellationException) {
@@ -119,6 +123,7 @@ class SearchesScreenModel(
                         messages?.close()
                         messages = null
                     }
+                    if (now() < ao3Gate.cooldown.value) break
                 }
             } finally {
                 _isChecking.value = false

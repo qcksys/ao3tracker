@@ -95,7 +95,7 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 
 **Navigation**: Voyager library handles navigation with Read, Works, Searches, and Settings tabs (`ReadTab`, `TrackTab`, `SearchesTab`, `SettingsTab`). Works remains the initial tab. `MainScreen` is the root navigator.
 
-**Settings layout**: Keep account controls visible at the top. Reading, Search preferences, Sync, Notifications (supported platforms), Library & data, About, and Advanced use expandable `SettingsSection` cards with status summaries. Expansion is saved across tab switches and configuration changes. Keep ongoing operations and their state outside the collapsible content so closing a section does not cancel saves. Android supported-link controls live under Reading.
+**Settings layout**: Keep account controls visible at the top. Reading, Offline reading (Android), Search preferences, Sync, Notifications (supported platforms), Library & data, About, and Advanced use expandable `SettingsSection` cards with status summaries. Expansion is saved across tab switches and configuration changes. Keep ongoing operations and their state outside the collapsible content so closing a section does not cancel saves. Android supported-link controls live under Reading.
 
 **Database**: Room database with KSP for code generation. Schema files are in `composeApp/schemas/`. Entities: `WorkEntity`, `ChapterEntity`, `TagEntity`, `FavouriteTagEntity`. When modifying the schema:
 
@@ -129,6 +129,8 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 Sync uploads batch at most 50 works, 500 favourite tags and 500 saved searches per request. Extra per-row batches can contain no works. A failed batch keeps the captured changes pending for retry; successful uploads acknowledge only the exact captured versions. When the API replaces chapter zero with a real chapter ID, it returns a zero tombstone at the original reading timestamp; retain any newer offline zero event so the API can merge it into the first chapter.
 
 ### WebView Integration
+
+Zero-progress navigation, including automatic next-chapter selection, opens at the top of `#chapters` through shared `consumeScrollToParam`. Nonzero progress retains restoration at the viewport bottom.
 
 Opening the reader from Work Details or another native navigation action resets cached chapter-navigation state so it cannot complete the previously open chapter. Work Details supports marking chapters read or unread, without chapter deletion. The WebView restores an explicit scroll position before publishing progress; keep that ordering when changing the injected scripts.
 
@@ -178,6 +180,26 @@ When the WebView loads an AO3 list page (anything with `<li id="work_{id}">` blu
 4. `applyListBadges` renders an absolutely-positioned `.ao3-tracker-badge` element inside each blurb.
 
 The status string set MUST stay in sync between `WorkBadgePayload` (Kotlin) and `WorkBadgeData` (TypeScript, defined in [`packages/ao3-core/src/badges.ts`](../../packages/ao3-core/src/badges.ts)) — any new status needs an entry in `formatBadge`'s `switch` and a clause in `buildBadgePayload`. The same status set is consumed by the browser extension's content script.
+
+The device-local `hideTracked` browsing preference defaults off and has its own "Hide all tracked works" switch. Include it in every `BrowsingState` payload alongside `hideCaughtUp`, including initial handshakes and live preference updates. The shared helper collapses every work with a badge, including unread works and new chapters, with a page-local Show action. It takes precedence over `hideCaughtUp`; manual hides remain separate.
+
+### Offline reading (Android)
+
+Download nothing by default: `OfflinePreferences.automatic` starts false. Automatic capture, prefetch, and saved-chapter refresh require opting into **Save chapters as I read**. `prefetchChapters` defaults to 2, accepts zero, and uses null for all upcoming published chapters. Explicit saves work while automatic saving is off. The separate Offline reading settings accordion persists these choices and opt-in `autoDeleteRead`. Auto-delete removes only completed automatic copies; pinned Save whole work downloads remain until explicitly removed. Keep open document leases valid after cleanup and preserve reading/sync data.
+
+For capture, downloaded navigation, site skins, storage limits, or queue changes, read [the offline reading design and acceptance checks](../../docs/native-offline-reading.md). `OfflineCoordinator` owns foreground capture and the durable download queue; `OfflineContentStore` owns Room v12 indexes and private files under `noBackupFilesDir`. Migration 11→12 adds nullable `downloadUpdatedAt` to chapter snapshots, sourced from the AO3 download URL's `updated_at` timestamp in each capture. A newer captured or synced work revision queues replacement copies without changing open documents. Screens use these modules rather than accessing files directly. iOS and JVM adapters currently leave offline reading disabled.
+
+Android `OfflineDownloadService` owns the queue's capture WebView and a data-sync foreground notification, so active downloads continue across backgrounding and screen lock. Start the service while the app is visible; retain unfinished jobs across process termination and resume on reopen. Stop on completion, loss of connectivity, or the Android foreground-service timeout. Preserve network, incognito, cooldown and account guards. Progress controls open `DownloadDebugDialog` with a bounded local log. Capture failures explicitly report a sanitized exception through the consent/incognito-controlled PostHog reporter; never attach raw JS errors, URLs, page text, identities, or cookies.
+
+Queue discovery opens the work URL without `view_full_work`. AO3 treats even `view_full_work=false` as an entire-work request. The service enables `discoverChapter` on its capture script to follow the first validated chapter link in the same work before capturing; this also handles whole-work account preferences and persisted legacy queue URLs. Foreground captures keep their current page, and first-time access confirmation explicitly requests whole-work representation so only its skin is saved before the chapter queue runs.
+
+Capture uses AO3 cookies and a dedicated script, while saved pages use an isolated local origin and reading-only bridge. Keep ordered site styles, media conditions, and work styles distinct; only successful foreground captures select an active site skin. Preserve subpath imports from ao3-core. Downloads, skins, resources, jobs, and storage cleanup are device-local and excluded from sync and guest imports. Reading a saved page updates progress through `recordOfflineReading` without replaying its old metadata or reviving tombstones.
+
+Saved content uses individual chapter pages. Whole-work URLs offer an explicit saved-chapter choice; foreground whole-work capture may update the site skin but cannot publish aggregate text or coverage as individual chapters. Saved chapters older than 30 minutes refresh separately under automatic-prefetch policy, preserving the open revision. Download coverage includes newer published counts from sync. Account/context changes clear history and recreate the live reader. Keep storage failures typed through the capture bridge so space/allowance failures stop immediately and messages contain no private page content.
+
+Automatic saves share a 250 MiB allowance across account partitions; explicit downloads, open documents, and promised upcoming chapters are protected. `AccountDataStore.offlineDatabases` exists for global offline accounting and cleanup and must not change the active account or sync clocks. Startup account restoration uses `preserveCurrent` only when the selected database and owner already match; explicit session replacements retain generation invalidation. Prefetch defaults to Wi-Fi and pauses in incognito. Explicit saves remain available in incognito. Foreground/reconnect sync uses the existing auto-sync preference and `SyncCoordinator`.
+
+Android live and saved AO3 pages use `Ao3PageWebView` to expose the device's light/dark preference to CSS. Keep algorithmic darkening disabled so AO3 skins control colours. Saved-reader restoration runs after font/layout readiness, including rotation and appearance changes, without generating reading events. `OfflineReaderRenderingTest` compares the upstream default/Reversi styles and custom inherited/replacement fixtures before capture and after database reopen with networking disabled.
 
 ### Reader link actions
 

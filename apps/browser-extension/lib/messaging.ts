@@ -53,6 +53,10 @@ export type BackgroundToContentResponse = z.infer<typeof backgroundToContentResp
  */
 export const popupToBackgroundSchema = z.discriminatedUnion("kind", [
   z.object({
+    kind: z.literal("setHideTracked"),
+    hideTracked: browsingPreferencesSchema.shape.hideTracked.removeDefault(),
+  }),
+  z.object({
     kind: z.literal("setHideCaughtUp"),
     hideCaughtUp: browsingPreferencesSchema.shape.hideCaughtUp.removeDefault(),
   }),

@@ -47,6 +47,20 @@ class BrowsingSettingsTest {
     }
 
     @Test
+    fun togglesTrackedFilteringWithoutChangingCaughtUpPreference() {
+        val settings = AppSettings(null)
+        settings.setHideCaughtUp(true)
+        showSettings(settings)
+        rule.onNodeWithText("Search preferences").performClick()
+        rule.onNodeWithContentDescription("Hide all tracked works").performScrollTo().performClick()
+        assertEquals(true, settings.browsingPreferences.value.hideTracked)
+        assertEquals(true, settings.browsingPreferences.value.hideCaughtUp)
+        rule.onNodeWithContentDescription("Hide all tracked works").performClick()
+        assertEquals(false, settings.browsingPreferences.value.hideTracked)
+        assertEquals(true, settings.browsingPreferences.value.hideCaughtUp)
+    }
+
+    @Test
     fun validatesSavesAndClearsFandomLimits() {
         val settings = AppSettings(null)
         showSettings(settings)

@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash, createPrivateKey, createPublicKey } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { appendFile, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -142,6 +142,43 @@ export function createChromeUpload({ release, zip, credentials, env }) {
   };
 }
 
+export async function uploadChrome({ release, upload, env = process.env, run = spawnSync }) {
+  const result = run(process.execPath, upload.args, {
+    cwd: extensionDirectory,
+    env: upload.env,
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+  });
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  if (
+    release.channel === "beta" &&
+    !result.error &&
+    result.status === 1 &&
+    output.includes("Chrome Web Store Error: Fetch request failed with code 400 Bad Request:") &&
+    /"status":\s*"FAILED_PRECONDITION"/.test(output) &&
+    /"reason":\s*"NOT_UPDATEABLE"/.test(output) &&
+    /"domain":\s*"chromewebstore.googleapis.com"/.test(output) &&
+    output.includes("You may not edit or publish an item that is in review.")
+  ) {
+    const message =
+      "Chrome Beta was not uploaded because its existing submission is in review. " +
+      "The ZIP artifact is retained. After review completes, run Release Chrome extension " +
+      "for the latest dev commit with channel=beta, or let the next dev push retry.";
+    console.warn(`::warning::${message}`);
+    if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "deferred=true\n");
+    if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, `${message}\n`);
+    return false;
+  }
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      "Chrome upload failed. Check the WXT result and store dashboard before retrying.",
+    );
+  }
+  return true;
+}
+
 export async function releaseChrome(command, { env = process.env, run = spawnSync } = {}) {
   if (command !== "verify" && command !== "upload") {
     throw new Error("Usage: node scripts/release-chrome.mjs verify|upload");
@@ -188,16 +225,7 @@ export async function releaseChrome(command, { env = process.env, run = spawnSyn
     credentials,
     env,
   });
-  const result = run(process.execPath, upload.args, {
-    cwd: extensionDirectory,
-    env: upload.env,
-    stdio: "inherit",
-  });
-  if (result.error || result.status !== 0) {
-    throw new Error(
-      "Chrome upload failed. Check the WXT result and store dashboard before retrying.",
-    );
-  }
+  await uploadChrome({ release, upload, env, run });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

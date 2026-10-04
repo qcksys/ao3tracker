@@ -91,6 +91,9 @@ interface WorkDao {
 
 @Dao
 interface ChapterDao {
+    @Query("SELECT * FROM chapters WHERE rowDeletedAt IS NULL AND (markedCompleteAt IS NOT NULL OR readProgress >= 0.95)")
+    fun observeReadChapters(): Flow<List<ChapterEntity>>
+
     @Query("SELECT * FROM chapters WHERE workId = :workId AND rowDeletedAt IS NULL ORDER BY number ASC")
     fun getChaptersByWork(workId: Long): Flow<List<ChapterEntity>>
 
@@ -286,6 +289,9 @@ interface AccountDao {
 
     @Query("SELECT * FROM account_database WHERE selected = 1 LIMIT 1")
     suspend fun getSelectedDatabase(): AccountDatabaseEntity?
+
+    @Query("SELECT * FROM account_database")
+    suspend fun getDatabases(): List<AccountDatabaseEntity>
 
     @Upsert
     suspend fun saveDatabase(database: AccountDatabaseEntity)
