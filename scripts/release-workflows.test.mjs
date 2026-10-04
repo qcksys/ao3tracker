@@ -9,6 +9,17 @@ async function workflow(name) {
   );
 }
 
+test("Chrome review deferrals are visible to release history and retain the built ZIP", async () => {
+  const { steps } = (await workflow("release-chrome")).jobs.release;
+  const upload = steps.find((step) => step.run === "vp node scripts/release-chrome.mjs upload");
+  const deferred = steps.find((step) => step.name === "Record deferred Chrome upload");
+  assert.equal(deferred.if, `steps.${upload.id}.outputs.deferred == 'true'`);
+  assert.match(deferred.run, /not uploaded/);
+  assert.ok(steps.indexOf(deferred) > steps.indexOf(upload));
+  const artifact = steps.find((step) => step.with?.name?.startsWith("chrome-extension-"));
+  assert.ok(steps.indexOf(artifact) < steps.indexOf(upload));
+});
+
 test("Changesets creates version PRs or new tags only after successful main CI", async () => {
   const config = await workflow("changesets");
   assert.deepEqual(Object.keys(config.on), ["workflow_call"]);
