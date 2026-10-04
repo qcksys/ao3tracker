@@ -64,6 +64,70 @@ import kotlin.test.assertTrue
 @RunWith(AndroidJUnit4::class)
 class OfflineReaderRenderingTest {
     @Test
+    fun wholeWorkDiscoveryNavigatesBeforeCapturingAnIndividualChapter() {
+        val workUrl = "https://archiveofourown.org/works/123"
+        val chapterUrl = "$workUrl/chapters/456"
+        val first = """<div class="chapter" id="chapter-1"><div class="chapter preface group">
+            <h3 class="title"><a href="$chapterUrl">Chapter 1</a></h3></div>
+            <div class="userstuff module" role="article"><p>First chapter only.</p></div></div>"""
+        val second = """<div class="chapter" id="chapter-2"><div class="chapter preface group">
+            <h3 class="title"><a href="$workUrl/chapters/789">Chapter 2</a></h3></div>
+            <div class="userstuff module" role="article"><p>Second chapter must not be saved yet.</p></div></div>"""
+        fun html(chapters: String) = """<!doctype html><html><head></head><body class="logged-out">
+            <select id="selected_id"><option value="456" selected>1. First</option><option value="789">2. Second</option></select>
+            <div id="workskin"><h2 class="title heading">Discovery fixture</h2><div id="chapters">$chapters</div></div></body></html>"""
+        for (discoveryUrl in listOf(workUrl, "$workUrl?view_full_work=false")) {
+            val completed = CountDownLatch(1)
+            val result = AtomicReference<OfflineBundle>()
+            val failure = AtomicReference<String>()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+            val connection = AtomicReference<OfflineCaptureConnection>()
+            val liveView = AtomicReference<WebView>()
+            ActivityScenario.launch(OfflineReaderTestActivity::class.java).use { scenario ->
+                try {
+                    scenario.onActivity { activity ->
+                        val view = Ao3PageWebView(activity)
+                        liveView.set(view)
+                        view.settings.javaScriptEnabled = true
+                        val assets = OfflineAssetClient({ null }) { _, _, _ -> OfflineHttpResult(404) }
+                        val bridge = OfflineCaptureConnection(view, scope, assets)
+                        connection.set(bridge)
+                        view.webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse {
+                                val content = if (request?.url?.toString() == chapterUrl) first else first + second
+                                return WebResourceResponse("text/html", "UTF-8", ByteArrayInputStream(html(content).encodeToByteArray()))
+                            }
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) { bridge.cancel() }
+                            override fun onPageFinished(view: WebView?, loadedUrl: String?) {
+                                if (loadedUrl == null || view?.url != loadedUrl) return
+                                val request = OfflineCaptureRequest(loadedUrl, "guest", { true },
+                                    stageResource = { _, _ -> error("The discovery fixture has no resources") },
+                                    publish = { result.set(it); completed.countDown() },
+                                    onFailure = { message, _ -> failure.set(message); completed.countDown() })
+                                bridge.start(request, discoverChapter = true)
+                            }
+                        }
+                        activity.setContentView(view)
+                        view.loadUrl(discoveryUrl)
+                    }
+                    assertTrue(completed.await(20, TimeUnit.SECONDS), "Chapter discovery timed out")
+                    assertEquals(null, failure.get())
+                    val saved = assertNotNull(result.get()).page
+                    assertEquals(chapterUrl, saved.url)
+                    assertEquals("456", saved.chapterId)
+                    assertEquals("chapter", saved.representation)
+                    assertEquals(listOf("456", "789"), saved.chapters.map { it.id })
+                    assertTrue(saved.html.contains("First chapter only."))
+                    assertTrue(!saved.html.contains("Second chapter must not be saved yet."))
+                } finally {
+                    scenario.onActivity { connection.get()?.close(); liveView.get()?.destroy() }
+                    scope.cancel()
+                }
+            }
+        }
+    }
+
+    @Test
     fun changingSystemAppearanceAndRotationKeepsTheSavedPageAndPositionWithoutReadingProgress() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val manager = instrumentation.targetContext.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager

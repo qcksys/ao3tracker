@@ -63,6 +63,7 @@ Saving a search merges the current default hidden tags into its URL before gener
 - **No top-level side effects in modules that are only imported.** The entry files own the IIFE side effects; everything else must be pure to keep tree-shaking honest.
 - **Bridge contract is sacred.** The shape of messages posted via `AndroidBridge.postMessage` / `webkit.messageHandlers.ao3Handler.postMessage` is the canonical `WebViewMessage` in `@qcksys/ao3tracker-core/schemas`. Don't add fields here without updating the schema and the Kotlin parser in lockstep.
 - **Offline capture revisions**: shared `OfflinePage.downloadUpdatedAt` carries the optional UTC timestamp extracted from the AO3 download URL. Preserve it through preparation and transfer so native can compare each saved chapter with newer work downloads. Native accepts old bundles without the field.
+- **Offline chapter discovery**: Android's download service enables `__ao3OfflineOptions.discoverChapter`. Before capturing a work-level discovery URL, follow its first trusted chapter-heading link for the same work. AO3 treats a present `view_full_work=false` parameter as an entire-work request, and account preferences can also return every chapter. Keep foreground captures on their current page and retain the shared rejection of multiple chapters presented as one chapter.
 - **Bundle target is ES2018** (see `vite.config.ts`) so older Android WebView engines accept the output. Don't raise it without checking the lowest-supported Android version in the KMP build.
 
 ## Tests

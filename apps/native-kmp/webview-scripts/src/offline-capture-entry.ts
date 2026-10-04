@@ -3,7 +3,7 @@ import { createOfflineCapture } from "./offline-capture";
 
 declare global {
   interface Window {
-    __ao3OfflineOptions?: { token: string; url: string };
+    __ao3OfflineOptions?: { token: string; url: string; discoverChapter?: boolean };
     __ao3OfflineCapture?: ReturnType<typeof createOfflineCapture>;
     OfflineCaptureBridge?: { postMessage: (body: string) => void };
   }
@@ -17,5 +17,10 @@ if (window.top === window && options && trustedAo3Url(location.href)) {
     window.OfflineCaptureBridge?.postMessage(body);
   });
   window.__ao3OfflineCapture = capture;
-  void capture.run(document, location.href, options.url);
+  void capture.run(
+    document,
+    location.href,
+    options.url,
+    options.discoverChapter ? (url) => location.replace(url) : undefined,
+  );
 }

@@ -261,7 +261,7 @@ class OfflineCoordinator internal constructor(
             if (context == null) {
                 pendingSave = workId to update
                 statusMessage.value = "The work will be saved after AO3 confirms access."
-                NavigationState.navigateToRead("https://archiveofourown.org/works/$workId?view_full_work=false")
+                NavigationState.navigateToRead("https://archiveofourown.org/works/$workId?view_full_work=true")
                 return@launchAction
             }
             downloadTask?.cancel()

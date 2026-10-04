@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.uuid.Uuid
 
 @Serializable
-private data class OfflineCaptureOptions(val token: String, val url: String)
+private data class OfflineCaptureOptions(val token: String, val url: String, val discoverChapter: Boolean)
 
 internal class OfflineCaptureConnection(
     private val view: WebView,
@@ -66,7 +66,7 @@ internal class OfflineCaptureConnection(
         }
     }
 
-    fun start(request: OfflineCaptureRequest) {
+    fun start(request: OfflineCaptureRequest, discoverChapter: Boolean = false) {
         if (closed) return
         cancel()
         if (!supported) {
@@ -109,7 +109,7 @@ internal class OfflineCaptureConnection(
                 session.cancel()
             }
         }
-        val options = offlineJson.encodeToString(OfflineCaptureOptions(capture.token, request.url))
+        val options = offlineJson.encodeToString(OfflineCaptureOptions(capture.token, request.url, discoverChapter))
         view.evaluateJavascript(guardAo3Script("window.__ao3OfflineOptions = $options; ${OfflineCaptureScriptGenerated.script}"), null)
     }
 

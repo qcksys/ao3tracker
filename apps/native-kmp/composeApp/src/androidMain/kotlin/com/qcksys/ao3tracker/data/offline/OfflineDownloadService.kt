@@ -104,7 +104,7 @@ class OfflineDownloadService : Service() {
                     val current = owner.background.value?.takeIf { it.id == request.id && it.url == url } ?: return
                     startedCapture = true
                     current.capture.onProgress("Chapter loaded; capturing text, styles and resources.")
-                    capture?.start(current.capture)
+                    capture?.start(current.capture, discoverChapter = true)
                 }
 
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {

@@ -12,6 +12,32 @@ import kotlin.test.*
 
 class OfflineCoordinatorTest {
     @Test
+    fun `discovery follows the first chapter then downloads each remaining chapter without changing reading progress`() = runBlocking {
+        fixture { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            val discovery = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertEquals("https://archiveofourown.org/works/123", discovery.url)
+            coordinator.downloadNavigation(discovery.id, url)
+            val first = assertNotNull(coordinator.background.value)
+            assertEquals(discovery.id, first.id)
+            assertEquals(url, first.capture.url)
+            assertTrue(first.capture.isCurrent())
+            first.capture.publish(multiChapterBundle())
+            var previous = first.id
+            for (chapter in multiChapterBundle().page.chapters.drop(1)) {
+                val next = withTimeout(5000) { coordinator.background.first { it != null && it.id != previous }!! }
+                assertEquals(chapter.url, next.url)
+                next.capture.publish(multiChapterBundle().let { it.copy(page = it.page.copy(url = chapter.url, chapterId = chapter.id)) })
+                previous = next.id
+            }
+            val completed = withTimeout(5000) { coordinator.downloads.first { it.singleOrNull()?.job?.state == "complete" }.single() }
+            assertEquals(setOf("456", "457", "458", "459"), completed.savedChapterIds)
+            assertNotNull(coordinator.open(url)).document.close()
+        }
+    }
+
+    @Test
     fun `download service continues the queue after app backgrounds and service stop preserves resumable work`() = runBlocking {
         fixture { coordinator, _ ->
             coordinator.setForeground(true)
@@ -81,7 +107,7 @@ class OfflineCoordinatorTest {
             val whole = multiChapterBundle().let { it.copy(page = it.page.copy(url = wholeUrl, representation = "whole")) }
             capture.publish(whole)
             val discovery = withTimeout(5000) { coordinator.background.first { it != null }!! }
-            assertEquals("https://archiveofourown.org/works/123?view_full_work=false", discovery.url)
+            assertEquals("https://archiveofourown.org/works/123", discovery.url)
             assertTrue(coordinator.downloads.value.all { it.savedChapterIds.isEmpty() })
             assertNull(coordinator.open(wholeUrl))
             assertNull(coordinator.open(url))
