@@ -109,3 +109,9 @@ GitHub Actions checks pull requests and pushes to `dev` and `main`. Release beha
 API deployment applies pending migrations and verifies database readiness before dependent store releases can proceed. Production Chrome drafts require manual review submission; iOS and Firefox releases are manual. After merging a version PR into `main`, merge `main` back into `dev` to synchronize versions and changelogs.
 
 See [store releases](docs/store-releases.md) for credentials, initial uploads, generated versions, patch notes, and retry behaviour.
+
+## License
+
+Original code and documentation in this repository are licensed under the [MIT License](LICENSE).
+
+Third-party materials retain their own licenses. The [AO3 stylesheet fixtures](apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins/README.md) are licensed under [GPLv2](apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins/LICENSE.txt); their upstream license and attribution are included alongside the fixtures.
