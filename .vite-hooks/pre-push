@@ -1,0 +1,9 @@
+set -e
+
+vp run -r test
+
+sh apps/native-kmp/gradlew -p apps/native-kmp \
+  :composeApp:jvmTest \
+  :composeApp:testDebugUnitTest \
+  :composeApp:connectedDebugAndroidTest \
+  --no-configuration-cache
