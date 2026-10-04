@@ -1,5 +1,14 @@
 # ao3tracker-webview-scripts
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [08c0606]
+- Updated dependencies [b28f74e]
+- Updated dependencies [71b1569]
+  - @qcksys/ao3tracker-core@0.3.0
+
 ## 1.0.2
 
 ### Patch Changes

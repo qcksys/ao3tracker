@@ -1,6 +1,6 @@
 {
   "name": "@qcksys/ao3tracker-sync-client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Typed client for the ao3tracker /api/track/sync endpoint and Better Auth flows.",
   "type": "module",
