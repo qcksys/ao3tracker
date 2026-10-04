@@ -275,7 +275,7 @@ internal class OfflineContentStore(
             dao.saveWork(old?.copy(pinned = true) ?: OfflineWorkEntity(context.id, workId, "Work $workId", "[]", true, now()))
             dao.deleteWorkJobs(context.id, workId)
             dao.saveJob(OfflineJobEntity(Uuid.random().toString(), context.id, workId, if (update) "update-discover" else "save-discover",
-                offlineJson.encodeToString(listOf("https://archiveofourown.org/works/$workId?view_full_work=false")), "[]", "queued", 0, 0, null, now()))
+                offlineJson.encodeToString(listOf("https://archiveofourown.org/works/$workId")), "[]", "queued", 0, 0, null, now()))
         }
     }
 

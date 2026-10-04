@@ -1,6 +1,6 @@
 import { captureOfflinePage, prepareOfflinePage } from "@qcksys/ao3tracker-core/offline";
 import type { OfflineBundle, OfflineCaptureMessage } from "@qcksys/ao3tracker-core/schemas";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { createOfflineCapture } from "~/offline-capture";
 
 vi.mock("@qcksys/ao3tracker-core/offline", async (original) => {
@@ -37,9 +37,24 @@ function setup() {
   return { messages, capture, reply };
 }
 
+function discoveryPage(href = "/works/123/chapters/456"): Document {
+  return new DOMParser().parseFromString(
+    `<body class="logged-out"><div id="workskin"><h2 class="title heading">Story</h2>
+    <div id="chapters">
+      <div class="chapter" id="chapter-1"><div class="chapter preface group">
+        <h3 class="title"><a href="${href}">Chapter 1</a></h3>
+      </div><div class="userstuff module" role="article"><p>First chapter.</p></div></div>
+      <div class="chapter" id="chapter-2"><div class="chapter preface group">
+        <h3 class="title"><a href="/works/123/chapters/789">Chapter 2</a></h3>
+      </div><div class="userstuff module" role="article"><p>Second chapter.</p></div></div>
+    </div></div></body>`,
+    "text/html",
+  );
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.mocked(captureOfflinePage).mockReturnValue({ page: bundle.page, stylesheets: [] });
+  vi.mocked(captureOfflinePage).mockReset().mockReturnValue({ page: bundle.page, stylesheets: [] });
   vi.mocked(prepareOfflinePage).mockResolvedValue(bundle);
 });
 afterEach(() => {
@@ -48,6 +63,92 @@ afterEach(() => {
 });
 
 describe("offline capture transport", () => {
+  it.each(["?view_full_work=false", ""])(
+    "opens an individual chapter before capturing an entire-work discovery page at %s",
+    async (query) => {
+      const real = await vi.importActual<typeof import("@qcksys/ao3tracker-core/offline")>(
+        "@qcksys/ao3tracker-core/offline",
+      );
+      vi.mocked(captureOfflinePage).mockImplementationOnce(real.captureOfflinePage);
+      const doc = discoveryPage();
+      const { capture, messages } = setup();
+      const navigate = vi.fn();
+      await capture.run(doc, url + query, url + query, navigate);
+      expect(messages).toEqual([]);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(`${url}/chapters/456`);
+      expect(captureOfflinePage).not.toHaveBeenCalled();
+      expect(prepareOfflinePage).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it.each([
+    "/works/999/chapters/456",
+    "https://elsewhere.test/works/123/chapters/456",
+    "javascript:alert(1)",
+    "/works/123/chapters/0",
+    "/works/123/chapters/456?view_full_work=true",
+  ])("rejects an entire-work page with an invalid discovery link %s", async (href) => {
+    const real = await vi.importActual<typeof import("@qcksys/ao3tracker-core/offline")>(
+      "@qcksys/ao3tracker-core/offline",
+    );
+    vi.mocked(captureOfflinePage).mockImplementationOnce(real.captureOfflinePage);
+    const { capture, messages } = setup();
+    const navigate = vi.fn();
+    await capture.run(discoveryPage(href), url, url, navigate);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(messages).toEqual([
+      {
+        type: "offlineFailure",
+        token: "active",
+        message: "The loaded page contains more than one chapter.",
+      },
+    ]);
+    expect(prepareOfflinePage).not.toHaveBeenCalled();
+  });
+
+  it.each([url, `${url}/chapters/456`, `${url}?view_full_work=true`])(
+    "captures %s without discovery navigation when it is not needed",
+    async (source) => {
+      const doc = discoveryPage();
+      if (source === url) {
+        const chapters = doc.querySelector("#chapters");
+        assert(chapters);
+        chapters.innerHTML = '<div class="userstuff">Only chapter.</div>';
+      } else doc.querySelector("#chapter-2")?.remove();
+      const { capture, messages, reply } = setup();
+      const navigate = vi.fn();
+      const running = capture.run(doc, source, source, navigate);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(navigate).not.toHaveBeenCalled();
+      expect(captureOfflinePage).toHaveBeenCalledWith(doc, source);
+      expect(messages.at(-1)).toMatchObject({ type: "offlineTransfer", kind: "bundle" });
+      reply("1", {});
+      await running;
+    },
+  );
+
+  it("keeps foreground whole-work capture on its current page", async () => {
+    const doc = discoveryPage();
+    const source = `${url}?view_full_work=true`;
+    const { capture, reply } = setup();
+    const running = capture.run(doc, source, source);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(captureOfflinePage).toHaveBeenCalledWith(doc, source);
+    reply("1", {});
+    await running;
+  });
+
+  it("does not navigate a cancelled discovery", async () => {
+    const { capture, messages } = setup();
+    const navigate = vi.fn();
+    capture.cancel();
+    await capture.run(discoveryPage(), url, url, navigate);
+    expect(navigate).not.toHaveBeenCalled();
+    expect(captureOfflinePage).not.toHaveBeenCalled();
+    expect(messages).toEqual([]);
+  });
+
   it("waits for each resource acknowledgement before publishing the chapter", async () => {
     const { capture, messages, reply } = setup();
     const resource = { hash: "b".repeat(64), mimeType: "image/png", bytes: 3, base64: "YWJj" };

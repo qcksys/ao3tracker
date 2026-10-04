@@ -2,6 +2,7 @@ import {
   captureOfflinePage,
   prepareOfflinePage,
   readingLocation,
+  trustedAo3Url,
 } from "@qcksys/ao3tracker-core/offline";
 import type { OfflineCaptureMessage, OfflineResourceData } from "@qcksys/ao3tracker-core/schemas";
 
@@ -104,12 +105,36 @@ export function createOfflineCapture(
       }
       pending.clear();
     },
-    async run(doc: Document, url: string, expectedUrl: string): Promise<void> {
+    async run(
+      doc: Document,
+      url: string,
+      expectedUrl: string,
+      navigateToChapter?: (url: string) => void,
+    ): Promise<void> {
       try {
+        if (stopped) return;
         const current = readingLocation(url);
         const expected = readingLocation(expectedUrl);
         if (!current || !expected || current.url !== expected.url)
           throw new Error("Open the requested chapter before saving it.");
+        if (navigateToChapter && !current.chapterId && current.representation === "chapter") {
+          const href = doc
+            .querySelector("#chapters > .chapter > .preface h3.title a[href]")
+            ?.getAttribute("href");
+          const target = href ? trustedAo3Url(href, url) : null;
+          const chapter = target ? readingLocation(target.href) : null;
+          if (
+            chapter?.workId === current.workId &&
+            chapter.chapterId &&
+            chapter.chapterId !== "0" &&
+            chapter.representation === "chapter"
+          ) {
+            navigateToChapter(
+              `https://archiveofourown.org/works/${current.workId}/chapters/${chapter.chapterId}`,
+            );
+            return;
+          }
+        }
         const capture = captureOfflinePage(doc, url);
         const bundle = await prepareOfflinePage(
           capture,
