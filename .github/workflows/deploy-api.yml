@@ -3,8 +3,6 @@ name: Deploy production API
 on:
   workflow_call:
     outputs:
-      android_required:
-        value: ${{ jobs.deploy.outputs.android_required }}
       chrome_required:
         value: ${{ jobs.deploy.outputs.chrome_required }}
     inputs:
@@ -30,7 +28,6 @@ jobs:
   deploy:
     runs-on: ubuntu-24.04
     outputs:
-      android_required: ${{ steps.changes.outputs.android }}
       chrome_required: ${{ steps.changes.outputs.chrome }}
     timeout-minutes: 20
     environment: api-production
