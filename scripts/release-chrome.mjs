@@ -153,7 +153,6 @@ export async function uploadChrome({ release, upload, env = process.env, run = s
   if (result.stderr) process.stderr.write(result.stderr);
   const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
   if (
-    release.channel === "beta" &&
     !result.error &&
     result.status === 1 &&
     output.includes("Chrome Web Store Error: Fetch request failed with code 400 Bad Request:") &&
@@ -162,10 +161,15 @@ export async function uploadChrome({ release, upload, env = process.env, run = s
     /"domain":\s*"chromewebstore.googleapis.com"/.test(output) &&
     output.includes("You may not edit or publish an item that is in review.")
   ) {
+    const beta = release.channel === "beta";
+    const branch = beta ? "dev" : "main";
     const message =
-      "Chrome Beta was not uploaded because its existing submission is in review. " +
+      `Chrome ${beta ? "Beta" : "production"} was not uploaded because its existing submission is in review. ` +
       "The ZIP artifact is retained. After review completes, run Release Chrome extension " +
-      "for the latest dev commit with channel=beta, or let the next dev push retry.";
+      `for the latest ${branch} commit with channel=${release.channel}` +
+      (beta
+        ? ", or let the next dev push retry."
+        : ". The next tagged production release also retries.");
     console.warn(`::warning::${message}`);
     if (env.GITHUB_OUTPUT) await appendFile(env.GITHUB_OUTPUT, "deferred=true\n");
     if (env.GITHUB_STEP_SUMMARY) await appendFile(env.GITHUB_STEP_SUMMARY, `${message}\n`);

@@ -1,5 +1,24 @@
 # @qcksys/ao3tracker-native-kmp
 
+## 0.4.0
+
+### Minor Changes
+
+- 08c0606: Add an optional Hide all tracked works setting to collapse tracked works in AO3 lists, including unread works and works with new chapters. Keep a Show action to reveal individual works on the current page.
+- b28f74e: Read saved AO3 chapters offline on Android with your selected site skin and reading position. Downloads are off by default. Save whole works explicitly, or enable automatic saving and choose how many upcoming chapters to prefetch, including all. Manage downloads from Works and a separate Offline reading settings section.
+
+  Preserve custom, inherited and replacement site skins across restarts. Keep downloads separate for each account, protect explicit saves from automatic storage cleanup, and sync offline reading progress when connected. Whole-work links offer a choice of saved chapters.
+
+  Continue downloads when switching apps or locking the phone, refresh saved chapters when AO3 publishes a newer download, and optionally remove completed automatic saves while retaining whole-work downloads. Tap download progress for troubleshooting details.
+
+  Fix downloads failing with "The loaded page contains more than one chapter" by opening individual chapters before capture, including when AO3 is configured to display entire works.
+
+### Patch Changes
+
+- 48a1160: Include automatically blocked tags when saving or updating AO3 searches, even before the page finishes applying search preferences.
+- 9feda56: Preserve offline-saving requests received while account storage initializes.
+- 71b1569: Open automatically selected next chapters at the top of the chapter body instead of above it. Preserve saved reading positions when resuming chapters already in progress.
+
 ## 0.3.0
 
 ### Minor Changes

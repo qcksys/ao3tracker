@@ -1,5 +1,21 @@
 # @qcksys/ao3tracker-browser-extension
 
+## 0.3.0
+
+### Minor Changes
+
+- 08c0606: Add an optional Hide all tracked works setting to collapse tracked works in AO3 lists, including unread works and works with new chapters. Keep a Show action to reveal individual works on the current page.
+
+### Patch Changes
+
+- 48a1160: Include automatically blocked tags when saving or updating AO3 searches, even before the page finishes applying search preferences.
+- 71b1569: Open automatically selected next chapters at the top of the chapter body instead of above it. Preserve saved reading positions when resuming chapters already in progress.
+- Updated dependencies [08c0606]
+- Updated dependencies [b28f74e]
+- Updated dependencies [71b1569]
+  - @qcksys/ao3tracker-core@0.3.0
+  - @qcksys/ao3tracker-sync-client@0.1.2
+
 ## 0.2.0
 
 ### Minor Changes
