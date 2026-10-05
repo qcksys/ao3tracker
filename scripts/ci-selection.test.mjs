@@ -273,14 +273,23 @@ test("store selection runs inside the deployment lock and cannot bypass API succ
     const dependency = branch === "main" ? "api" : "deploy";
     for (const store of ["android", "chrome"]) {
       assert.equal(release.jobs[store].needs, dependency);
-      assert.ok(
-        release.jobs[store].if.includes(`needs.${dependency}.outputs.${store}_required == 'true'`),
-      );
-      assert.doesNotMatch(release.jobs[store].if, /always\(/);
+      if (branch === "main" && store === "android") {
+        assert.equal(release.jobs[store].if, undefined);
+      } else {
+        assert.ok(
+          release.jobs[store].if.includes(
+            `needs.${dependency}.outputs.${store}_required == 'true'`,
+          ),
+        );
+      }
+      assert.doesNotMatch(release.jobs[store].if ?? "", /always\(/);
     }
     const deployment = (await workflow(branch === "main" ? "deploy-api" : "release-dev-apps")).jobs
       .deploy;
-    assert.equal(deployment.outputs.android_required, "${{ steps.changes.outputs.android }}");
+    assert.equal(
+      deployment.outputs.android_required,
+      branch === "main" ? undefined : "${{ steps.changes.outputs.android }}",
+    );
     assert.equal(deployment.outputs.chrome_required, "${{ steps.changes.outputs.chrome }}");
     assert.equal(
       deployment.steps.find((step) => step.uses?.startsWith("actions/checkout@")).with[

@@ -11,6 +11,10 @@ on:
         description: Built API artifact from release preparation
         required: true
         type: string
+      tagged:
+        description: Also release Android to Alpha and upload a production Chrome draft
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,16 +31,16 @@ jobs:
 
   android:
     needs: api
-    if: needs.api.outputs.android_required == 'true'
     uses: ./.github/workflows/release-android.yml
     secrets: inherit
     with:
       ci_verified: true
       source_ref: ${{ inputs.source_ref }}
+      tracks: ${{ inputs.tagged && 'internal,alpha' || 'internal' }}
 
   chrome:
     needs: api
-    if: needs.api.outputs.chrome_required == 'true'
+    if: inputs.tagged && needs.api.outputs.chrome_required == 'true'
     uses: ./.github/workflows/release-chrome.yml
     secrets: inherit
     with:
