@@ -36,30 +36,35 @@ const pendingReviewError = `Chrome Web Store Error: Fetch request failed with co
   },
 )}`;
 
-test("beta review conflicts defer the upload and report it without cancelling review", async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), "chrome-release-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-  const releaseEnv = {
-    GITHUB_OUTPUT: join(directory, "output"),
-    GITHUB_STEP_SUMMARY: join(directory, "summary"),
-  };
-  const uploaded = await uploadChrome({
-    release: { channel: "beta" },
-    upload: { args: ["wxt", "submit"], env: {} },
-    env: releaseEnv,
-    run: (_command, args) => {
-      assert.deepEqual(args, ["wxt", "submit"]);
-      return { status: 1, stderr: pendingReviewError };
-    },
+for (const channel of ["beta", "production"]) {
+  test(`${channel} review conflicts defer the upload and report it without cancelling review`, async (t) => {
+    const directory = await mkdtemp(join(tmpdir(), "chrome-release-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const releaseEnv = {
+      GITHUB_OUTPUT: join(directory, "output"),
+      GITHUB_STEP_SUMMARY: join(directory, "summary"),
+    };
+    const uploaded = await uploadChrome({
+      release: { channel },
+      upload: { args: ["wxt", "submit"], env: {} },
+      env: releaseEnv,
+      run: (_command, args) => {
+        assert.deepEqual(args, ["wxt", "submit"]);
+        return { status: 1, stderr: pendingReviewError };
+      },
+    });
+    assert.equal(uploaded, false);
+    assert.equal(await readFile(releaseEnv.GITHUB_OUTPUT, "utf8"), "deferred=true\n");
+    const summary = await readFile(releaseEnv.GITHUB_STEP_SUMMARY, "utf8");
+    assert.match(summary, /not uploaded/);
+    assert.ok(summary.includes(`channel=${channel}`));
+    assert.ok(summary.includes(`latest ${channel === "beta" ? "dev" : "main"} commit`));
   });
-  assert.equal(uploaded, false);
-  assert.equal(await readFile(releaseEnv.GITHUB_OUTPUT, "utf8"), "deferred=true\n");
-  assert.match(await readFile(releaseEnv.GITHUB_STEP_SUMMARY, "utf8"), /not uploaded/);
-});
+}
 
-test("only the known beta review conflict is deferred; other upload failures still fail", async () => {
+test("only the known review conflict is deferred; other upload failures still fail", async () => {
   for (const [channel, result] of [
-    ["production", { status: 1, stderr: pendingReviewError }],
+    ["production", { status: 1, stderr: "Invalid credentials" }],
     ["beta", { status: 1, stderr: "Invalid credentials" }],
     ["beta", { status: 1, stderr: pendingReviewError.replace("NOT_UPDATEABLE", "OTHER_ERROR") }],
     ["beta", { status: 1, stderr: pendingReviewError.replace("in review", "disabled") }],
