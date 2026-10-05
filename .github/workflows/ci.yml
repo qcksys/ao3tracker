@@ -22,11 +22,12 @@ jobs:
 
   release-main:
     needs: changesets
-    if: needs.changesets.outputs.tagged == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/release-main.yml
     secrets: inherit
     with:
       source_ref: ${{ github.sha }}
+      tagged: ${{ needs.changesets.outputs.tagged == 'true' }}
 
   release-dev:
     needs: [workspace, android]

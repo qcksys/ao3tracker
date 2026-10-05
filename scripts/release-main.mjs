@@ -79,7 +79,7 @@ async function main() {
     return;
   }
   const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, "utf8"));
-  // Direct calls rely on CI's needs gates for successful checks and production tags.
+  // Direct calls rely on CI's needs gates for successful checks.
   const devPush = process.env.GITHUB_EVENT_NAME === "push" && branch === "dev";
   const mainPush = process.env.GITHUB_EVENT_NAME === "push" && branch === "main";
   const eligible = mainPush

@@ -64,7 +64,7 @@ test("Changesets creates version PRs or new tags only after successful main CI",
   assert.doesNotMatch(JSON.stringify(config), /deploy-api|release-android|release-chrome/);
 });
 
-test("production runs once per new Changesets tag batch and requires all CI checks", async () => {
+test("main pushes release after CI and forward verified Changesets tags", async () => {
   const ci = await workflow("ci");
   const tags = ci.jobs.changesets;
   assert.deepEqual(tags.needs, ["workspace", "android"]);
@@ -73,11 +73,61 @@ test("production runs once per new Changesets tag batch and requires all CI chec
   assert.equal(tags.uses, "./.github/workflows/changesets.yml");
   const release = ci.jobs["release-main"];
   assert.equal(release.needs, "changesets");
-  assert.equal(release.if, "needs.changesets.outputs.tagged == 'true'");
+  assert.equal(release.if, "github.event_name == 'push' && github.ref == 'refs/heads/main'");
   assert.equal(release.uses, "./.github/workflows/release-main.yml");
   assert.equal(release.with.source_ref, "${{ github.sha }}");
+  assert.equal(release.with.tagged, "${{ needs.changesets.outputs.tagged == 'true' }}");
   assert.equal(release.secrets, "inherit");
-  assert.deepEqual(Object.keys((await workflow("release-main")).on), ["workflow_call"]);
+  const entry = await workflow("release-main");
+  assert.deepEqual(Object.keys(entry.on), ["workflow_call"]);
+  assert.equal(entry.on.workflow_call.inputs.tagged.type, "boolean");
+  assert.equal(entry.on.workflow_call.inputs.tagged.default, false);
+  assert.equal(entry.jobs.deploy.with.tagged, "${{ inputs.tagged }}");
+});
+
+test("main always uploads Android to Internal and adds Alpha only for new tags", async () => {
+  const config = await workflow("release-main-apps");
+  assert.equal(config.on.workflow_call.inputs.tagged.type, "boolean");
+  assert.equal(config.on.workflow_call.inputs.tagged.default, false);
+  const { android, chrome } = config.jobs;
+  assert.equal(android.needs, "api");
+  assert.equal(android.if, undefined, "every eligible main push releases Android after the API");
+  assert.equal(android.with.tracks, "${{ inputs.tagged && 'internal,alpha' || 'internal' }}");
+  assert.equal(chrome.if, "inputs.tagged && needs.api.outputs.chrome_required == 'true'");
+
+  const dev = (await workflow("release-dev-apps")).jobs.android;
+  assert.equal(dev.with.channel, "beta");
+  assert.equal(dev.with.tracks ?? "internal", "internal");
+  assert.match(dev.if, /android_required == 'true'/);
+});
+
+test("Android track selection defaults to Internal and preserves one upload and package lock", async () => {
+  const config = await workflow("release-android");
+  assert.equal(config.on.workflow_call.inputs.tracks.default, "internal");
+  const dispatch = config.on.workflow_dispatch.inputs.tracks;
+  assert.equal(dispatch.default, "internal");
+  assert.deepEqual(dispatch.options, ["internal", "alpha", "internal,alpha"]);
+  assert.equal(config.concurrency.group, "google-play-${{ inputs.channel }}");
+  const uploads = config.jobs.release.steps.filter((step) =>
+    step.uses?.startsWith("r0adkll/upload-google-play@"),
+  );
+  assert.equal(uploads.length, 1, "one signed version is uploaded to the selected tracks together");
+  assert.equal(uploads[0].with.tracks, "${{ inputs.tracks }}");
+  assert.equal(uploads[0].if, "${{ !inputs.build_only }}");
+});
+
+test("Android validates release settings before allocating a version", async () => {
+  const { steps } = (await workflow("release-android")).jobs.release;
+  const validation = steps.find((step) => step.run === "vp node scripts/release-android.mjs");
+  const version = steps.find((step) => step.run?.includes("scripts/release-version.mjs"));
+  assert.ok(validation);
+  assert.ok(steps.indexOf(validation) < steps.indexOf(version));
+  assert.equal(validation.env.RELEASE_STATUS, "${{ inputs.status }}");
+  assert.equal(validation.env.RELEASE_TRACKS, "${{ inputs.tracks }}");
+  assert.equal(
+    (await workflow("release-android")).jobs.release.env.RELEASE_CHANNEL,
+    "${{ inputs.channel }}",
+  );
 });
 
 test("both store channels and build-only runs save notes from the exact release source", async () => {

@@ -14,6 +14,10 @@ on:
       channel:
         type: string
         default: production
+      tracks:
+        description: Play testing tracks (internal, alpha, or internal,alpha)
+        type: string
+        default: internal
       status:
         type: string
         default: completed
@@ -27,8 +31,13 @@ on:
         type: choice
         default: production
         options: [production, beta]
+      tracks:
+        description: "Play testing tracks (Alpha is for the production app only)"
+        type: choice
+        default: internal
+        options: [internal, alpha, "internal,alpha"]
       status:
-        description: "Internal testing release status"
+        description: "Testing release status"
         required: true
         type: choice
         default: completed
@@ -70,25 +79,18 @@ jobs:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
 
-      - name: Validate release status
-        env:
-          RELEASE_STATUS: ${{ inputs.status }}
-        run: |
-          case "$RELEASE_CHANNEL" in
-            production|beta) ;;
-            *) echo "::error::Release channel must be production or beta."; exit 1 ;;
-          esac
-          case "$RELEASE_STATUS" in
-            completed|draft) ;;
-            *) echo "::error::Release status must be completed or draft."; exit 1 ;;
-          esac
-
       - name: Set up Vite+
         uses: voidzero-dev/setup-vp@3754dd7dbdb32bd8f6d28b6043de13ad3a75f21f # v1.21.1
         with:
           version-file: pnpm-workspace.yaml
           run-install: false
           cache: true
+
+      - name: Validate release settings
+        env:
+          RELEASE_STATUS: ${{ inputs.status }}
+          RELEASE_TRACKS: ${{ inputs.tracks }}
+        run: vp node scripts/release-android.mjs
 
       - name: Reject stale automatic release retries
         if: (github.event_name == 'workflow_run' || github.event_name == 'push') && github.run_attempt > 1
@@ -198,14 +200,14 @@ jobs:
           umask 077
           printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/google-play-service-account.json"
 
-      - name: Upload to Google Play internal testing
+      - name: Upload to Google Play (${{ inputs.tracks }})
         if: ${{ !inputs.build_only }}
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJson: ${{ runner.temp }}/google-play-service-account.json
           packageName: ${{ env.ANDROID_PACKAGE_NAME }}
           releaseFiles: apps/native-kmp/composeApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/composeApp-${{ env.ANDROID_BUILD_TYPE }}.aab
-          tracks: internal
+          tracks: ${{ inputs.tracks }}
           status: ${{ inputs.status }}
           releaseName: ${{ inputs.channel }}-${{ steps.version.outputs.android_version_name }}
           whatsNewDirectory: ${{ runner.temp }}/android-release-notes/whatsnew

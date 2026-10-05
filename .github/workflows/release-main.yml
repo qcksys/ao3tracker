@@ -4,9 +4,13 @@ on:
   workflow_call:
     inputs:
       source_ref:
-        description: Exact tested commit with newly created Changesets tags
+        description: Exact main commit that passed CI
         required: true
         type: string
+      tagged:
+        description: New Changesets tags were verified for this commit
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -33,3 +37,4 @@ jobs:
     with:
       source_ref: ${{ needs.prepare.outputs.source_ref }}
       api_artifact_id: ${{ needs.prepare.outputs.api_artifact_id }}
+      tagged: ${{ inputs.tagged }}
