@@ -11,10 +11,10 @@ AO3 Tracker is a Kotlin Multiplatform (KMP) application for tracking reading pro
 ### Android
 
 ```shell
-./gradlew :composeApp:assembleDebug          # Debug build
-./gradlew :composeApp:assembleRelease        # Release APK (unsigned unless signing env is set)
-./gradlew :composeApp:bundleRelease          # Release AAB for Play Store
-./gradlew :composeApp:bundleDev              # Separate AO3 Tracker Dev AAB
+./gradlew :androidApp:assembleDebug          # Debug build
+./gradlew :androidApp:assembleRelease        # Release APK (unsigned unless signing env is set)
+./gradlew :androidApp:bundleRelease          # Release AAB for Play Store
+./gradlew :androidApp:bundleDev              # Separate AO3 Tracker Dev AAB
 ```
 
 ### Google Play releases
@@ -23,7 +23,7 @@ The workflow's `channel` selects `production` (default) or `beta`. `Release dev`
 
 Server selection is available only in Android debug/dev builds and iOS debug binaries. Android release, iOS release, and JVM builds use production and ignore previously saved server selections, including when the runtime Dev Mode switch is enabled. Keep `AppSettings.canSelectApiEnvironment` enforced in storage loading, updates, and Settings UI. Turning off Dev Mode restores the build's default server when selection is supported.
 
-The dev Firebase Android registration is in project `qs-ao3tracker`; its public client config is `composeApp/src/dev/google-services.json`. The Google Services plugin selects it by build type. The separate Play app needs its own initial signed AAB upload, tester list, and service-account access. Signing and publishing reuse the existing GitHub secrets; the workflow always uses the internal track for either package.
+The dev Firebase Android registration is in project `qs-ao3tracker`; its public client config is `androidApp/src/dev/google-services.json`. The Google Services plugin selects it by build type. The separate Play app needs its own initial signed AAB upload, tester list, and service-account access. Signing and publishing reuse the existing GitHub secrets; the workflow always uses the internal track for either package.
 
 The [Android release workflow](../../.github/workflows/release-android.yml) runs automatically after successful `main`/`dev` CI and the corresponding API deployment, or manually, using the `google-play` GitHub environment. Automatic callers pass `ci_verified: true` to reuse the shared AO3 core, WebView, and JVM test results for the exact source commit; manual releases and callers without that flag run those tests. It produces a signed AAB and R8 mapping artifact. Uploads target only `internal` testing, with release status `completed` by default or `draft` when selected manually. Choose `build_only` to download the bundle without uploading it. For a new Play listing, upload that signed artifact manually once before using API publishing.
 
@@ -33,7 +33,7 @@ Each release job generates fresh `ANDROID_VERSION_CODE` and `ANDROID_VERSION_NAM
 
 For local signing, supply all four variables: `ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. A relative keystore path is resolved from `apps/native-kmp/`. Partial configuration fails, and release builds never use the debug key as a fallback. Use `--no-configuration-cache --no-build-cache --no-daemon` for a signed local release to avoid retaining credentials in Gradle configuration state. With no signing variables, local release builds remain unsigned.
 
-CI validation sets `APP_BUILD_TIME_UTC=2020-01-01 00:00:00 UTC` so generated common Kotlin metadata remains stable and compilation can reuse cached outputs. Local and signed store builds leave the override unset to record the actual build time. Ordinary native PRs run JVM tests and Debug; Gradle/dependency/ProGuard changes, the `ci:android-minify` label and manual CI also build the minified Dev APK. Push releases validate minification with the signed AAB. See [CI selection and caching](../../docs/store-releases.md) for history-based gating.
+CI validation sets `APP_BUILD_TIME_UTC=2020-01-01 00:00:00 UTC` so generated common Kotlin metadata remains stable and compilation can reuse cached outputs. Local and signed store builds leave the override unset to record the actual build time. Ordinary native PRs run JVM, shared Android host and debug application tests plus the Debug APK; Gradle/dependency/ProGuard changes, the `ci:android-minify` label and manual CI also run dev/release application tests and build the minified Dev APK. Push releases test their application variant and validate minification with the signed AAB. See [CI selection and caching](../../docs/store-releases.md) for history-based gating.
 
 ### Desktop (JVM)
 
@@ -53,10 +53,10 @@ Open `iosApp/` directory in Xcode and run from there.
 ./gradlew :composeApp:jvmTest --tests "*WebViewMessageTest*"   # Run specific test class
 ```
 
-For an Android smoke test, build `:composeApp:assembleDebug`, select an existing emulator or connected device with `adb devices -l`, and update the app without removing its data:
+For an Android smoke test, build `:androidApp:assembleDebug`, select an existing emulator or connected device with `adb devices -l`, and update the app without removing its data:
 
 ```shell
-adb -s <device> install -r -t composeApp/build/outputs/apk/debug/composeApp-debug.apk
+adb -s <device> install -r -t androidApp/build/outputs/apk/debug/androidApp-debug.apk
 adb -s <device> shell am start -W -n com.qcksys.ao3tracker/.MainActivity
 ```
 
@@ -83,11 +83,15 @@ Compiled JS is converted to Kotlin string constants in `build/generated/kotlin/w
 
 ### Source Set Structure
 
+- `androidApp/` - Android packaging, resources, build variants, and `AndroidApplication`, which passes build configuration to shared code before startup
+- `composeApp/` - KMP library on Android; application on iOS/JVM. Android activity, services, and UI stay in `androidMain/`
 - `commonMain/` - Shared Kotlin code for all platforms
 - `androidMain/` - Android-specific implementations
 - `iosMain/` - iOS-specific implementations
 - `jvmMain/` - Desktop JVM-specific implementations
 - `commonTest/` - Shared tests
+- `androidHostTest/`, `androidDeviceTest/` - Shared Android unit and device tests; device fixtures run in their own test application
+- `androidApp/src/test/`, `androidApp/src/androidTest/` - Build-variant contract tests and packaged app smoke tests
 
 ### Key Architectural Patterns
 
@@ -247,14 +251,14 @@ Names use the full row width, followed by up to five tag labels and a `+N more` 
 - Coil (image loading)
 - PostHog KMP (error tracking)
 
-Dependency versions are pinned in `gradle/libs.versions.toml`. Keep AGP on 8.13.2 and Gradle on 8.14.5 while Android and shared KMP code use one module. Compose 1.11.1, Lifecycle 2.10.0, Coil 3.5.0, and Ktor 3.5.2 are compatible upgrades for this build: newer releases require Android API 37 or AGP 9.1, whose KMP migration needs a separate Android app module. Do not bypass their AAR compatibility checks. Firebase Messaging uses its supported main module; the discontinued `firebase-messaging-ktx` artifact must not be restored.
+Dependency versions are pinned in `gradle/libs.versions.toml`. The build uses AGP 9.4.1, Gradle 9.6.0, and Android compile/target SDK 37 (SDK package `platforms;android-37.0`). Compose 1.12.1, Lifecycle 2.11.0, Coil 3.6.3, and Ktor 3.6.0 require the newer Android toolchain. Do not bypass AAR compatibility checks. Firebase Messaging uses its supported main module; the discontinued `firebase-messaging-ktx` artifact must not be restored.
 
-Kotlin 2.4 requires [R8 9.1.29 or newer](https://developer.android.com/build/kotlin-support). `settings.gradle.kts` uses the [supported R8 override](https://r8.googlesource.com/r8/+/refs/heads/main/README.md#replacing-r8-in-android-gradle-plugin) to pin 9.1.56 without migrating AGP. `gradle.properties` separately selects Lint 9.4.1 with Google's [newer Lint override](https://googlesamples.github.io/android-custom-lint-rules/usage/newer-lint.md.html). Validate these pins with a minified release bundle and its release lint tasks; debug builds alone do not exercise Kotlin metadata rewriting.
+Use AGP's bundled R8 and Lint; the old AGP 8 overrides have been removed. Keep `com.android.lint` applied to `composeApp` and dependency checking enabled in `androidApp` so lint includes shared code. Validate toolchain changes with a minified Dev build, release bundle, shared lint, and release lint; debug builds alone do not exercise Kotlin metadata rewriting.
 
 ## Configuration
 
-- API base URLs are set in `composeApp/build.gradle.kts` under `buildConfigField`
+- Android build defaults and server-selection permissions are set in `androidApp/build.gradle.kts` and passed through `AndroidApplication` to shared `AndroidAppConfiguration` before storage or diagnostics initialization. Shared KMP code must not depend on the app's `BuildConfig`.
 - Android Credential Manager reads the manifest's `asset_statements` resource. Production includes the production association URL; debug/dev resources include development and local URLs. Keep `CredManMissingDal` enabled. The selected relying-party hostname must resolve publicly and serve `/.well-known/assetlinks.json` as HTTP 200 JSON, without redirects. Its package and SHA-256 fingerprints must match the installed app, including the **Play app signing certificate**, which can differ from the upload certificate. The API's shared certificate list also controls accepted Android passkey origins. The dev package is associated only with non-production APIs.
-- ProGuard rules for release builds are in `composeApp/proguard-rules.pro`
+- ProGuard rules for release builds are in `androidApp/proguard-rules.pro`
 
 Crossover preferences: `maxFandoms` is a positive integer or `null` (no limit, including existing installs). A value of 1 injects `work_search[crossover]=F` into work-search URLs and GET forms; AO3 bookmark searches do not support that parameter. `applyFandomLimit` hides work/bookmark blurbs whose `.fandoms a.tag` count exceeds the limit, independently of manually hidden works, and restores them when relaxed or cleared. Saved-search matching includes the effective crossover filter. Native saved-search checks use the same limit on every page and include it in their baseline context. Native serialization omits a cleared `maxFandoms`; shared helpers treat either an absent or null value as unlimited.

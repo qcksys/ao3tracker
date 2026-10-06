@@ -112,7 +112,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
+          packages: "platform-tools platforms;android-37.0 build-tools;36.0.0"
           log-accepted-android-sdk-licenses: false
 
       - name: Restore native CI Gradle cache
@@ -148,7 +148,7 @@ jobs:
 
       - name: Test native code
         if: ${{ !inputs.ci_verified }}
-        run: bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:jvmTest -x :composeApp:vpInstall --no-configuration-cache --no-daemon
+        run: bash apps/native-kmp/gradlew -p apps/native-kmp :composeApp:jvmTest :composeApp:testAndroidHostTest :androidApp:testDebugUnitTest -x :composeApp:vpInstall --no-configuration-cache --no-daemon
 
       - name: Build signed release bundle
         env:
@@ -172,10 +172,10 @@ jobs:
           umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           vp exec posthog-cli --version
-          vp exec bash apps/native-kmp/gradlew -p apps/native-kmp ":composeApp:$ANDROID_BUNDLE_TASK" -x :composeApp:vpInstall --no-configuration-cache --build-cache --no-daemon
-          test -s "apps/native-kmp/composeApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/composeApp-$ANDROID_BUILD_TYPE.aab"
-          test -s "apps/native-kmp/composeApp/build/outputs/mapping/$ANDROID_BUILD_TYPE/mapping.txt"
-          jarsigner -verify "apps/native-kmp/composeApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/composeApp-$ANDROID_BUILD_TYPE.aab" > "$RUNNER_TEMP/android-bundle-verification.txt"
+          vp exec bash apps/native-kmp/gradlew -p apps/native-kmp ":androidApp:test${ANDROID_BUNDLE_TASK#bundle}UnitTest" ":androidApp:$ANDROID_BUNDLE_TASK" -x :composeApp:vpInstall --no-configuration-cache --build-cache --no-daemon
+          test -s "apps/native-kmp/androidApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/androidApp-$ANDROID_BUILD_TYPE.aab"
+          test -s "apps/native-kmp/androidApp/build/outputs/mapping/$ANDROID_BUILD_TYPE/mapping.txt"
+          jarsigner -verify "apps/native-kmp/androidApp/build/outputs/bundle/$ANDROID_BUILD_TYPE/androidApp-$ANDROID_BUILD_TYPE.aab" > "$RUNNER_TEMP/android-bundle-verification.txt"
           grep -q 'jar verified\.' "$RUNNER_TEMP/android-bundle-verification.txt"
 
       - name: Save release bundle and mapping
@@ -183,8 +183,8 @@ jobs:
         with:
           name: android-${{ inputs.channel }}-${{ steps.version.outputs.android_version_name }}-${{ steps.version.outputs.android_version_code }}
           path: |
-            apps/native-kmp/composeApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/composeApp-${{ env.ANDROID_BUILD_TYPE }}.aab
-            apps/native-kmp/composeApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
+            apps/native-kmp/androidApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/androidApp-${{ env.ANDROID_BUILD_TYPE }}.aab
+            apps/native-kmp/androidApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -206,12 +206,12 @@ jobs:
         with:
           serviceAccountJson: ${{ runner.temp }}/google-play-service-account.json
           packageName: ${{ env.ANDROID_PACKAGE_NAME }}
-          releaseFiles: apps/native-kmp/composeApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/composeApp-${{ env.ANDROID_BUILD_TYPE }}.aab
+          releaseFiles: apps/native-kmp/androidApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/androidApp-${{ env.ANDROID_BUILD_TYPE }}.aab
           tracks: ${{ inputs.tracks }}
           status: ${{ inputs.status }}
           releaseName: ${{ inputs.channel }}-${{ steps.version.outputs.android_version_name }}
           whatsNewDirectory: ${{ runner.temp }}/android-release-notes/whatsnew
-          mappingFile: apps/native-kmp/composeApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
+          mappingFile: apps/native-kmp/androidApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt
 
       - name: Remove temporary signing credentials
         if: ${{ always() }}

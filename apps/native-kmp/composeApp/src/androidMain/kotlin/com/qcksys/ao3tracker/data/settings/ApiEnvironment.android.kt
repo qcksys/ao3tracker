@@ -1,5 +1,5 @@
 package com.qcksys.ao3tracker.data.settings
 
-import com.qcksys.ao3tracker.BuildConfig
+import com.qcksys.ao3tracker.androidAppConfiguration
 
-actual fun defaultApiEnvironment(): ApiEnvironment = ApiEnvironment.valueOf(BuildConfig.API_ENVIRONMENT)
+actual fun defaultApiEnvironment(): ApiEnvironment = androidAppConfiguration.apiEnvironment

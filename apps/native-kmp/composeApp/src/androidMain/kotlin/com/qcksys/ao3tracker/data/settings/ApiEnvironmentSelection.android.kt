@@ -1,5 +1,5 @@
 package com.qcksys.ao3tracker.data.settings
 
-import com.qcksys.ao3tracker.BuildConfig
+import com.qcksys.ao3tracker.androidAppConfiguration
 
-actual fun supportsApiEnvironmentSelection(): Boolean = BuildConfig.API_ENVIRONMENT_SELECTION_ENABLED
+actual fun supportsApiEnvironmentSelection(): Boolean = androidAppConfiguration.apiEnvironmentSelectionEnabled

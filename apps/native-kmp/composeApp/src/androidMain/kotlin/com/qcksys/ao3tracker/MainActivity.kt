@@ -7,10 +7,10 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.tooling.preview.Preview
 import com.qcksys.ao3tracker.data.auth.getAndroidCredentialHelper
 import com.qcksys.ao3tracker.data.auth.initializeCredentialHelper
@@ -33,8 +33,13 @@ class MainActivity : ComponentActivity() {
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        WindowCompat.enableEdgeToEdge(window)
+        // Ao3TrackerTheme uses a dark palette independently of the device theme.
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
 
         // Initialize database with context
         initializeDatabase(applicationContext)

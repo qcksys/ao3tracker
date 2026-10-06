@@ -20,6 +20,7 @@ class ReaderLinkTest {
         assertEquals("A / B & C. ? # D+E", link.tag)
         assertEquals("Café", ReaderLink("https://archiveofourown.org/tags/Caf%C3%A9").tag)
         assertEquals("A/B", ReaderLink("https://archiveofourown.org/tags/A%2As%2AB/works").tag)
+        assertEquals("%ZZ", ReaderLink("https://archiveofourown.org/tags/%25ZZ/works").tag)
     }
 
     @Test
@@ -37,7 +38,9 @@ class ReaderLinkTest {
         listOf("search", "0", "-1", "123abc", "999999999999999999999").forEach {
             assertNull(ReaderLink("https://archiveofourown.org/works/$it").workId)
         }
-        assertNull(ReaderLink("https://archiveofourown.org/tags/%ZZ").tag)
+        listOf("%ZZ", "%", "%2", "%2Z").forEach {
+            assertNull(ReaderLink("https://archiveofourown.org/tags/$it").tag)
+        }
         assertNull(ReaderLink("https://archiveofourown.org/tags/%20/works").tag)
     }
 }
