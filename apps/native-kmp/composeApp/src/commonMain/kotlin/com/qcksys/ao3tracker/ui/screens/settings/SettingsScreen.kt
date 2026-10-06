@@ -1355,7 +1355,7 @@ private fun formatLastSyncTime(iso8601: String): String {
         val instant = Instant.parse(iso8601)
         val localDateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
         val month = localDateTime.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-        val day = localDateTime.dayOfMonth
+        val day = localDateTime.day
         val year = localDateTime.year
         val hour = localDateTime.hour
         val minute = localDateTime.minute.toString().padStart(2, '0')
@@ -1595,7 +1595,7 @@ private fun formatNotificationTime(iso8601: String): String {
         val instant = Instant.parse(iso8601)
         val localDateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())
         val month = localDateTime.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
-        val day = localDateTime.dayOfMonth
+        val day = localDateTime.day
         val hour = localDateTime.hour
         val minute = localDateTime.minute.toString().padStart(2, '0')
         val amPm = if (hour < 12) "AM" else "PM"

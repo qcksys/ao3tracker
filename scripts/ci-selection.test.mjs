@@ -59,6 +59,12 @@ test("ordinary native PRs keep tests and Debug; risky changes and opt-in add min
     ["checks"],
   );
   assert.match(ordinary.matrix.include[0].tasks, /jvmTest.*assembleDebug/);
+  for (const task of [
+    ":composeApp:testAndroidHostTest",
+    ":androidApp:testDebugUnitTest",
+    ":androidApp:assembleDebug",
+  ])
+    assert.ok(ordinary.matrix.include[0].tasks.split(" ").includes(task));
   const forced = nativePlan(
     "pull_request",
     pr(head, head, [{ name: "ci:android-minify" }]),
@@ -67,12 +73,18 @@ test("ordinary native PRs keep tests and Debug; risky changes and opt-in add min
   );
   assert.equal(forced.required, true);
   assert.equal(forced.matrix.include.length, 2);
+  assert.doesNotMatch(ordinary.matrix.include[0].tasks, /(?:Dev|Release)UnitTest|assembleDev/);
+  assert.equal(
+    forced.matrix.include[1].tasks,
+    ":androidApp:testDevUnitTest :androidApp:testReleaseUnitTest :androidApp:assembleDev",
+  );
   for (const path of [
     "pnpm-lock.yaml",
     "apps/native-kmp/gradle/libs.versions.toml",
     "apps/native-kmp/composeApp/build.gradle.kts",
-    "apps/native-kmp/composeApp/proguard-rules.pro",
-    "apps/native-kmp/composeApp/src/main/AndroidManifest.xml",
+    "apps/native-kmp/androidApp/build.gradle.kts",
+    "apps/native-kmp/androidApp/proguard-rules.pro",
+    "apps/native-kmp/androidApp/src/main/AndroidManifest.xml",
   ]) {
     const next = await repo.commit(path);
     assert.equal(

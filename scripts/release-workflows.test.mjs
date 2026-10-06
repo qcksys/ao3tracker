@@ -358,6 +358,47 @@ test("automatic Android releases reuse CI tests for the same source commit", asy
   assert.match(sharedTests.run, /ao3tracker-webview-scripts test/);
 });
 
+test("Android checks and publishing use the API 37 application module", async () => {
+  const hook = await readFile(new URL("../.vite-hooks/pre-push", import.meta.url), "utf8");
+  for (const task of [
+    ":composeApp:jvmTest",
+    ":composeApp:testAndroidHostTest",
+    ":androidApp:testDebugUnitTest",
+    ":composeApp:connectedAndroidDeviceTest",
+    ":androidApp:connectedDebugAndroidTest",
+  ]) {
+    assert.ok(hook.includes(task), `Pre-push must run ${task}`);
+  }
+  assert.doesNotMatch(hook, /:composeApp:(testDebugUnitTest|connectedDebugAndroidTest)/);
+  const ci = (await workflow("ci")).jobs.native;
+  const { steps } = (await workflow("release-android")).jobs.release;
+  for (const list of [ci.steps, steps]) {
+    assert.ok(
+      list.some(
+        (step) =>
+          step.with?.packages === "platform-tools platforms;android-37.0 build-tools;36.0.0",
+      ),
+    );
+  }
+  assert.ok(
+    ci.steps.some(
+      (step) =>
+        step.with?.path ===
+        "apps/native-kmp/androidApp/build/outputs/apk/debug/androidApp-debug.apk",
+    ),
+  );
+  const publish = steps.find((step) => step.with?.releaseFiles);
+  assert.equal(
+    publish.with.releaseFiles,
+    "apps/native-kmp/androidApp/build/outputs/bundle/${{ env.ANDROID_BUILD_TYPE }}/androidApp-${{ env.ANDROID_BUILD_TYPE }}.aab",
+  );
+  assert.equal(
+    publish.with.mappingFile,
+    "apps/native-kmp/androidApp/build/outputs/mapping/${{ env.ANDROID_BUILD_TYPE }}/mapping.txt",
+  );
+  assert.ok(steps.some((step) => step.run?.includes('":androidApp:$ANDROID_BUNDLE_TASK"')));
+});
+
 test("Android releases restore CI task outputs without publishing signed build caches", async () => {
   const ci = (await workflow("ci")).jobs.native;
   assert.equal(ci.strategy.matrix, "${{ fromJSON(needs.workspace.outputs.native_matrix) }}");
@@ -385,6 +426,7 @@ test("Android releases restore CI task outputs without publishing signed build c
     assert.equal(setup.with["cache-provider"], "external");
   }
   const bundle = steps.find((step) => step.name === "Build signed release bundle");
+  assert.ok(bundle.run.includes(":androidApp:test${ANDROID_BUNDLE_TASK#bundle}UnitTest"));
   assert.ok(steps.indexOf(cache) < steps.indexOf(bundle));
   assert.match(bundle.run, /--build-cache/);
   assert.doesNotMatch(bundle.run, /--no-build-cache/);

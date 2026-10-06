@@ -143,6 +143,30 @@ describe("offline reader", () => {
     expect(window.scrollTo).toHaveBeenCalledTimes(2);
   });
 
+  it.each(["scroll", "pending progress"])(
+    "preserves reading position when layout changes before its notification during %s",
+    async (trigger) => {
+      const messages = install();
+      await vi.advanceTimersByTimeAsync(100);
+      document.dispatchEvent(new Event("pointerdown"));
+      if (trigger === "pending progress") {
+        vi.mocked(computeChapterScrollPercentage).mockReturnValue(50);
+        window.dispatchEvent(new Event("scroll"));
+      }
+      const chapters = document.getElementById("chapters");
+      if (!chapters) throw new Error("Missing chapter fixture");
+      const bounds = chapters.getBoundingClientRect();
+      vi.spyOn(chapters, "getBoundingClientRect").mockReturnValue(
+        new DOMRect(bounds.x, bounds.y, bounds.width, 4000),
+      );
+      vi.mocked(computeChapterScrollPercentage).mockReturnValue(25);
+      if (trigger === "scroll") window.dispatchEvent(new Event("scroll"));
+      await vi.advanceTimersByTimeAsync(150);
+      expect(messages).toEqual([{ type: "offlineReady", token: "active" }]);
+      expect(window.scrollTo).toHaveBeenLastCalledWith(0, Math.max(0, 2100 - window.innerHeight));
+    },
+  );
+
   it("preserves in-page anchors without replacing the document", async () => {
     const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {});
     const messages = install({ fragment: "notes" });

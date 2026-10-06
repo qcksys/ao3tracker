@@ -115,7 +115,7 @@ jobs:
           java-version: 21
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          packages: "platform-tools platforms;android-36 build-tools;35.0.0"
+          packages: "platform-tools platforms;android-37.0 build-tools;36.0.0"
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
         with:
@@ -156,13 +156,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
       - name: Test reports
-        if: always() && matrix.target == 'checks'
+        if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: native-test-reports
+          name: native-test-reports-${{ matrix.target }}
           path: |
             apps/native-kmp/composeApp/build/reports/tests/
             apps/native-kmp/composeApp/build/test-results/
+            apps/native-kmp/androidApp/build/reports/tests/
+            apps/native-kmp/androidApp/build/test-results/
           if-no-files-found: ignore
           retention-days: 14
       - name: Android debug APK
@@ -170,7 +172,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: android-debug
-          path: apps/native-kmp/composeApp/build/outputs/apk/debug/composeApp-debug.apk
+          path: apps/native-kmp/androidApp/build/outputs/apk/debug/androidApp-debug.apk
           if-no-files-found: error
           retention-days: 14
 

@@ -25,7 +25,7 @@ for beta in (False, True):
     common = NATIVE / "composeApp/src/commonMain/composeResources/drawable"
     save_png(source, common / ("app_logo_beta.png" if beta else "app_logo.png"), 256)
 
-    android = NATIVE / "composeApp/src" / ("dev" if beta else "androidMain") / "res"
+    android = NATIVE / "androidApp/src" / ("dev" if beta else "main") / "res"
     save_png(source, android / "drawable-nodpi/app_icon.png", 432)
     for density, size in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhdpi", 192)):
         for name in ("ic_launcher", "ic_launcher_round"):

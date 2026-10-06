@@ -7,15 +7,14 @@ import java.time.format.DateTimeFormatter
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidApplication)
+    alias(libs.plugins.androidKmpLibrary)
+    alias(libs.plugins.androidLint)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
-    alias(libs.plugins.googleServices)
-    alias(libs.plugins.posthog)
 }
 
 // WebView Scripts build configuration
@@ -25,7 +24,7 @@ val generatedKotlinDir = layout.buildDirectory.dir("generated/kotlin/webview")
 val generatedBuildInfoDir = layout.buildDirectory.dir("generated/kotlin/build-info")
 val desktopVersion = "1.0.0"
 
-val generateAppBuildInfo by tasks.registering {
+val generateAppBuildInfo = tasks.register("generateAppBuildInfo") {
     val version = desktopVersion
     val buildTimeOverride = providers.environmentVariable("APP_BUILD_TIME_UTC")
     inputs.property("desktopVersion", version)
@@ -55,7 +54,7 @@ val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val vpCommand = if (isWindows) listOf("cmd", "/c", "vp") else listOf("vp")
 
 
-val generateAo3Languages by tasks.registering {
+val generateAo3Languages = tasks.register("generateAo3Languages") {
     val sourceFile = workspaceRoot.resolve("packages/ao3-core/src/languages.json")
     val outputFile = generatedKotlinDir.get().file("Ao3Languages.kt").asFile
     inputs.file(sourceFile)
@@ -74,7 +73,7 @@ val generateAo3Languages by tasks.registering {
 }
 
 // Install at the workspace root to resolve the shared package links.
-val vpInstall by tasks.registering(Exec::class) {
+val vpInstall = tasks.register<Exec>("vpInstall") {
     workingDir = workspaceRoot
     commandLine = vpCommand + listOf("install", "--frozen-lockfile")
     inputs.file(workspaceRoot.resolve("pnpm-lock.yaml"))
@@ -82,7 +81,7 @@ val vpInstall by tasks.registering(Exec::class) {
     outputs.dir(webviewScriptsDir.resolve("node_modules"))
 }
 
-val compileWebviewScripts by tasks.registering(Exec::class) {
+val compileWebviewScripts = tasks.register<Exec>("compileWebviewScripts") {
     dependsOn(vpInstall)
     workingDir = webviewScriptsDir
     commandLine = vpCommand + listOf("run", "build")
@@ -98,7 +97,7 @@ val compileWebviewScripts by tasks.registering(Exec::class) {
 }
 
 // Task to generate Kotlin source files from compiled JS
-val generateWebviewScriptKotlin by tasks.registering {
+val generateWebviewScriptKotlin = tasks.register("generateWebviewScriptKotlin") {
     dependsOn(compileWebviewScripts)
 
     val trackingJsFile = webviewScriptsDir.resolve("dist/ao3-tracking.min.js")
@@ -230,7 +229,15 @@ kotlin {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 
-    androidTarget {
+    android {
+        namespace = "com.qcksys.ao3tracker.shared"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+        androidResources { enable = true }
+        withHostTest { isIncludeAndroidResources = true }
+        withDeviceTest {
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
         }
@@ -256,7 +263,6 @@ kotlin {
             kotlin.srcDir(generatedBuildInfoDir)
         }
         androidMain.dependencies {
-            implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.webkit)
             implementation(libs.koin.android)
@@ -268,12 +274,12 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(libs.posthog.kmp)
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
+            implementation(libs.compose.resources)
+            implementation(libs.compose.preview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
@@ -302,7 +308,7 @@ kotlin {
             implementation(libs.coil.compose)
 
             // Material Icons Extended
-            implementation(compose.materialIconsExtended)
+            implementation(libs.compose.materialIconsExtended)
 
             // Ktor HTTP Client
             implementation(libs.ktor.client.core)
@@ -320,10 +326,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.turbine)
         }
-        androidUnitTest.dependencies {
+        getByName("androidHostTest").dependencies {
             implementation(libs.robolectric)
         }
-        androidInstrumentedTest.dependencies {
+        getByName("androidDeviceTest").dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.androidx.testExt.junit)
             implementation(libs.androidx.espresso.core)
@@ -334,110 +340,12 @@ kotlin {
             implementation(libs.ktor.client.java)
         }
         jvmTest.dependencies {
-            implementation(compose.desktop.uiTestJUnit4)
+            implementation(libs.compose.uiTestJunit4)
         }
-    }
-}
-
-val releaseVersionCode = providers.environmentVariable("ANDROID_VERSION_CODE").orNull?.let { value ->
-    require(value.matches(Regex("[1-9][0-9]{0,9}"))) {
-        "ANDROID_VERSION_CODE must be an integer between 1 and 2100000000"
-    }
-    val code = value.toLong()
-    require(code <= 2_100_000_000L) { "ANDROID_VERSION_CODE must not exceed 2100000000" }
-    code.toInt()
-} ?: 20
-
-val releaseVersionName = providers.environmentVariable("ANDROID_VERSION_NAME").orNull?.also { value ->
-    require(value.length <= 128 && value.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?"))) {
-        "ANDROID_VERSION_NAME must be a version such as 1.2.3 or 1.2.3-rc.1 (maximum 128 characters)"
-    }
-} ?: "0.1.0"
-
-val releaseSigning = listOf(
-    "ANDROID_KEYSTORE_PATH",
-    "ANDROID_KEYSTORE_PASSWORD",
-    "ANDROID_KEY_ALIAS",
-    "ANDROID_KEY_PASSWORD"
-).associateWith { providers.environmentVariable(it).orNull }
-val hasReleaseSigning = releaseSigning.values.any { it != null }
-require(!hasReleaseSigning || releaseSigning.values.all { !it.isNullOrBlank() }) {
-    "Release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD together"
-}
-val releaseKeystore = releaseSigning["ANDROID_KEYSTORE_PATH"]?.let(rootProject::file)
-require(releaseKeystore == null || releaseKeystore.isFile) { "ANDROID_KEYSTORE_PATH must name an existing keystore file" }
-
-android {
-    namespace = "com.qcksys.ao3tracker"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-
-    defaultConfig {
-        applicationId = "com.qcksys.ao3tracker"
-        minSdk = libs.versions.android.minSdk.get().toInt()
-        targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = releaseVersionCode
-        versionName = releaseVersionName
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "false")
-        buildConfigField("String", "API_ENVIRONMENT", "\"PRODUCTION\"")
-        buildConfigField("String", "AUTH_BASE_URL", "\"https://ao3tracker.com/auth\"")
-        buildConfigField("String", "API_BASE_URL", "\"https://ao3tracker.com/api\"")
-    }
-
-    buildFeatures {
-        buildConfig = true
-    }
-    testOptions {
-        unitTests.isIncludeAndroidResources = true
-    }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-    if (hasReleaseSigning) {
-        signingConfigs.create("release") {
-            storeFile = releaseKeystore
-            storePassword = releaseSigning.getValue("ANDROID_KEYSTORE_PASSWORD")
-            keyAlias = releaseSigning.getValue("ANDROID_KEY_ALIAS")
-            keyPassword = releaseSigning.getValue("ANDROID_KEY_PASSWORD")
-        }
-    }
-    buildTypes {
-        getByName("debug") {
-            buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "true")
-        }
-        getByName("release") {
-            if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-            ndk {
-                debugSymbolLevel = "FULL"
-            }
-        }
-        create("dev") {
-            initWith(getByName("release"))
-            applicationIdSuffix = ".dev"
-            matchingFallbacks += "release"
-            buildConfigField("boolean", "API_ENVIRONMENT_SELECTION_ENABLED", "true")
-            buildConfigField("String", "API_ENVIRONMENT", "\"DEV\"")
-            buildConfigField("String", "AUTH_BASE_URL", "\"https://dev.ao3tracker.com/auth\"")
-            buildConfigField("String", "API_BASE_URL", "\"https://dev.ao3tracker.com/api\"")
-        }
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 
 dependencies {
-    debugImplementation(compose.uiTooling)
     add("kspAndroid", libs.room.compiler)
     add("kspIosArm64", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
@@ -466,9 +374,4 @@ compose.desktop {
 
 room {
     schemaDirectory("$projectDir/schemas")
-}
-
-tasks.withType<com.posthog.android.PostHogCliExecTask>().configureEach {
-    // Local and PR builds still embed mapping IDs, but only release jobs upload symbols.
-    onlyIf { providers.environmentVariable("POSTHOG_CLI_API_KEY").isPresent }
 }

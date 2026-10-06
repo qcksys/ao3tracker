@@ -1,14 +1,20 @@
 package com.qcksys.ao3tracker.ui.navigation
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -56,23 +62,40 @@ class MainScreen : Screen {
                 }
             }
 
-            Scaffold(
-                bottomBar = {
-                    AppNavigationBar(isWebViewLoading)
-                }
-            ) { paddingValues ->
-                Box(modifier = Modifier.padding(PaddingValues(bottom = paddingValues.calculateBottomPadding()))) {
-                    CurrentTab()
-                    OfflineDownloadHost()
-                }
+            MainScreenScaffold(isWebViewLoading) {
+                CurrentTab()
+                OfflineDownloadHost()
             }
         }
     }
 }
 
 @Composable
-internal fun AppNavigationBar(isWebViewLoading: Boolean) {
+internal fun MainScreenScaffold(
+    isWebViewLoading: Boolean,
+    windowInsets: WindowInsets = WindowInsets.safeDrawing,
+    content: @Composable () -> Unit
+) {
+    Scaffold(
+        modifier = Modifier.imePadding(),
+        contentWindowInsets = windowInsets,
+        bottomBar = {
+            AppNavigationBar(isWebViewLoading, windowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+        }
+    ) { paddingValues ->
+        Box(Modifier.padding(paddingValues).consumeWindowInsets(paddingValues)) {
+            content()
+        }
+    }
+}
+
+@Composable
+internal fun AppNavigationBar(
+    isWebViewLoading: Boolean,
+    windowInsets: WindowInsets = NavigationBarDefaults.windowInsets
+) {
     NavigationBar(
+        windowInsets = windowInsets,
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {

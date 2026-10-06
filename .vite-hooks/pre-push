@@ -4,6 +4,8 @@ vp run -r test
 
 sh apps/native-kmp/gradlew -p apps/native-kmp \
   :composeApp:jvmTest \
-  :composeApp:testDebugUnitTest \
-  :composeApp:connectedDebugAndroidTest \
-  --no-configuration-cache
+  :composeApp:testAndroidHostTest \
+  :androidApp:testDebugUnitTest \
+  :composeApp:connectedAndroidDeviceTest \
+  :androidApp:connectedDebugAndroidTest \
+  --no-configuration-cache --no-problems-report

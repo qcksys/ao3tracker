@@ -10,7 +10,6 @@ import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.qcksys.ao3tracker.MainActivity
-import com.qcksys.ao3tracker.R
 import com.qcksys.ao3tracker.data.push.PushTokenStorage
 import com.qcksys.ao3tracker.data.push.getPushTokenStorage
 import com.qcksys.ao3tracker.data.settings.AppSettings
@@ -100,7 +99,7 @@ class Ao3FirebaseMessagingService : FirebaseMessagingService() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher) // Use launcher icon for now
+            .setSmallIcon(applicationInfo.icon)
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)

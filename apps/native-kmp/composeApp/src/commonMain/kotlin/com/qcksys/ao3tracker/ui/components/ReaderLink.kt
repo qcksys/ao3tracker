@@ -1,11 +1,12 @@
 package com.qcksys.ao3tracker.ui.components
 
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
+import com.qcksys.ao3tracker.util.hasValidPercentEncoding
 import io.ktor.http.Url
 import io.ktor.http.decodeURLPart
 
 data class ReaderLink(val url: String, val title: String? = null) {
-    private val path: String? = if (isTrustedAo3Url(url)) {
+    private val path: String? = if (isTrustedAo3Url(url) && hasValidPercentEncoding(url)) {
         runCatching { Url(url).encodedPath }.getOrNull()
     } else null
 

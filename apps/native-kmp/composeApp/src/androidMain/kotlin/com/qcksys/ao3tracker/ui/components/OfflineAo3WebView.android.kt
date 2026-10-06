@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.ui.components
 
 import android.annotation.SuppressLint
+import android.view.ViewGroup
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -12,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
@@ -23,6 +25,7 @@ import com.qcksys.ao3tracker.data.offline.OFFLINE_ORIGIN
 import com.qcksys.ao3tracker.data.offline.OfflineReaderDocument
 import com.qcksys.ao3tracker.data.offline.OfflineReaderEvent
 import java.io.ByteArrayInputStream
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal actual fun supportsOfflineReading(): Boolean = WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)
 
@@ -45,6 +48,7 @@ internal actual fun OfflineAo3WebView(
         return
     }
     key(document.token) {
+        val released = remember { AtomicBoolean(false) }
         AndroidView(
             modifier = modifier,
             factory = { context ->
@@ -69,29 +73,32 @@ internal actual fun OfflineAo3WebView(
                         )
                     }.build()
                     WebViewCompat.addWebMessageListener(this, "OfflineBridge", setOf(OFFLINE_ORIGIN)) { view, message, origin, mainFrame, _ ->
-                        if (mainFrame && origin.toString() == OFFLINE_ORIGIN && document.isDocumentUrl(view.url)) {
+                        if (!released.get() && mainFrame && origin.toString() == OFFLINE_ORIGIN && document.isDocumentUrl(view.url)) {
                             message.data?.let { document.event(it) }?.let(event)
                         }
                     }
                     webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse =
-                            if (document.isActive() && request?.method == "GET") loader.shouldInterceptRequest(request.url) ?: blockedOfflineRequest()
+                            if (!released.get() && document.isActive() && request?.method == "GET") loader.shouldInterceptRequest(request.url) ?: blockedOfflineRequest()
                             else blockedOfflineRequest()
 
                         override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
                             request?.isForMainFrame != true || !document.isDocumentUrl(request.url.toString())
 
                         override fun onPageFinished(view: WebView, url: String?) {
-                            if (document.isDocumentUrl(url)) view.evaluateJavascript(document.initializationScript(), null)
+                            if (!released.get() && document.isDocumentUrl(url)) view.evaluateJavascript(document.initializationScript(), null)
                         }
 
                         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                            if (request?.isForMainFrame == true && document.isActive()) failure()
+                            if (!released.get() && request?.isForMainFrame == true && document.isActive()) failure()
                         }
 
                         override fun onRenderProcessGone(view: WebView?, detail: RenderProcessGoneDetail?): Boolean {
-                            view?.destroy()
-                            failure()
+                            if (released.compareAndSet(false, true)) {
+                                (view?.parent as? ViewGroup)?.removeView(view)
+                                view?.destroy()
+                                failure()
+                            }
                             return true
                         }
                     }
@@ -99,9 +106,11 @@ internal actual fun OfflineAo3WebView(
                 }
             },
             onRelease = { view ->
-                view.stopLoading()
-                WebViewCompat.removeWebMessageListener(view, "OfflineBridge")
-                view.destroy()
+                if (released.compareAndSet(false, true)) {
+                    view.stopLoading()
+                    // Let destruction release the bridge: explicit removal races pending messages in WebView 124.
+                    view.destroy()
+                }
             }
         )
     }
