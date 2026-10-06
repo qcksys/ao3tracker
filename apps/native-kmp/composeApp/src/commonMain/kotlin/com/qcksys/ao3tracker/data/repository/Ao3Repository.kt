@@ -697,7 +697,7 @@ class Ao3Repository(private val accountData: AccountDataStore) {
                 val day = parts[2].toIntOrNull() ?: return null
                 // Convert to epoch millis (start of day UTC)
                 val localDate = kotlinx.datetime.LocalDate(year, month, day)
-                localDate.toEpochDays().toLong() * 24L * 60L * 60L * 1000L
+                localDate.toEpochDays() * 24L * 60L * 60L * 1000L
             } else {
                 null
             }

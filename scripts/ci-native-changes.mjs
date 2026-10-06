@@ -71,12 +71,17 @@ export function nativePlan(eventName, event, base, cwd = process.cwd()) {
   const include = [
     {
       target: "checks",
-      name: "JVM tests and Android Debug",
-      tasks: ":composeApp:jvmTest :composeApp:assembleDebug",
+      name: "Native tests and Android Debug",
+      tasks:
+        ":composeApp:jvmTest :composeApp:testAndroidHostTest :androidApp:testDebugUnitTest :androidApp:assembleDebug",
     },
   ];
   if (minify)
-    include.push({ target: "dev", name: "Android Dev build", tasks: ":composeApp:assembleDev" });
+    include.push({
+      target: "dev",
+      name: "Android Dev build and release tests",
+      tasks: ":androidApp:testDevUnitTest :androidApp:testReleaseUnitTest :androidApp:assembleDev",
+    });
   return { required, matrix: { include } };
 }
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<lint>
+    <!-- Room-generated JVM implementations call Room's restricted runtime APIs. -->
+    <issue id="RestrictedApi">
+        <ignore path="build/generated/ksp/jvm/jvmMain/kotlin/com/qcksys/ao3tracker/data/database/" />
+    </issue>
+</lint>

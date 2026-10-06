@@ -11,9 +11,13 @@ import com.qcksys.ao3tracker.push.Ao3FirebaseMessagingService
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 
-class Ao3TrackerApplication : Application() {
+open class Ao3TrackerApplication : Application() {
+    protected open val configuration = AndroidAppConfiguration()
+
     override fun onCreate() {
         super.onCreate()
+
+        initializeAndroidAppConfiguration(configuration)
 
         initializePushTokenStorage(this)
         initializeSettingsStorage(this)
@@ -24,7 +28,7 @@ class Ao3TrackerApplication : Application() {
         PostHogCrashReporter.initialize(PostHogContext(this))
 
         // Initialize Napier logging
-        if (BuildConfig.DEBUG) {
+        if (configuration.debug) {
             Napier.base(DebugAntilog())
         }
     }

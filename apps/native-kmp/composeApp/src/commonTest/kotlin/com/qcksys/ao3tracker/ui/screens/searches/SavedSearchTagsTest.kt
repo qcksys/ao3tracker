@@ -37,6 +37,9 @@ class SavedSearchTagsTest {
     fun handlesEmptySearchesAndMalformedPaths() {
         assertEquals(emptyList(), savedSearchTags("https://archiveofourown.org/works?work_search[query]=hello"))
         assertEquals(emptyList(), savedSearchTags("not a URL"))
-        assertEquals(emptyList(), savedSearchTags("https://archiveofourown.org/tags/%ZZ/works?work_search[tag_names]=Fluff"))
+        listOf("%ZZ", "%", "%2", "%2Z").forEach {
+            assertEquals(emptyList(), savedSearchTags("https://archiveofourown.org/tags/$it/works?work_search[tag_names]=Fluff"))
+        }
+        assertEquals(listOf("%ZZ"), savedSearchTags("https://archiveofourown.org/tags/%25ZZ/works"))
     }
 }

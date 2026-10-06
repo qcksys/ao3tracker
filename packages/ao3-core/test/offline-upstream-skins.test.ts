@@ -5,7 +5,7 @@ import { expect, it } from "vite-plus/test";
 import { captureOfflinePage, prepareOfflinePage } from "../src/offline";
 
 const fixtureDirectory = resolve(
-  "../../apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins",
+  "../../apps/native-kmp/composeApp/src/androidDeviceTest/assets/ao3-skins",
 );
 const files = readdirSync(fixtureDirectory).filter((name) => name.endsWith(".css.txt"));
 it.each(files)("prepares the upstream AO3 stylesheet %s", async (file) => {

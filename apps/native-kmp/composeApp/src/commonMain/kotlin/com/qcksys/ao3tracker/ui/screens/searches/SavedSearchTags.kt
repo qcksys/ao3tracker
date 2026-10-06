@@ -1,9 +1,11 @@
 package com.qcksys.ao3tracker.ui.screens.searches
 
+import com.qcksys.ao3tracker.util.hasValidPercentEncoding
 import io.ktor.http.Url
 import io.ktor.http.decodeURLPart
 
 internal fun savedSearchTags(href: String): List<String> {
+    if (!hasValidPercentEncoding(href)) return emptyList()
     val url = runCatching { Url(href) }.getOrNull() ?: return emptyList()
     val tags = linkedSetOf<String>()
     fun add(raw: String, field: String, excluded: Boolean = false) {

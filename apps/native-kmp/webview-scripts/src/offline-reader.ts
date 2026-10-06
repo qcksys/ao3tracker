@@ -14,8 +14,21 @@ export function installOfflineReader(
   let readingPercentage = options.scrollPercentage;
   let layoutVersion = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const appearance = win.matchMedia("(prefers-color-scheme: dark)");
+  const measureLayout = () =>
+    [
+      win.innerWidth,
+      win.innerHeight,
+      doc.getElementById("chapters")?.getBoundingClientRect().height,
+      appearance.matches,
+    ].join(":");
+  let currentLayout = measureLayout();
   const postProgress = () => {
     if (!ready || !interacting || stopped) return;
+    if (measureLayout() !== currentLayout) {
+      void resize();
+      return;
+    }
     const value = computeChapterScrollPercentage(doc, win);
     if (value === null || !Number.isFinite(value)) return;
     const percentage = Math.max(0, Math.min(100, Math.floor(value)));
@@ -26,6 +39,11 @@ export function installOfflineReader(
   };
   const scroll = () => {
     if (!ready || !interacting || stopped) return;
+    // WebView can deliver a scroll before the resize or media-query notification.
+    if (measureLayout() !== currentLayout) {
+      void resize();
+      return;
+    }
     const value = computeChapterScrollPercentage(doc, win);
     if (value !== null && Number.isFinite(value)) readingPercentage = value;
     clearTimeout(timer);
@@ -44,6 +62,7 @@ export function installOfflineReader(
     );
   };
   const restorePercentage = () => {
+    currentLayout = measureLayout();
     const chapters = doc.getElementById("chapters");
     if (!chapters) return;
     const rect = chapters.getBoundingClientRect();
@@ -63,7 +82,6 @@ export function installOfflineReader(
     await afterLayout();
     if (!stopped && version === layoutVersion) restorePercentage();
   };
-  const appearance = win.matchMedia("(prefers-color-scheme: dark)");
   const fragment = (hash: string): boolean => {
     try {
       const element = doc.getElementById(decodeURIComponent(hash.replace(/^#/, "")));

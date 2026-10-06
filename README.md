@@ -57,14 +57,14 @@ See [API local secrets](apps/api/README.md#local-secrets-in-1password) for the t
 Native builds use Gradle separately from the workspace JavaScript tasks. From the repository root on macOS/Linux:
 
 ```bash
-./apps/native-kmp/gradlew -p apps/native-kmp :composeApp:assembleDebug
+./apps/native-kmp/gradlew -p apps/native-kmp :androidApp:assembleDebug
 ./apps/native-kmp/gradlew -p apps/native-kmp :composeApp:run
 ```
 
 On Windows PowerShell:
 
 ```powershell
-.\apps\native-kmp\gradlew.bat -p apps/native-kmp :composeApp:assembleDebug
+.\apps\native-kmp\gradlew.bat -p apps/native-kmp :androidApp:assembleDebug
 .\apps\native-kmp\gradlew.bat -p apps/native-kmp :composeApp:run
 ```
 
@@ -81,7 +81,7 @@ The first command builds the Android debug APK; the second runs the desktop app.
 | `vp run -r build`                   | Build workspace packages; native binaries use Gradle                                         |
 | `vp run test:e2e`                   | Build the API and run seeded sync tests against disposable MySQL containers; requires Docker |
 | `vp node --test scripts/*.test.mjs` | Run release automation and tooling tests                                                     |
-| `git hook run pre-push`             | Run workspace tests, JVM tests, and Android debug unit and instrumented tests                |
+| `git hook run pre-push`             | Run workspace/JVM tests, Android host and app unit tests, and shared/app device tests        |
 
 The pre-push hook requires JDK 21, the Android SDK, and a running test emulator or connected test device. Any failure, including a missing device, blocks the push. `vp run ready` does not run the native or Docker-based suites.
 
@@ -114,4 +114,4 @@ See [store releases](docs/store-releases.md) for credentials, initial uploads, g
 
 Original code and documentation in this repository are licensed under the [MIT License](LICENSE).
 
-Third-party materials retain their own licenses. The [AO3 stylesheet fixtures](apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins/README.md) are licensed under [GPLv2](apps/native-kmp/composeApp/src/androidInstrumentedTest/assets/ao3-skins/LICENSE.txt); their upstream license and attribution are included alongside the fixtures.
+Third-party materials retain their own licenses. The [AO3 stylesheet fixtures](apps/native-kmp/composeApp/src/androidDeviceTest/assets/ao3-skins/README.md) are licensed under [GPLv2](apps/native-kmp/composeApp/src/androidDeviceTest/assets/ao3-skins/LICENSE.txt); their upstream license and attribution are included alongside the fixtures.

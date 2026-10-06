@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.tooling.preview.Preview
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.SlideTransition
 import com.qcksys.ao3tracker.data.auth.AuthRepository
@@ -20,14 +21,14 @@ import com.qcksys.ao3tracker.diagnostics.Diagnostics
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsClient
 import com.qcksys.ao3tracker.diagnostics.DiagnosticsTransport
 import com.qcksys.ao3tracker.ui.navigation.MainScreen
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
+import org.koin.dsl.koinConfiguration
 
 @Composable
 @Preview
 fun App() {
-    KoinApplication(application = { modules(appModule) }) {
+    KoinApplication(configuration = koinConfiguration { modules(appModule) }) {
         // Initialize auth state once at app startup
         val authRepository = koinInject<AuthRepository>()
         val pushRepository = koinInject<PushRepository>()
