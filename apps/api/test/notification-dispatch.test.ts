@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TDatabase } from "~/db/db.client";
 import {
+  claimNotificationDispatches,
   getPendingNotificationDispatches,
   getSubscribedUsersForWork,
-  hasRecentNotificationForWork,
-  insertNotifications,
   recordNotificationDispatch,
+  upsertNotifications,
 } from "~/db/queries/notification";
 import type { TNotificationS } from "~/db/schema/notification";
 import {
@@ -16,10 +16,10 @@ import {
 import { scheduled } from "~/scheduled/handler";
 
 vi.mock("~/db/queries/notification", () => ({
+  claimNotificationDispatches: vi.fn(),
   getPendingNotificationDispatches: vi.fn(),
   getSubscribedUsersForWork: vi.fn(),
-  hasRecentNotificationForWork: vi.fn(),
-  insertNotifications: vi.fn(),
+  upsertNotifications: vi.fn(),
   recordNotificationDispatch: vi.fn(),
 }));
 
@@ -43,8 +43,11 @@ function notification(id: number): TNotificationS {
     userId: `reader-${id}`,
     workId: 12,
     type: "new_chapters",
+    eventKey: "2",
     status: "pending",
     dispatchPending: true,
+    dispatchClaim: null,
+    dispatchClaimedAt: null,
     title: "New chapter",
     body: "Story updated",
     payload: "{}",
@@ -63,27 +66,36 @@ describe("notification dispatch outbox", () => {
     vi.resetAllMocks();
     vi.mocked(getSubscribedUsersForWork).mockResolvedValue(["reader-1"]);
     vi.mocked(getPendingNotificationDispatches).mockResolvedValue([notification(1)]);
+    vi.mocked(upsertNotifications).mockResolvedValue(1);
+    vi.mocked(claimNotificationDispatches).mockImplementation(async (_db, ids) =>
+      ids.map(notification),
+    );
   });
 
   it("keeps failed sends durable and retries them without another work update", async () => {
     sendBatch.mockRejectedValueOnce(new Error("Queue unavailable"));
     expect(await createWorkNotifications(db, queue, event)).toBe(1);
-    expect(insertNotifications).toHaveBeenCalledWith(db, [
-      expect.objectContaining({ dispatchPending: true }),
+    expect(upsertNotifications).toHaveBeenCalledWith(db, [
+      expect.objectContaining({ dispatchPending: true, eventKey: "2" }),
     ]);
-    expect(recordNotificationDispatch).toHaveBeenCalledWith(db, [1], "Queue unavailable");
+    expect(recordNotificationDispatch).toHaveBeenCalledWith(
+      db,
+      [1],
+      expect.any(String),
+      "Queue unavailable",
+    );
 
     await dispatchPendingNotifications(db, queue);
     expect(getPendingNotificationDispatches).toHaveBeenLastCalledWith(db, undefined);
     expect(sendBatch).toHaveBeenCalledTimes(2);
-    expect(recordNotificationDispatch).toHaveBeenLastCalledWith(db, [1]);
-    expect(insertNotifications).toHaveBeenCalledTimes(1);
+    expect(recordNotificationDispatch).toHaveBeenLastCalledWith(db, [1], expect.any(String));
+    expect(upsertNotifications).toHaveBeenCalledTimes(1);
   });
 
   it("retries pending deliveries when an event is deduplicated", async () => {
-    vi.mocked(hasRecentNotificationForWork).mockResolvedValue(true);
+    vi.mocked(upsertNotifications).mockResolvedValue(0);
     expect(await createWorkNotifications(db, queue, event)).toBe(0);
-    expect(insertNotifications).not.toHaveBeenCalled();
+    expect(upsertNotifications).toHaveBeenCalledOnce();
     expect(sendBatch).toHaveBeenCalledOnce();
   });
 
@@ -94,14 +106,14 @@ describe("notification dispatch outbox", () => {
     await dispatchPendingNotifications(db, queue);
     expect(sendBatch.mock.calls.map(([batch]) => batch.length)).toEqual([100, 100, 1]);
     expect(vi.mocked(recordNotificationDispatch).mock.calls).toEqual([
-      [db, rows.slice(0, 100).map(({ id }) => id), "Temporary failure"],
-      [db, rows.slice(100, 200).map(({ id }) => id)],
-      [db, [201]],
+      [db, rows.slice(0, 100).map(({ id }) => id), expect.any(String), "Temporary failure"],
+      [db, rows.slice(100, 200).map(({ id }) => id), expect.any(String)],
+      [db, [201], expect.any(String)],
     ]);
   });
 
   it("does not queue rows when notification persistence fails", async () => {
-    vi.mocked(insertNotifications).mockRejectedValue(new Error("Database unavailable"));
+    vi.mocked(upsertNotifications).mockRejectedValue(new Error("Database unavailable"));
     await expect(createWorkNotifications(db, queue, event)).rejects.toThrow("Database unavailable");
     expect(sendBatch).not.toHaveBeenCalled();
   });
@@ -120,7 +132,7 @@ describe("notification dispatch outbox", () => {
     );
     await Promise.all(promises);
     expect(sendBatch).toHaveBeenCalledOnce();
-    expect(insertNotifications).not.toHaveBeenCalled();
+    expect(upsertNotifications).not.toHaveBeenCalled();
   });
 
   it("leaves records retryable if acknowledging the queue handoff fails", async () => {
@@ -128,5 +140,12 @@ describe("notification dispatch outbox", () => {
     await expect(dispatchPendingNotifications(db, queue)).rejects.toThrow("Database unavailable");
     await dispatchPendingNotifications(db, queue);
     expect(sendBatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not dispatch records claimed by another invocation", async () => {
+    vi.mocked(claimNotificationDispatches).mockResolvedValue([]);
+    await dispatchPendingNotifications(db, queue);
+    expect(sendBatch).not.toHaveBeenCalled();
+    expect(recordNotificationDispatch).not.toHaveBeenCalled();
   });
 });

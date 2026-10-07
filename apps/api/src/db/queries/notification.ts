@@ -1,8 +1,7 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import {
   type NotificationStatus,
-  type NotificationType,
   type TNotificationI,
   type TNotificationS,
   tNotification,
@@ -12,7 +11,7 @@ import { tTrackWork } from "~/db/schema/track.work";
 /** Data for creating a notification */
 export type NotificationCreate = Pick<
   TNotificationI,
-  "userId" | "workId" | "type" | "title" | "body" | "payload" | "dispatchPending"
+  "userId" | "workId" | "type" | "eventKey" | "title" | "body" | "payload" | "dispatchPending"
 >;
 
 /**
@@ -26,13 +25,27 @@ export async function insertNotification(db: TDatabase, data: NotificationCreate
 /**
  * Insert multiple notifications (batch)
  */
-export async function insertNotifications(
+export async function upsertNotifications(
   db: TDatabase,
   data: NotificationCreate[],
-): Promise<void> {
-  if (data.length === 0) return;
-  await db.insert(tNotification).values(data);
+): Promise<number> {
+  if (data.length === 0) return 0;
+  const result = await db
+    .insert(tNotification)
+    .values(data)
+    .onDuplicateKeyUpdate({ set: { id: sql`${tNotification.id}` } });
+  return result.rowsAffected;
 }
+
+const availableDispatch = () =>
+  and(
+    eq(tNotification.dispatchPending, true),
+    isNull(tNotification.rowDeletedAt),
+    or(
+      isNull(tNotification.dispatchClaimedAt),
+      lt(tNotification.dispatchClaimedAt, sql`DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE)`),
+    ),
+  );
 
 export async function getPendingNotificationDispatches(
   db: TDatabase,
@@ -42,18 +55,33 @@ export async function getPendingNotificationDispatches(
     .select()
     .from(tNotification)
     .where(
-      and(
-        eq(tNotification.dispatchPending, true),
-        workId === undefined ? undefined : eq(tNotification.workId, workId),
-      ),
+      and(availableDispatch(), workId === undefined ? undefined : eq(tNotification.workId, workId)),
     )
     .orderBy(asc(tNotification.rowUpdatedAt), asc(tNotification.id))
     .limit(500);
 }
 
+export async function claimNotificationDispatches(
+  db: TDatabase,
+  ids: number[],
+  claim: string,
+): Promise<TNotificationS[]> {
+  if (ids.length === 0) return [];
+  await db
+    .update(tNotification)
+    .set({ dispatchClaim: claim, dispatchClaimedAt: sql`CURRENT_TIMESTAMP` })
+    .where(and(inArray(tNotification.id, ids), availableDispatch()));
+  return db
+    .select()
+    .from(tNotification)
+    .where(and(inArray(tNotification.id, ids), eq(tNotification.dispatchClaim, claim)))
+    .orderBy(asc(tNotification.id));
+}
+
 export async function recordNotificationDispatch(
   db: TDatabase,
   ids: number[],
+  claim: string,
   errorMessage?: string,
 ): Promise<void> {
   if (ids.length === 0) return;
@@ -61,11 +89,13 @@ export async function recordNotificationDispatch(
     .update(tNotification)
     .set({
       dispatchPending: errorMessage !== undefined,
+      dispatchClaim: null,
+      dispatchClaimedAt: null,
       errorMessage: errorMessage ?? null,
       retryCount: errorMessage === undefined ? undefined : sql`${tNotification.retryCount} + 1`,
       rowUpdatedAt: sql`CURRENT_TIMESTAMP`,
     })
-    .where(inArray(tNotification.id, ids));
+    .where(and(inArray(tNotification.id, ids), eq(tNotification.dispatchClaim, claim)));
 }
 
 /**
@@ -141,30 +171,21 @@ export async function getUserNotifications(
   return { notifications, hasMore };
 }
 
-/**
- * Check if a notification of the given type already exists for a work within a time window.
- * Used to prevent duplicate notifications from concurrent cron runs and repeated error states.
- */
-export async function hasRecentNotificationForWork(
+export async function resetWorkAvailabilityNotifications(
   db: TDatabase,
   workId: number,
-  type: NotificationType,
-  sinceMinutesAgo: number,
-): Promise<boolean> {
-  const since = new Date(Date.now() - sinceMinutesAgo * 60 * 1000);
-  const result = await db
-    .select({ id: tNotification.id })
-    .from(tNotification)
+): Promise<void> {
+  // A successful fetch ends the unavailable episode, allowing a later transition to notify again.
+  await db
+    .update(tNotification)
+    .set({ eventKey: null })
     .where(
       and(
         eq(tNotification.workId, workId),
-        eq(tNotification.type, type),
-        gt(tNotification.rowCreatedAt, since),
+        inArray(tNotification.type, ["work_deleted", "work_restricted"]),
+        eq(tNotification.eventKey, "state"),
       ),
-    )
-    .limit(1);
-
-  return result.length > 0;
+    );
 }
 
 /**

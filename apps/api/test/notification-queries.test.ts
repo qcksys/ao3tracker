@@ -23,20 +23,29 @@ describe("notification dispatch queries", () => {
     const execute = vi.spyOn(db.$client, "execute").mockResolvedValue(result);
     await getPendingNotificationDispatches(db);
     const [query, params] = execute.mock.calls[0];
-    expect(query).toContain("where `ao3track__notification`.`dispatchPending` = ?");
+    expect(query).toContain("`ao3track__notification`.`dispatchPending` = ?");
+    expect(query).toContain("DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE)");
     expect(query).toContain(
       "order by `ao3track__notification`.`rowUpdatedAt` asc, `ao3track__notification`.`id` asc limit ?",
     );
     expect(params).toEqual([true, 500]);
 
-    await recordNotificationDispatch(db, [1, 2], "Queue unavailable");
+    await recordNotificationDispatch(db, [1, 2], "claim", "Queue unavailable");
     expect(execute.mock.calls[1][0]).toContain(
       "`retryCount` = `ao3track__notification`.`retryCount` + 1",
     );
     expect(execute.mock.calls[1][0]).toContain("`rowUpdatedAt` = CURRENT_TIMESTAMP");
-    expect(execute.mock.calls[1][1]).toEqual([true, "Queue unavailable", 1, 2]);
+    expect(execute.mock.calls[1][1]).toEqual([
+      true,
+      null,
+      null,
+      "Queue unavailable",
+      1,
+      2,
+      "claim",
+    ]);
 
-    await recordNotificationDispatch(db, [3]);
-    expect(execute.mock.calls[2][1]).toEqual([false, null, 3]);
+    await recordNotificationDispatch(db, [3], "claim");
+    expect(execute.mock.calls[2][1]).toEqual([false, null, null, null, 3, "claim"]);
   });
 });

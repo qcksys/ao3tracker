@@ -2,6 +2,7 @@ import { subHours } from "date-fns";
 import { AO3_BASE_URL, AO3_USER_AGENT } from "~/const";
 import { createDbConnection, type TDatabase } from "~/db/db.client";
 import { findLatestBackupUpdatedAt, upsertBackup } from "~/db/queries/backup";
+import { resetWorkAvailabilityNotifications } from "~/db/queries/notification";
 import { migrateSingleChapterTracking } from "~/db/queries/track";
 import {
   findStaleWorks,
@@ -197,6 +198,7 @@ async function processRefreshResult(
     downloadUpdatedAt: workInfo.downloadUpdatedAt,
   };
   await updateWork(db, workId, workUpdateData);
+  await resetWorkAvailabilityNotifications(db, workId);
 
   // Save tags and chapters
   await saveWorkRelations(db, workId, data);

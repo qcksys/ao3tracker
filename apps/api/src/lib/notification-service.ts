@@ -1,11 +1,11 @@
 import type { TDatabase } from "~/db/db.client";
 import {
+  claimNotificationDispatches,
   getPendingNotificationDispatches,
   getSubscribedUsersForWork,
-  hasRecentNotificationForWork,
-  insertNotifications,
   type NotificationCreate,
   recordNotificationDispatch,
+  upsertNotifications,
 } from "~/db/queries/notification";
 import type { NotificationType } from "~/db/schema/notification";
 
@@ -81,25 +81,6 @@ export async function createWorkNotifications(
   queue: Queue<NotificationQueueMessage>,
   event: WorkUpdateEvent,
 ): Promise<number> {
-  // Dedup: skip if a notification of the same type was already created for this work recently.
-  // Prevents duplicates from concurrent cron invocations and repeated error states.
-  const DEDUP_WINDOW_MINUTES = 60;
-  const isDuplicate = await hasRecentNotificationForWork(
-    db,
-    event.workId,
-    event.type,
-    DEDUP_WINDOW_MINUTES,
-  );
-  if (isDuplicate) {
-    await dispatchPendingNotifications(db, queue, event.workId);
-    console.log({
-      message: "Skipping duplicate notification",
-      workId: event.workId,
-      type: event.type,
-    });
-    return 0;
-  }
-
   // Get all users tracking AND subscribed to this work
   const userIds = await getSubscribedUsersForWork(db, event.workId);
 
@@ -125,6 +106,7 @@ export async function createWorkNotifications(
     userId,
     workId: event.workId,
     type: event.type,
+    eventKey: event.newChapters === undefined ? "state" : String(event.newChapters),
     title,
     body,
     payload,
@@ -132,7 +114,7 @@ export async function createWorkNotifications(
   }));
 
   // Insert all notifications
-  await insertNotifications(db, notifications);
+  const created = await upsertNotifications(db, notifications);
 
   await dispatchPendingNotifications(db, queue, event.workId);
 
@@ -140,10 +122,10 @@ export async function createWorkNotifications(
     message: "Notifications persisted for delivery",
     workId: event.workId,
     type: event.type,
-    userCount: userIds.length,
+    userCount: created,
   });
 
-  return userIds.length;
+  return created;
 }
 
 export async function dispatchPendingNotifications(
@@ -153,7 +135,13 @@ export async function dispatchPendingNotifications(
 ): Promise<void> {
   const pending = await getPendingNotificationDispatches(db, workId);
   for (let i = 0; i < pending.length; i += 100) {
-    const batch = pending.slice(i, i + 100);
+    const claim = crypto.randomUUID();
+    const batch = await claimNotificationDispatches(
+      db,
+      pending.slice(i, i + 100).map((notification) => notification.id),
+      claim,
+    );
+    if (batch.length === 0) continue;
     const ids = batch.map((notification) => notification.id);
     try {
       await queue.sendBatch(
@@ -171,7 +159,7 @@ export async function dispatchPendingNotifications(
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      await recordNotificationDispatch(db, ids, errorMessage);
+      await recordNotificationDispatch(db, ids, claim, errorMessage);
       console.error({
         message: "Notification dispatch deferred",
         count: ids.length,
@@ -180,6 +168,6 @@ export async function dispatchPendingNotifications(
       continue;
     }
     // A crash before this update can replay a batch; queue delivery is at least once.
-    await recordNotificationDispatch(db, ids);
+    await recordNotificationDispatch(db, ids, claim);
   }
 }

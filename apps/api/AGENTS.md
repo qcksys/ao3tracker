@@ -116,6 +116,8 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 **Notification System** (`src/lib/notification-service.ts`, `src/db/queries/notification.ts`):
 
 - Creates notification records when works are updated (new chapters, completion, deletion, restriction)
+- Event creation uses a unique `(userId, workId, type, eventKey)` index and a no-op upsert. Chapter/completion events use the target chapter count, independent of the old count or title; deletion/restriction events use `state` until a successful scheduled fetch clears that key to end the unavailable episode. Do not restore a time-window deduplication check: it allows concurrent inserts and delayed repeats while suppressing distinct updates. Apply `20261007120227_notification-event-identity` before deploying this API. Existing history rows retain null keys and are preserved.
+- Outbox dispatchers atomically claim pending rows for five minutes before sending. Only the claim owner may acknowledge or release them; failed sends release their claims, and abandoned claims become retryable after expiry. A duplicate event upsert must not reset delivery state or timestamps.
 - New notification rows set `dispatchPending` before attempting Cloudflare Queue (`NOTIFICATION_QUEUE`) handoff. Clear it only after the queue accepts the batch; cron retries pending rows every five minutes even when work metadata has no further changes. Apply `20261002000754_notification-dispatch-outbox` before deploying the API; its false default keeps historical notifications out of the retry queue. Queue handoff remains at least once if acknowledgement persistence fails.
 - User batches fan out into one queued delivery per `(userId, deviceId)`. Failed device deliveries retry with the queue's retry budget and dead-letter queue; successful devices are acknowledged independently. An FCM `UNREGISTERED` response invalidates the token and is acknowledged. Queue delivery remains at least once.
 - Android delivery uses channel `ao3_work_updates`, click action `com.qcksys.ao3tracker.OPEN_WORK`, and a string `workId` data field. Keep the native manifest and notification navigation parser aligned with these values.
@@ -161,7 +163,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - Keep queries simple and composable - business logic belongs in routes/scheduled tasks
 - Use Drizzle query methods (`eq`, `and`, `lt`, etc.) instead of raw `sql` template literals
 - **ALL inserts MUST be upserts** - Never use plain `insert()`, always use `onDuplicateKeyUpdate()` for idempotency.
-  Exception: tables with auto-increment primary keys where you always want new records (e.g., `tNotification`).
+  Exception: tables with auto-increment primary keys where you always want new records. Work notifications use an event key and must be upserted without changing an existing row.
 - **Upserts MUST exclude timestamp columns** - Always exclude `rowCreatedAt` and `rowUpdatedAt` from upsert SET clauses
   to preserve creation time and let MySQL's `ON UPDATE CURRENT_TIMESTAMP` handle update time:
   ```typescript
