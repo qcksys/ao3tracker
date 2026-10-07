@@ -8,6 +8,7 @@ import {
   mysqlEnum,
   mysqlTable,
   text,
+  uniqueIndex,
   varchar,
 } from "drizzle-orm/mysql-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
@@ -32,8 +33,11 @@ export const tNotification = mysqlTable(
     userId: varchar({ length: 36 }).notNull(),
     workId: int({ unsigned: true }).notNull(),
     type: mysqlEnum("type", notificationTypes).notNull(),
+    eventKey: varchar({ length: 64 }),
     status: mysqlEnum("status", notificationStatuses).notNull().default("pending"),
     dispatchPending: boolean().notNull().default(false),
+    dispatchClaim: varchar({ length: 36 }),
+    dispatchClaimedAt: datetime(),
     title: varchar({ length: 255 }).notNull(),
     body: text().notNull(),
     payload: text(),
@@ -46,6 +50,12 @@ export const tNotification = mysqlTable(
   (table) => {
     return [
       index("idx_notification_userId").on(table.userId),
+      uniqueIndex("idx_notification_event").on(
+        table.userId,
+        table.workId,
+        table.type,
+        table.eventKey,
+      ),
       index("idx_notification_workId").on(table.workId),
       index("idx_notification_status").on(table.status),
       index("idx_notification_dispatch").on(table.dispatchPending, table.rowUpdatedAt),

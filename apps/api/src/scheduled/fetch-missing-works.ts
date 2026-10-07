@@ -1,4 +1,5 @@
 import { createDbConnection, type TDatabase } from "~/db/db.client";
+import { resetWorkAvailabilityNotifications } from "~/db/queries/notification";
 import { markWorkAsPrivate, migrateSingleChapterTracking } from "~/db/queries/track";
 import { findMissingTrackedWorks, upsertWork } from "~/db/queries/work";
 import type { TWorkI } from "~/db/schema/work";
@@ -148,6 +149,7 @@ async function handleFetchResult(
     downloadUpdatedAt: workInfo.downloadUpdatedAt,
   };
   await upsertWork(db, workInsertData);
+  await resetWorkAvailabilityNotifications(db, result.workId);
 
   // Save tags and chapters
   await saveWorkRelations(db, result.workId, result.data);
