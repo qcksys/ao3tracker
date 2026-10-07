@@ -1,5 +1,14 @@
 # @qcksys/ao3tracker-native-kmp
 
+## 0.4.1
+
+### Patch Changes
+
+- a39a420: updated cicd release process
+- 8a7126b: Keep Android content clear of system bars, display cutouts, and the keyboard, and use readable system-bar icons with the app's dark theme.
+- 8a7126b: Update Android 17 support and native UI, image-loading, and networking dependencies while preserving server selection and reading behavior.
+- 8a7126b: Prevent saved-reader crashes when switching chapters or accounts on older Android WebViews, and preserve reading progress across rotation and theme changes.
+
 ## 0.4.0
 
 ### Minor Changes
