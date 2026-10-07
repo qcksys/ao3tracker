@@ -1,5 +1,11 @@
 # @qcksys/ao3tracker-api
 
+## 0.1.3
+
+### Patch Changes
+
+- eabbf88: Prevent repeated work updates from creating duplicate notification history entries and stop overlapping refreshes from dispatching the same pending alert. Preserve notifications for distinct chapter updates and retry failed deliveries.
+
 ## 0.1.2
 
 ### Patch Changes
