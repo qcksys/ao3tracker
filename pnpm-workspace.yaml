@@ -29,7 +29,6 @@ catalog:
   "@qcksys/drizzle-extensions": ^0.3.0
   "@scalar/hono-api-reference": ^0.12.14
   "@scalar/openapi-to-markdown": ^1.7.0
-  "@simplewebauthn/server": 13.3.0
   "@tailwindcss/vite": ^4.3.3
   "@testcontainers/mysql": ^12.2.1
   "@types/chrome": ^0.3.6
