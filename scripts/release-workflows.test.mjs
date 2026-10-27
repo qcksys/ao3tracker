@@ -275,7 +275,7 @@ for (const [name, environment, database, token, url] of [
     "https://dev.ao3tracker.com/ping",
   ],
 ]) {
-  test(`${environment}: migrate the target database before readiness and artifact deployment`, async () => {
+  test(`${environment}: migrate the target database before artifact deployment`, async () => {
     const config = await workflow(name);
     const { deploy } = config.jobs;
     assert.equal(deploy.environment, environment);
@@ -287,8 +287,6 @@ for (const [name, environment, database, token, url] of [
     const migrations = steps.find((step) => step.run?.includes("apps/api/scripts/migrate.mjs"));
     assert.ok(migrations, "deployment must apply pending migrations");
     assert.equal(migrations.env.DATABASE_URL, `\${{ secrets.${database} }}`);
-    const readiness = steps.find((step) => step.run?.includes("scripts/check-api-migrations.mjs"));
-    assert.equal(readiness.env.DATABASE_URL, migrations.env.DATABASE_URL);
     const guards = steps.filter((step) => step.run?.includes("assert-current-source"));
     assert.equal(
       guards.length,
@@ -302,9 +300,8 @@ for (const [name, environment, database, token, url] of [
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
     assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));
     assert.equal(steps.indexOf(beforeMigrations) + 1, steps.indexOf(migrations));
-    assert.equal(steps.indexOf(migrations) + 1, steps.indexOf(readiness));
-    assert.ok(steps.indexOf(readiness) < steps.indexOf(current));
-    for (const step of [beforeMigrations, migrations, readiness, current, upload]) {
+    assert.equal(steps.indexOf(migrations) + 1, steps.indexOf(current));
+    for (const step of [beforeMigrations, migrations, current, upload]) {
       assert.equal(step["continue-on-error"], undefined);
       assert.equal(
         step.if,

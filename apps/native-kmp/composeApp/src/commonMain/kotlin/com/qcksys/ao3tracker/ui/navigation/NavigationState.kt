@@ -27,6 +27,9 @@ object NavigationState {
     private val _navigateReadToHome = MutableStateFlow(false)
     val navigateReadToHome: StateFlow<Boolean> = _navigateReadToHome.asStateFlow()
 
+    private val _pendingDownloads = MutableStateFlow(false)
+    val pendingDownloads: StateFlow<Boolean> = _pendingDownloads.asStateFlow()
+
     // Track tab navigator reference - should be cleared when tab is disposed
     private var trackTabNavigator: TabNavigatorContract? = null
 
@@ -38,6 +41,11 @@ object NavigationState {
         _pendingNavigation.value = ReadNavigation("https://archiveofourown.org/works/$workId", 0f, workId)
     }
 
+    /** Opens the live AO3 page even when a saved copy exists, so AO3 can confirm access for queued downloads. */
+    fun navigateToLiveWork(workId: Long) {
+        _pendingNavigation.value = ReadNavigation("https://archiveofourown.org/works/$workId", 0f, live = true)
+    }
+
     fun navigateToExternalAo3Url(url: String?) {
         if (url == null || !isTrustedAo3Url(url)) return
         _pendingNavigation.value = ReadNavigation(url, scrollProgress = null)
@@ -45,6 +53,14 @@ object NavigationState {
 
     fun clearPendingNavigation() {
         _pendingNavigation.value = null
+    }
+
+    fun navigateToDownloads() {
+        _pendingDownloads.value = true
+    }
+
+    fun clearPendingDownloads() {
+        _pendingDownloads.value = false
     }
 
     fun navigateToTrackWithTag(tagType: TagType, tag: String) {
@@ -83,6 +99,7 @@ object NavigationState {
         _pendingNavigation.value = null
         _pendingTagFilter.value = null
         _navigateReadToHome.value = false
+        _pendingDownloads.value = false
         trackTabNavigator = null
     }
 }
@@ -97,7 +114,8 @@ interface TabNavigatorContract {
 data class ReadNavigation(
     val url: String,
     val scrollProgress: Float?,
-    val workId: Long? = null
+    val workId: Long? = null,
+    val live: Boolean = false
 )
 
 internal fun Work.readNavigation(): ReadNavigation {

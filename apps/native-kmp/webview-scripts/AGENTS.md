@@ -38,7 +38,7 @@ Vite refuses multi-entry IIFE bundles in library config mode (see [vitejs/vite#1
 - The first iteration sets `emptyOutDir: true` to wipe `dist/`; subsequent iterations preserve siblings.
 - `resolve.tsconfigPaths: true` so vite honours `~/*` → `./src/*` from [tsconfig.json](./tsconfig.json).
 
-`vp run build` runs `node build.ts` end-to-end in a single command — the required Node 24 runtime strips TypeScript types natively, so no runner dependency is needed. [vite.config.ts](./vite.config.ts) is reserved for `vp test` / type-check only — it's not consulted during the build.
+`vp run build` runs `node build.ts` end-to-end in a single command — the required Node 26 runtime strips TypeScript types natively, so no runner dependency is needed. [vite.config.ts](./vite.config.ts) is reserved for `vp test` / type-check only — it's not consulted during the build.
 
 ### Files
 

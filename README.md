@@ -29,7 +29,7 @@ Install [Vite+](https://viteplus.dev/guide/) (`vp`) and run the following from t
 vp install --frozen-lockfile
 ```
 
-Vite+ manages Node.js using the Node 24 pin in the root [package.json](package.json), along with dependency installation and workspace tasks. The pnpm workspace configuration and lockfile remain because Vite+ uses the pinned pnpm backend. Installation also prepares the extension's generated types and installs the Git hook dispatcher.
+Vite+ manages Node.js using the Node 26 pin in the root [package.json](package.json), along with dependency installation and workspace tasks. The pnpm workspace configuration and lockfile remain because Vite+ uses the pinned pnpm backend. Installation also prepares the extension's generated types and installs the Git hook dispatcher.
 
 Additional prerequisites depend on what you are working on:
 
@@ -106,7 +106,7 @@ GitHub Actions checks pull requests and pushes to `dev` and `main`. Release beha
 - **`dev`:** successful push CI deploys and smoke-tests the dev API, then releases the separate Android Dev app to internal testing and submits the Chrome Beta extension for review when their respective inputs have changed.
 - **`main`:** successful push CI updates the Changesets version PR when changesets are pending. After that PR is merged, newly created and verified package-version tags trigger production API deployment, an Android internal-testing release, and a Chrome Web Store draft upload. Main pushes without new tags do not deploy.
 
-API deployment applies pending migrations and verifies database readiness before dependent store releases can proceed. Production Chrome drafts require manual review submission; iOS and Firefox releases are manual. After merging a version PR into `main`, merge `main` back into `dev` to synchronize versions and changelogs.
+API deployment applies pending migrations before dependent store releases can proceed. Production Chrome drafts require manual review submission; iOS and Firefox releases are manual. After merging a version PR into `main`, merge `main` back into `dev` to synchronize versions and changelogs.
 
 See [store releases](docs/store-releases.md) for credentials, initial uploads, generated versions, patch notes, and retry behaviour.
 

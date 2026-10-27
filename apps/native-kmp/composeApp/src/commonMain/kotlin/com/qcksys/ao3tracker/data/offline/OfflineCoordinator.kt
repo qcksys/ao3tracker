@@ -28,8 +28,11 @@ import kotlinx.coroutines.withTimeout
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false)
+internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false,
+    val mode: String = "save-discover", val done: Int = 0, val total: Int = 1)
 internal data class DownloadDebugEntry(val timestamp: String, val message: String)
+
+internal const val QUEUE_GRACE_MILLIS = 5_000L
 
 class OfflineCoordinator internal constructor(
     internal val store: OfflineContentStore,
@@ -41,8 +44,14 @@ class OfflineCoordinator internal constructor(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val requestSync: () -> Unit = {}
 ) {
+    private var storedStates: List<OfflineWorkStatus> = emptyList()
     private val workStates = MutableStateFlow<List<OfflineWorkStatus>>(emptyList())
     internal val downloads = workStates.asStateFlow()
+    // The latest chapter request, kept for a grace period after it ends so the short wait
+    // between chapters is not reported as a queued download.
+    private val shownRequest = MutableStateFlow<OfflineDownloadRequest?>(null)
+    internal val progress = shownRequest.asStateFlow()
+    private var shownRequestRelease: Job? = null
     private val storageState = MutableStateFlow(OfflineStorageUsage())
     internal val storageUsage = storageState.asStateFlow()
     private val backgroundRequest = MutableStateFlow<OfflineDownloadRequest?>(null)
@@ -69,6 +78,9 @@ class OfflineCoordinator internal constructor(
     private var downloadTask: Job? = null
     private val downloadId = MutableStateFlow<String?>(null)
     private var pendingSave: Pair<Long, Boolean>? = null
+    private var workRevisions: Map<Long, Pair<Int?, String?>> = emptyMap()
+    // Revisions already queued this session, so an update that cannot reach the reported count is not repeated.
+    private val queuedUpdates = mutableMapOf<Long, Pair<Int?, String?>?>()
     private val wake = Channel<Unit>(Channel.CONFLATED)
 
     init {
@@ -77,7 +89,8 @@ class OfflineCoordinator internal constructor(
             scope.launch {
                 accounts.observe { it.workDao().getAllWorks() }
                     .map { works -> works.associate { it.id to (it.currentChapters to it.downloadUpdatedAt) } }.distinctUntilChanged().collect {
-                        try { refresh(); replanPrefetch() } catch (error: CancellationException) { throw error } catch (_: Exception) {
+                        workRevisions = it
+                        try { refresh(); replanPrefetch(); queueSavedWorkUpdates() } catch (error: CancellationException) { throw error } catch (_: Exception) {
                             statusMessage.value = "Download coverage could not be refreshed. Reopen Downloads to try again."
                         }
                     }
@@ -101,16 +114,20 @@ class OfflineCoordinator internal constructor(
                             downloadTask?.cancel()
                             cancelCapture()
                             observation.value = null
+                            storedStates = emptyList()
                             workStates.value = emptyList()
+                            shownRequest.value = null
                             pendingSave = null
                             automaticPage = null
                             debugState.value = emptyList()
+                            queuedUpdates.clear()
                         }
                         previousAccount = account
                         try {
                             store.initialize()
                             refresh()
                             store.collectUnusedFiles()
+                            queueSavedWorkUpdates()
                             kick()
                         } catch (_: CancellationException) { } catch (_: Exception) {
                             statusMessage.value = "Saved works could not be loaded. Try reopening the app."
@@ -128,7 +145,7 @@ class OfflineCoordinator internal constructor(
                 combine(settings.incognitoModeEnabled, settings.offlinePreferences) { _, _ -> Unit }.collect {
                     if (!automaticAllowed() && automaticCapture) cancelCapture()
                     if (!prefetchAllowed() && backgroundRequest.value?.automatic == true) downloadTask?.cancel()
-                    try { replanPrefetch() } catch (_: CancellationException) { } catch (_: Exception) {
+                    try { replanPrefetch(); queueSavedWorkUpdates() } catch (_: CancellationException) { } catch (_: Exception) {
                         debug("Unable to update the prefetch queue. Reopen a chapter to retry.")
                     }
                     runCatching { refreshQueueAvailability() }
@@ -213,13 +230,31 @@ class OfflineCoordinator internal constructor(
         kick()
     }
 
+    private suspend fun queueSavedWorkUpdates() {
+        if (!settings.offlinePreferences.value.updateSavedWorks) return
+        val context = store.context.value?.takeIf(store::isCurrent) ?: return
+        val outdated = workStates.value.mapNotNull { status ->
+            val workId = status.work.workId
+            val revision = workRevisions[workId]
+            val alreadyQueued = workId in queuedUpdates && queuedUpdates[workId] == revision
+            workId.takeIf { !alreadyQueued && needsBackgroundUpdate(status, revision?.second) }
+        }
+        if (outdated.isEmpty()) return
+        // Record before suspending so overlapping refreshes cannot queue the same work twice.
+        outdated.forEach { queuedUpdates[it] = workRevisions[it] }
+        for (workId in outdated) store.enqueueWork(context, workId, update = true)
+        debug("Queued background updates for ${outdated.size} saved ${if (outdated.size == 1) "work" else "works"}.")
+        refresh()
+        kick()
+    }
+
     internal fun interactiveLoading(loading: Boolean) {
         gate.setInteractiveLoading(loading)
         if (loading) { downloadId.value = null; downloadTask?.cancel() } else kick()
     }
 
     internal fun liveNavigation(url: String) {
-        if (url.substringBefore('#') == liveUrl?.substringBefore('#')) return
+        if (sameOfflinePage(url, liveUrl)) return
         liveUrl = url
         liveNavigation.value++
         store.releaseReaderProtection()
@@ -228,11 +263,12 @@ class OfflineCoordinator internal constructor(
     }
 
     internal fun observed(event: OfflinePageObservation) {
-        if (!enabled || event.url.substringBefore('#') != liveUrl?.substringBefore('#')) return
+        if (!enabled || !sameOfflinePage(event.url, liveUrl)) return
         val version = liveNavigation.value
         scope.launch {
             try {
                 if (event.identity != null && event.identity != store.context.value?.identity) {
+                    storedStates = emptyList()
                     workStates.value = emptyList()
                     automaticPage = null
                     debugState.value = emptyList()
@@ -369,7 +405,11 @@ class OfflineCoordinator internal constructor(
                         if (retryAfter != null) gate.pause(retryAfter)
                         result.completeExceptionally(IllegalStateException(message))
                     }, onProgress = ::debug)
-                backgroundRequest.value = OfflineDownloadRequest(id, job.workId, url, request, automatic)
+                val done = offlineJson.decodeFromString<List<String>>(job.completedJson).size
+                val total = done + offlineJson.decodeFromString<List<String>>(job.remainingJson).size
+                val download = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total)
+                backgroundRequest.value = download
+                showProgress(download)
                 refresh()
                 withTimeout(300_000) { result.await() }
             }
@@ -393,6 +433,7 @@ class OfflineCoordinator internal constructor(
         } finally {
             if (downloadId.value == id) downloadId.value = null
             if (backgroundRequest.value?.id == id) backgroundRequest.value = null
+            releaseProgress(id)
             withContext(NonCancellable) {
                 staged?.cancel()
                 runCatching { store.collectUnusedFiles() }
@@ -469,9 +510,36 @@ class OfflineCoordinator internal constructor(
 
     private suspend fun refresh() {
         val context = store.context.value
-        workStates.value = if (context != null && store.isCurrent(context)) store.statuses(context) else emptyList()
+        storedStates = if (context != null && store.isCurrent(context)) store.statuses(context) else emptyList()
+        publishStates()
         storageState.value = store.storageUsage()
         refreshQueueAvailability()
+    }
+
+    private fun publishStates() {
+        val active = shownRequest.value?.workId
+        workStates.value = storedStates.map { status ->
+            val job = status.job
+            if (job != null && job.state == "queued" && status.work.workId == active) status.copy(job = job.copy(state = "running")) else status
+        }
+    }
+
+    private fun showProgress(request: OfflineDownloadRequest) {
+        shownRequestRelease?.cancel()
+        shownRequest.value = request
+        publishStates()
+    }
+
+    private fun releaseProgress(id: String) {
+        if (shownRequest.value?.id != id) return
+        shownRequestRelease?.cancel()
+        shownRequestRelease = scope.launch {
+            delay(QUEUE_GRACE_MILLIS)
+            if (shownRequest.value?.id == id) {
+                shownRequest.value = null
+                publishStates()
+            }
+        }
     }
 
     private suspend fun refreshQueueAvailability() {

@@ -1,14 +1,13 @@
-import { subHours } from "date-fns";
+import { addMinutes, subHours } from "date-fns";
 import { AO3_BASE_URL, AO3_USER_AGENT } from "~/const";
 import { createDbConnection, type TDatabase } from "~/db/db.client";
 import { findLatestBackupUpdatedAt, upsertBackup } from "~/db/queries/backup";
 import { resetWorkAvailabilityNotifications } from "~/db/queries/notification";
 import { migrateSingleChapterTracking } from "~/db/queries/track";
 import {
-  findStaleWorks,
+  claimStaleWorks,
   getWorkState,
   softDeleteWork,
-  touchWorkRefreshed,
   updateWork,
   type WorkUpdateData,
 } from "~/db/queries/work";
@@ -25,6 +24,8 @@ import {
 } from "~/scheduled/work-fetcher";
 
 const STALE_THRESHOLD_HOURS = 6;
+/** A claimed work that is not refreshed successfully becomes stale again after this delay. */
+const RETRY_DELAY_MINUTES = 30;
 const MAX_WORKS_PER_RUN = 12;
 const PARALLEL_REQUESTS = 4;
 
@@ -265,14 +266,12 @@ async function handleRefreshResult(
       // Soft-delete so the work stops being refreshed (same as deleted works)
       await softDeleteWork(db, result.workId);
     } else {
+      // The claim left lastRefreshed at its retry time, so the work is retried after the delay.
       console.error({
         message: "Failed to refresh work",
         workId: result.workId,
         error: result.error,
       });
-
-      // Update lastRefreshed to prevent immediate re-processing on transient errors
-      await touchWorkRefreshed(db, result.workId);
     }
     return;
   }
@@ -295,9 +294,9 @@ export async function refreshStaleWorks(env: CloudflareBindings): Promise<void> 
   const db = createDbConnection(env.DATABASE_URL);
 
   const staleThreshold = subHours(new Date(), STALE_THRESHOLD_HOURS);
+  const retryAt = addMinutes(staleThreshold, RETRY_DELAY_MINUTES);
 
-  // Find works that haven't been updated in the last 24 hours
-  const staleWorks = await findStaleWorks(db, staleThreshold, MAX_WORKS_PER_RUN);
+  const staleWorks = await claimStaleWorks(db, staleThreshold, retryAt, MAX_WORKS_PER_RUN);
 
   console.log({
     message: "Found stale works to refresh",

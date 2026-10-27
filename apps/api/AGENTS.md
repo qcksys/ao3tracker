@@ -46,15 +46,13 @@ vp run biome:ci               # CI linting check (used in GitHub Actions)
 
 ### Production deployment readiness
 
-The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a `DATABASE_URL` with migration permissions pointing to the same production database used by the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and Worker runtime secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_ID`, `GOOGLE_SECRET`, `FCM_SERVICE_ACCOUNT`) separately. Wrangler preserves existing Worker secrets; the GitHub database credential is used for migrations and readiness checks and is not uploaded.
+The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a `DATABASE_URL` with migration permissions pointing to the same production database used by the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and Worker runtime secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_ID`, `GOOGLE_SECRET`, `FCM_SERVICE_ACCOUNT`) separately. Wrangler preserves existing Worker secrets; the GitHub database credential is used for migrations and is not uploaded.
 
 The workflow rejects a source SHA that is no longer current `main`, including reruns of failed deployment jobs. After deployment it checks the public `/ping` response. This smoke test checks routing and Worker startup; it does not identify the deployed revision or test authenticated database operations.
 
 After downloading the built API artifact and checking the source is still current, the protected deployment job runs `vp node apps/api/scripts/migrate.mjs` from the repository root. Drizzle applies pending migrations from that source commit and records them in `ao3track__migrations`. Development uses the same sequence with `DEV_DATABASE_URL`; it never falls back to production credentials. Migration failures stop API deployment and dependent store releases.
 
-Next, `vp node scripts/check-api-migrations.mjs` reads the ledger and database column metadata without changing them. Every checked-in migration must have the same UTC timestamp (to the second) and SQL SHA-256 in the ledger; RC ledgers must also match the migration folder name. Legacy timestamps retain their milliseconds. Missing, edited, duplicate, or unknown entries stop deployment. Both LF and CRLF versions of the checked-in SQL are accepted because Drizzle hashes raw bytes and historical migrations may have run on Windows. No other content differences are accepted. The gate also verifies that the latest snapshot's columns exist and that temporal column types retain the required precision. It does not validate all indexes, defaults, or existing data.
-
-Review pending SQL before merging: migrations run before the new Worker is deployed and must remain compatible with the currently deployed code. DDL is not transactionally rolled back. If a migration fails or the database was changed outside Drizzle, inspect the live schema and reconcile its history only after confirming which changes are already applied; CI does not baseline history or skip mismatches. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
+Review pending SQL before merging: migrations run before the new Worker is deployed and must remain compatible with the currently deployed code. DDL is not transactionally rolled back. If a migration fails or the database was changed outside Drizzle, inspect the live schema and reconcile its history only after confirming which changes are already applied; CI does not baseline history. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
 
 ### Native diagnostics
 
@@ -71,7 +69,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - **Better Auth** - Authentication with email/password, Google OAuth, passkeys, and 2FA
 - **Zod** - Schema validation
 - **Scalar** - OpenAPI documentation UI (`@scalar/hono-api-reference`)
-- **Vitest** - Testing framework with `@cloudflare/vitest-plugin`, using a separate Vitest 4 runner
+- **Vitest** - Testing framework with `@cloudflare/vitest-plugin`
 
 ### Code Structure
 
@@ -107,7 +105,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 **Scheduled Tasks** (`src/scheduled/`):
 
 - `handler.ts` - Cron dispatcher, runs every 5 minutes (`*/5 * * * *`)
-- `refresh-works.ts` - Refreshes stale work data (not refreshed in 6 hours, up to 12 works/run in batches of 4), downloads
+- `refresh-works.ts` - Refreshes stale work data (not refreshed in 6 hours, up to 12 works/run in batches of 4). Works are claimed least recently refreshed first by moving `lastRefreshed` to a retry time 30 minutes past the stale threshold without touching `rowUpdatedAt`; overlapping runs skip claimed works, and a failed fetch is retried after 30 minutes instead of 6 hours. Apply `20261027042301_work-last-refreshed-index` with this change. Fetches the first-chapter work view, not `view_full_work`: only that view has the `select#selected_id` chapter dropdown, and the full view renders every chapter. Downloads
   and backs up each format to R2 if `downloadUpdatedAt` is newer than that format's latest active backup's `ao3UpdatedAt`. Failed formats retry on the next refresh even when another format already succeeded. Creates notifications
   for new chapters, work completion, deletion, and restriction.
 - `fetch-missing-works.ts` - Fetches data for tracked works missing from the works table (up to 12 works/run)
@@ -240,13 +238,13 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 - Test files in `test/` directory
 - Uses `@cloudflare/vitest-plugin` for Workers-compatible testing with local Miniflare options; tests do not load deployment bindings or secrets
-- Vite+ 1.0 builds the API, but `@cloudflare/vitest-plugin` requires Vitest 4. Keep API tests and `vitest.config.ts` importing `vitest`/`vitest/config`, and run them through the package's `test` script. Keep the API's runner pin separate from Vite+'s Vitest 5 until the Cloudflare plugin supports Vitest 5.
+- `@cloudflare/vitest-plugin` 1.4 supports Vitest 5, so the API uses the catalog `vitest` version. Keep API tests and `vitest.config.ts` importing `vitest`/`vitest/config`, and run them through the package's `test` script. Check the plugin's `vitest` peer range before upgrading Vitest. `vitest.config.ts` disables `fsModuleCache`: with it on, the plugin sends cached modules in one WebSocket message that exceeds workerd's 32 MiB limit and crashes the pool ([workers-sdk#16349](https://github.com/cloudflare/workers-sdk/issues/16349)). Re-enable it only after that issue is fixed.
 - Fixtures in `test/*.fixtures.ts`
 - Coverage includes AO3 parsing, sync conflict/cursor regressions, notification retries, partial backups, and auth origins
 
 ### Database dependency compatibility
 
-Drizzle ORM and Kit are pinned together at `1.0.0-rc.4`. Keep `@planetscale/database` on 1.x: driver 2.x removes the parameterized `execute` API the RC adapter still requires. `test/db-client.test.ts` and `test/backup-queries.test.ts` exercise the real adapter with mocked HTTP responses; root migration tests exercise the real migrator. The `db:migrate` script uses the checked-in migration folders and `ao3track__migrations` ledger, with credential-redacted error causes.
+Drizzle ORM and Kit are pinned together at `1.0.0-rc.5`. Keep `@planetscale/database` on 1.x: driver 2.x removes the parameterized `execute` API the RC adapter still requires. RC.5 relational queries throw on `undefined` filter values; use `EmptyFilter` from `drizzle-orm/relations` for an intentionally absent filter. `test/db-client.test.ts` and `test/backup-queries.test.ts` exercise the real adapter with mocked HTTP responses; root migration tests exercise the real migrator. The `db:migrate` script uses the checked-in migration folders and `ao3track__migrations` ledger, with credential-redacted error causes.
 
 The first RC migration run, in CI or via local `vp run db:migrate`, upgrades a legacy ledger by adding `name` and `applied_at`, backfilling names, and then applying pending SQL. Deployment database credentials require DDL and write access for this runner. The repository format conversion preserves historical SQL. `drizzle.config.ts` forces UTC to avoid RC.4's mixed local-year/UTC migration-name bug at New Year.
 

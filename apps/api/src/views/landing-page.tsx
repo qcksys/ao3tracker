@@ -26,10 +26,13 @@ export const LandingPage: FC = () => (
             <PlayStoreIcon />
             Google Play – Coming Soon
           </span>
-          <span class="flex items-center justify-center gap-3 w-72 py-4 px-8 rounded-xl font-medium text-white opacity-60 cursor-not-allowed bg-linear-to-br from-[#4285f4] to-[#1a73e8]">
+          <a
+            href="https://chromewebstore.google.com/detail/ao3-tracker/hjonebiohecalkggemeneaaohafldkkl"
+            class="flex items-center justify-center gap-3 w-72 py-4 px-8 rounded-xl font-medium text-white transition hover:brightness-110 bg-linear-to-br from-[#4285f4] to-[#1a73e8]"
+          >
             <ChromeIcon />
-            Chrome Extension – Coming Soon
-          </span>
+            Get the Chrome Extension
+          </a>
         </div>
         <footer class="mt-12 text-sm text-zinc-500">
           <p class="mb-3">

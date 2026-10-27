@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -49,7 +50,8 @@ class OfflineDownloadService : Service() {
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(
             NotificationChannel(CHANNEL, "Offline chapter downloads", NotificationManager.IMPORTANCE_LOW))
-        ServiceCompat.startForeground(this, NOTIFICATION, notification("Preparing chapter downloads"),
+        ServiceCompat.startForeground(this, NOTIFICATION,
+            notification(OfflineDownloadNotification("Saving chapters for offline reading", "Preparing chapter downloads")),
             if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0)
         if (next == null) { stopSelf(); return START_NOT_STICKY }
         if (coordinator !== next) {
@@ -59,16 +61,27 @@ class OfflineDownloadService : Service() {
             coordinator = next
             next.setDownloadServiceActive(true)
             observer = scope.launch {
-                combine(next.background, next.hasPendingDownloads, next.network) { request, pending, network -> Triple(request, pending, network.connected) }
-                    .collect { (request, pending, connected) ->
+                var chapters = emptyMap<Long, Pair<Int, Int>>()
+                // Keep "Preparing" until the first chapter starts or the queue grace period passes.
+                var preparing: Job? = launch {
+                    delay(QUEUE_GRACE_MILLIS)
+                    if (next.progress.value == null) manager.notify(NOTIFICATION,
+                        notification(offlineDownloadNotification(null, null), offlineQueueProgress(next.downloads.value, chapters)))
+                }
+                combine(next.background, next.hasPendingDownloads, next.network, next.downloads, next.progress) { request, pending, network, downloads, shown ->
+                    ServiceState(request, pending, network.connected, downloads, shown)
+                }.collect { (request, pending, connected, downloads, shown) ->
                         if (!connected || !pending && request == null) { stopSelf(); return@collect }
                         if (request?.id != requestId) {
                             releasePage()
                             if (request != null) load(next, request)
                         }
-                        val status = next.downloads.value.firstOrNull { it.work.workId == request?.workId }
-                        val message = if (status != null) "${status.savedChapterIds.size} of ${status.publishedChapters} chapters saved" else "Waiting to download chapters"
-                        manager.notify(NOTIFICATION, notification(message))
+                        chapters = offlineQueueChapters(downloads, chapters)
+                        if (shown != null) { preparing?.cancel(); preparing = null }
+                        val content = if (shown == null && preparing?.isActive == true) {
+                            OfflineDownloadNotification("Saving chapters for offline reading", "Preparing chapter downloads")
+                        } else offlineDownloadNotification(shown, downloads.firstOrNull { it.work.workId == shown?.workId })
+                        manager.notify(NOTIFICATION, notification(content, offlineQueueProgress(downloads, chapters)))
                     }
             }
         }
@@ -129,11 +142,22 @@ class OfflineDownloadService : Service() {
         }
     }
 
-    private fun notification(message: String) = NotificationCompat.Builder(this, CHANNEL)
+    private data class ServiceState(val request: OfflineDownloadRequest?, val pending: Boolean, val connected: Boolean,
+        val downloads: List<OfflineWorkStatus>, val shown: OfflineDownloadRequest?)
+
+    private fun notification(content: OfflineDownloadNotification, queue: OfflineQueueProgress? = null) = NotificationCompat.Builder(this, CHANNEL)
         .setSmallIcon(android.R.drawable.stat_sys_download)
-        .setContentTitle("Saving chapters for offline reading")
-        .setContentText(message)
-        .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        .setContentTitle(content.title)
+        .setContentText(content.text)
+        .apply {
+            if (queue == null) return@apply
+            if (queue.works > 0) setSubText(if (queue.works == 1) "1 work in queue" else "${queue.works} works in queue")
+            if (queue.total > 0) setProgress(queue.total, queue.done, false)
+        }
+        .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).apply {
+            action = ACTION_OPEN_DOWNLOADS
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
         .setOngoing(true).setOnlyAlertOnce(true).setPriority(NotificationCompat.PRIORITY_LOW).build()
 
     private fun releasePage(renderProcessGone: Boolean = false) {
@@ -162,6 +186,7 @@ class OfflineDownloadService : Service() {
     }
 
     companion object {
+        internal const val ACTION_OPEN_DOWNLOADS = "com.qcksys.ao3tracker.OPEN_DOWNLOADS"
         private const val CHANNEL = "ao3_offline_downloads"
         private const val NOTIFICATION = 2043
         private var requestedCoordinator: OfflineCoordinator? = null

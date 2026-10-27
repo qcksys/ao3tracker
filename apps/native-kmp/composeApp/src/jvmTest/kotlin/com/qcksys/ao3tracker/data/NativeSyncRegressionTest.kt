@@ -16,12 +16,49 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.*
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.*
+import kotlin.time.Duration.Companion.minutes
 
 class NativeSyncRegressionTest {
+    @Test
+    fun `successful sync shows the local sync time instead of the overlapping server cursor`() = runTest {
+        fixture { f ->
+            val before = kotlin.time.Clock.System.now()
+            val cursor = (before - 16.minutes).toString()
+            f.remote.onFetch = { Result.success(response(marker = cursor)) }
+
+            val result = assertIs<SyncResult.Success>(f.sync.sync())
+
+            val displayed = kotlin.time.Instant.parse(assertNotNull(f.sync.syncState.value.lastSyncedAt))
+            assertTrue(displayed.toEpochMilliseconds() >= before.toEpochMilliseconds(), "A completed sync must show Just now, not the older server cursor: $displayed")
+            assertTrue(displayed <= kotlin.time.Clock.System.now())
+            assertEquals(displayed.toString(), result.syncedAt)
+            assertEquals(displayed.toEpochMilliseconds(), f.accounts.active.value?.localCursor)
+            assertEquals(cursor, f.accounts.active.value?.remoteCursor)
+
+            f.accounts.activate("production:b")
+            withContext(Dispatchers.Default) {
+                withTimeout(5_000) { f.sync.syncState.first { it.lastSyncedAt == null } }
+            }
+            f.accounts.activate("production:a")
+            val restored = withContext(Dispatchers.Default) {
+                withTimeout(5_000) { f.sync.syncState.first { it.lastSyncedAt != null } }
+            }
+            assertEquals(displayed.toString(), restored.lastSyncedAt)
+
+            f.remote.onFetch = { Result.failure(SyncException("Server unavailable")) }
+            assertIs<SyncResult.Error>(f.sync.sync())
+            assertEquals(displayed.toString(), f.sync.syncState.value.lastSyncedAt)
+        }
+    }
+
     @Test
     fun `offline reading reconciles competing older edits newer unread resets and chapter tombstones`() = runTest {
         fixture { f ->

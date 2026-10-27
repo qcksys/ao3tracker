@@ -41,7 +41,7 @@ Better Auth handles all auth endpoints including sign-in, sign-up, password rese
 
 ### Prerequisites
 
-- Node.js 24, managed by Vite+ using the root `package.json` → `engines.node` pin
+- Node.js 26, managed by Vite+ using the root `package.json` → `engines.node` pin
 - Vite+ (`vp`); it manages the pinned pnpm backend
 - 1Password desktop app and [1Password CLI](https://developer.1password.com/docs/cli/get-started/), with desktop app integration enabled
 - Cloudflare account

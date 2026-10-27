@@ -60,6 +60,20 @@ class OfflineReadingTest {
     }
 
     @Test
+    fun `live navigation opens AO3 even when the work has a saved chapter`() = runTest {
+        for (connected in listOf(false, true)) fixture(connected) { f ->
+            f.save(11)
+            val work = "https://archiveofourown.org/works/1"
+            f.model.navigateToReadingPosition(ReadNavigation(work, 0f))
+            assertNotNull(f.model.savedChapter.value)
+            f.model.navigateToReadingPosition(ReadNavigation(work, 0f, live = true))
+            assertNull(f.model.savedChapter.value)
+            assertNull(f.model.unavailableDestination.value)
+            assertTrue(f.model.currentUrl.value.startsWith("$work?scrollTo=0&_t="))
+        }
+    }
+
+    @Test
     fun `a failed online request restores the saved document and exact position without an extra history step`() = runTest {
         fixture { f ->
             f.save(11)

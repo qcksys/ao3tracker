@@ -76,6 +76,12 @@ internal fun OfflineStorageSettingsContent(settings: AppSettings, automaticBytes
                     modifier = Modifier.semantics { contentDescription = "Delete automatic saves after reading" })
             }
             Text("Removes completed chapters saved automatically. Save whole work downloads stay until you remove them. Your reading progress is kept.")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Update downloaded works in the background", modifier = Modifier.weight(1f))
+                Switch(preferences.updateSavedWorks, { settings.setOfflinePreferences(preferences.copy(updateSavedWorks = it)) },
+                    modifier = Modifier.semantics { contentDescription = "Update downloaded works in the background" })
+            }
+            Text("Saves new and revised chapters of Save whole work downloads when sync or AO3 reports an update.")
             Text("Downloads continue when you switch apps or lock your phone. An ongoing notification shows progress.")
             Text("Automatic storage: ${offlineSize(automaticBytes)} of 250 MiB across all accounts")
             Text("Explicit downloads: ${offlineSize(pinnedBytes)} · kept until removed")

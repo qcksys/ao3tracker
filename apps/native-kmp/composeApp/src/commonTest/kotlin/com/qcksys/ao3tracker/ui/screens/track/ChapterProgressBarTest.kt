@@ -1,5 +1,7 @@
 package com.qcksys.ao3tracker.ui.screens.track
 
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import com.qcksys.ao3tracker.data.model.Chapter
 import com.qcksys.ao3tracker.data.model.Work
 import kotlin.test.Test
@@ -66,6 +68,16 @@ class ChapterProgressBarTest {
     fun `progress outside the display range is clamped`() {
         val work = work(current = 2, chapters = listOf(chapter(1, -0.5f), chapter(2, 1.2f)))
         assertEquals(listOf(0f, 1f), work.chapterProgressSegments())
+    }
+
+    @Test
+    fun `read unread and downloaded chapter segments use four distinct colours`() {
+        for (scheme in listOf(lightColorScheme(), darkColorScheme())) {
+            val (unread, read) = scheme.chapterSegmentColors(downloaded = false)
+            val (downloadedUnread, downloadedRead) = scheme.chapterSegmentColors(downloaded = true)
+            assertEquals(scheme.surfaceVariant to scheme.primary, unread to read)
+            assertEquals(4, setOf(unread, read, downloadedUnread, downloadedRead).size)
+        }
     }
 
     private fun work(current: Int? = null, total: Int? = null, chapters: List<Chapter> = emptyList()) = Work(

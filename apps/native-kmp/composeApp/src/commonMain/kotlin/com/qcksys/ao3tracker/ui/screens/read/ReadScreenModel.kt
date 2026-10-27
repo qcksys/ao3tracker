@@ -679,7 +679,7 @@ class ReadScreenModel(
         pendingWorkInfo = null
         pendingWorkTags = null
         previousChapter = null
-        openDestination(destination.url, destination.scrollProgress)
+        openDestination(destination.url, destination.scrollProgress, forceLive = navigation.live)
     }
 
     fun navigateToUrl(url: String) {

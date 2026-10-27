@@ -6,6 +6,22 @@ import {
   NotFoundError,
 } from "~/lib/ao3-fetch";
 
+describe("AO3 work page request", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("requests the first-chapter view, which includes the chapter dropdown", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("<html>Work content</html>"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await fetchWorkHtml(123);
+
+    const url = new URL((fetchMock.mock.calls[0][0] as Request).url);
+    expect(url.pathname).toBe("/works/123");
+    expect(url.searchParams.get("view_adult")).toBe("true");
+    expect(url.searchParams.has("view_full_work")).toBe(false);
+  });
+});
+
 describe("AO3 TLS failure retries", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => {
