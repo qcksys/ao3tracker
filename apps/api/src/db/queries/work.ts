@@ -1,5 +1,5 @@
 import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
-import { and, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import type { OmitTimestampCols } from "~/db/helpers/schema";
 import { tTrackWork } from "~/db/schema/track.work";
@@ -29,18 +29,40 @@ export type ChapterData = Required<
 >;
 
 /**
- * Find works that haven't been refreshed since the given threshold
+ * Claim up to `limit` works not refreshed since `staleThreshold`, least recently refreshed first.
+ * Returns only the works this caller claimed; a concurrent caller's claims are skipped.
  */
-export async function findStaleWorks(
+export async function claimStaleWorks(
   db: TDatabase,
   staleThreshold: Date,
+  retryAt: Date,
   limit: number,
 ): Promise<{ id: number; currentChapters: number | null }[]> {
-  return db
+  const candidates = await db
     .select({ id: tWork.id, currentChapters: tWork.currentChapters })
     .from(tWork)
     .where(and(lt(tWork.lastRefreshed, staleThreshold), isNull(tWork.rowDeletedAt)))
+    .orderBy(asc(tWork.lastRefreshed), asc(tWork.id))
     .limit(limit);
+
+  // Moving lastRefreshed to retryAt leases the work: overlapping runs no longer see it as stale,
+  // and it becomes stale again at retryAt unless a successful refresh records a newer time.
+  // Keeping rowUpdatedAt prevents the lease from replaying the work to sync clients.
+  const claimed: typeof candidates = [];
+  for (const work of candidates) {
+    const result = await db
+      .update(tWork)
+      .set({ lastRefreshed: retryAt, rowUpdatedAt: sql`${tWork.rowUpdatedAt}` })
+      .where(
+        and(
+          eq(tWork.id, work.id),
+          lt(tWork.lastRefreshed, staleThreshold),
+          isNull(tWork.rowDeletedAt),
+        ),
+      );
+    if (result.rowsAffected > 0) claimed.push(work);
+  }
+  return claimed;
 }
 
 /**
@@ -178,13 +200,6 @@ export async function upsertWork(db: TDatabase, data: TWorkI): Promise<void> {
         exclude: tWorkTimestampExclude,
       }),
     );
-}
-
-/**
- * Update only lastRefreshed on a work (used in error paths to prevent immediate re-processing)
- */
-export async function touchWorkRefreshed(db: TDatabase, workId: number): Promise<void> {
-  await db.update(tWork).set({ lastRefreshed: new Date() }).where(eq(tWork.id, workId));
 }
 
 /**

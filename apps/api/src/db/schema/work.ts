@@ -37,6 +37,7 @@ export const tWork = mysqlTable(
       index("idx_works_wordCount").on(table.wordCount),
       index("idx_works_published").on(table.published),
       index("idx_works_lastUpdated").on(table.lastUpdated),
+      index("idx_works_lastRefreshed").on(table.lastRefreshed),
       index("idx_works_rowCreatedAt").on(table.rowCreatedAt),
       index("idx_works_rowUpdatedAt").on(table.rowUpdatedAt),
       index("idx_works_rowDeletedAt").on(table.rowDeletedAt),
