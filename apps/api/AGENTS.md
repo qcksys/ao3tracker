@@ -238,7 +238,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 - Test files in `test/` directory
 - Uses `@cloudflare/vitest-plugin` for Workers-compatible testing with local Miniflare options; tests do not load deployment bindings or secrets
-- `@cloudflare/vitest-plugin` 1.4 supports Vitest 5, so the API uses the catalog `vitest` version. Keep API tests and `vitest.config.ts` importing `vitest`/`vitest/config`, and run them through the package's `test` script. Check the plugin's `vitest` peer range before upgrading Vitest.
+- `@cloudflare/vitest-plugin` 1.4 supports Vitest 5, so the API uses the catalog `vitest` version. Keep API tests and `vitest.config.ts` importing `vitest`/`vitest/config`, and run them through the package's `test` script. Check the plugin's `vitest` peer range before upgrading Vitest. `vitest.config.ts` disables `fsModuleCache`: with it on, the plugin sends cached modules in one WebSocket message that exceeds workerd's 32 MiB limit and crashes the pool ([workers-sdk#16349](https://github.com/cloudflare/workers-sdk/issues/16349)). Re-enable it only after that issue is fixed.
 - Fixtures in `test/*.fixtures.ts`
 - Coverage includes AO3 parsing, sync conflict/cursor regressions, notification retries, partial backups, and auth origins
 
