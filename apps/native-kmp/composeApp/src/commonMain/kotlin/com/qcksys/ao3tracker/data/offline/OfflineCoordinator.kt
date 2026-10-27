@@ -219,7 +219,7 @@ class OfflineCoordinator internal constructor(
     }
 
     internal fun liveNavigation(url: String) {
-        if (url.substringBefore('#') == liveUrl?.substringBefore('#')) return
+        if (sameOfflinePage(url, liveUrl)) return
         liveUrl = url
         liveNavigation.value++
         store.releaseReaderProtection()
@@ -228,7 +228,7 @@ class OfflineCoordinator internal constructor(
     }
 
     internal fun observed(event: OfflinePageObservation) {
-        if (!enabled || event.url.substringBefore('#') != liveUrl?.substringBefore('#')) return
+        if (!enabled || !sameOfflinePage(event.url, liveUrl)) return
         val version = liveNavigation.value
         scope.launch {
             try {
