@@ -54,7 +54,11 @@ function isLoginRedirect(responseUrl: string): boolean {
 }
 
 /**
- * Fetch work HTML from AO3
+ * Fetch work HTML from AO3.
+ *
+ * Requests the first-chapter view rather than `view_full_work`: it carries the same metadata
+ * plus the `select#selected_id` chapter dropdown, which the full-work view omits, and it does not
+ * render every chapter's text (megabytes for long works, often past the request timeout).
  * @throws {RestrictedWorkError} if the work requires login
  * @throws {NotFoundError} if the work is not found (404)
  */
@@ -64,7 +68,6 @@ export async function fetchWorkHtml(workId: number): Promise<string> {
     const response = await ao3Client.get(`works/${workId}`, {
       searchParams: {
         view_adult: "true",
-        view_full_work: "true",
       },
     });
 

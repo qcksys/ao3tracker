@@ -1,0 +1,1 @@
+CREATE INDEX `idx_works_lastRefreshed` ON `ao3track__work` (`lastRefreshed`);
