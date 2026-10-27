@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import com.qcksys.ao3tracker.data.offline.OfflineCaptureRequest
 import com.qcksys.ao3tracker.data.offline.OfflinePageObservation
 import com.qcksys.ao3tracker.data.offline.parseOfflineObservation
+import com.qcksys.ao3tracker.data.offline.sameOfflinePage
 import com.qcksys.ao3tracker.webview.OfflineObservationScriptGenerated
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -177,7 +178,7 @@ actual fun Ao3WebView(
                                     val source = it.url
                                     val version = documentVersion
                                     it.evaluateJavascript(guardAo3Script("${OfflineObservationScriptGenerated.script}; return Ao3OfflineObservation.observe(document, location.href);")) { body ->
-                                        if (documentVersion == version && source != null && it.url == source) {
+                                        if (documentVersion == version && source != null && sameOfflinePage(it.url, source)) {
                                             parseOfflineObservation(body, source)?.let(onOfflinePageState)
                                         }
                                     }
