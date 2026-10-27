@@ -1,6 +1,7 @@
 package com.qcksys.ao3tracker.data
 
 import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.database.WorkEntity
 import com.qcksys.ao3tracker.data.offline.*
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.OfflinePreferences
@@ -279,6 +280,30 @@ class OfflineCoordinatorTest {
             delay(100)
             assertSame(manual, coordinator.capture.value)
             assertTrue(manual.isCurrent())
+        }
+    }
+
+    @Test
+    fun `new published chapters queue a background update for explicit downloads unless the setting is off`() = runBlocking {
+        for (enabled in listOf(true, false)) {
+            val settings = AppSettings(null)
+            settings.setOfflinePreferences(OfflinePreferences(updateSavedWorks = enabled))
+            fixture(settings) { coordinator, _ ->
+                coordinator.setForeground(true)
+                coordinator.saveWork(123)
+                withTimeout(5000) { coordinator.background.first { it != null }!! }.capture.publish(bundle())
+                withTimeout(5000) { coordinator.downloads.first { it.singleOrNull()?.job?.state == "complete" } }
+                edit { database.workDao().upsertWork(WorkEntity(123, title = "Saved", currentChapters = 2, rowCreatedAt = 1, rowUpdatedAt = 1)) }
+                if (enabled) {
+                    val update = withTimeout(5000) { coordinator.background.first { it?.mode == "update-discover" }!! }
+                    assertEquals("Updating Saved", offlineDownloadNotification(update, coordinator.downloads.value.single()).title)
+                } else {
+                    delay(200)
+                    assertNull(coordinator.background.value)
+                    assertEquals("complete", coordinator.downloads.value.single().job?.state)
+                }
+                edit { database.workDao().deleteAllWorks() }
+            }
         }
     }
 

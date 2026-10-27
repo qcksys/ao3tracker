@@ -28,7 +28,8 @@ import kotlinx.coroutines.withTimeout
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false)
+internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false,
+    val mode: String = "save-discover", val done: Int = 0, val total: Int = 1)
 internal data class DownloadDebugEntry(val timestamp: String, val message: String)
 
 class OfflineCoordinator internal constructor(
@@ -69,6 +70,9 @@ class OfflineCoordinator internal constructor(
     private var downloadTask: Job? = null
     private val downloadId = MutableStateFlow<String?>(null)
     private var pendingSave: Pair<Long, Boolean>? = null
+    private var workRevisions: Map<Long, Pair<Int?, String?>> = emptyMap()
+    // Revisions already queued this session, so an update that cannot reach the reported count is not repeated.
+    private val queuedUpdates = mutableMapOf<Long, Pair<Int?, String?>?>()
     private val wake = Channel<Unit>(Channel.CONFLATED)
 
     init {
@@ -77,7 +81,8 @@ class OfflineCoordinator internal constructor(
             scope.launch {
                 accounts.observe { it.workDao().getAllWorks() }
                     .map { works -> works.associate { it.id to (it.currentChapters to it.downloadUpdatedAt) } }.distinctUntilChanged().collect {
-                        try { refresh(); replanPrefetch() } catch (error: CancellationException) { throw error } catch (_: Exception) {
+                        workRevisions = it
+                        try { refresh(); replanPrefetch(); queueSavedWorkUpdates() } catch (error: CancellationException) { throw error } catch (_: Exception) {
                             statusMessage.value = "Download coverage could not be refreshed. Reopen Downloads to try again."
                         }
                     }
@@ -105,12 +110,14 @@ class OfflineCoordinator internal constructor(
                             pendingSave = null
                             automaticPage = null
                             debugState.value = emptyList()
+                            queuedUpdates.clear()
                         }
                         previousAccount = account
                         try {
                             store.initialize()
                             refresh()
                             store.collectUnusedFiles()
+                            queueSavedWorkUpdates()
                             kick()
                         } catch (_: CancellationException) { } catch (_: Exception) {
                             statusMessage.value = "Saved works could not be loaded. Try reopening the app."
@@ -128,7 +135,7 @@ class OfflineCoordinator internal constructor(
                 combine(settings.incognitoModeEnabled, settings.offlinePreferences) { _, _ -> Unit }.collect {
                     if (!automaticAllowed() && automaticCapture) cancelCapture()
                     if (!prefetchAllowed() && backgroundRequest.value?.automatic == true) downloadTask?.cancel()
-                    try { replanPrefetch() } catch (_: CancellationException) { } catch (_: Exception) {
+                    try { replanPrefetch(); queueSavedWorkUpdates() } catch (_: CancellationException) { } catch (_: Exception) {
                         debug("Unable to update the prefetch queue. Reopen a chapter to retry.")
                     }
                     runCatching { refreshQueueAvailability() }
@@ -209,6 +216,24 @@ class OfflineCoordinator internal constructor(
             downloadTask?.join()
         }
         store.enqueuePrefetch(context, page, refreshCurrent = true, preferences = settings.offlinePreferences.value) { automaticAllowed() }
+        refresh()
+        kick()
+    }
+
+    private suspend fun queueSavedWorkUpdates() {
+        if (!settings.offlinePreferences.value.updateSavedWorks) return
+        val context = store.context.value?.takeIf(store::isCurrent) ?: return
+        val outdated = workStates.value.mapNotNull { status ->
+            val workId = status.work.workId
+            val revision = workRevisions[workId]
+            val alreadyQueued = workId in queuedUpdates && queuedUpdates[workId] == revision
+            workId.takeIf { !alreadyQueued && needsBackgroundUpdate(status, revision?.second) }
+        }
+        if (outdated.isEmpty()) return
+        // Record before suspending so overlapping refreshes cannot queue the same work twice.
+        outdated.forEach { queuedUpdates[it] = workRevisions[it] }
+        for (workId in outdated) store.enqueueWork(context, workId, update = true)
+        debug("Queued background updates for ${outdated.size} saved ${if (outdated.size == 1) "work" else "works"}.")
         refresh()
         kick()
     }
@@ -369,7 +394,9 @@ class OfflineCoordinator internal constructor(
                         if (retryAfter != null) gate.pause(retryAfter)
                         result.completeExceptionally(IllegalStateException(message))
                     }, onProgress = ::debug)
-                backgroundRequest.value = OfflineDownloadRequest(id, job.workId, url, request, automatic)
+                val done = offlineJson.decodeFromString<List<String>>(job.completedJson).size
+                val total = done + offlineJson.decodeFromString<List<String>>(job.remainingJson).size
+                backgroundRequest.value = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total)
                 refresh()
                 withTimeout(300_000) { result.await() }
             }

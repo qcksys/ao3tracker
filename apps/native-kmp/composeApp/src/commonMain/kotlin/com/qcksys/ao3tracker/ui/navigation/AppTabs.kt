@@ -6,6 +6,9 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import cafe.adriel.voyager.core.screen.Screen
@@ -16,6 +19,7 @@ import cafe.adriel.voyager.transitions.SlideTransition
 import com.qcksys.ao3tracker.ui.screens.read.ReadScreen
 import com.qcksys.ao3tracker.ui.screens.searches.SearchesScreen
 import com.qcksys.ao3tracker.ui.screens.settings.SettingsScreen
+import com.qcksys.ao3tracker.ui.screens.track.DownloadsScreen
 import com.qcksys.ao3tracker.ui.screens.track.TrackScreen
 
 object ReadTab : Tab {
@@ -61,6 +65,15 @@ object TrackTab : Tab {
         Navigator(TrackScreenWrapper()) { navigator ->
             // Register navigator so we can pop to root when tab is re-selected
             NavigationState.registerTrackTabNavigator(NavigatorAdapter(navigator))
+            val pendingDownloads by NavigationState.pendingDownloads.collectAsState()
+            LaunchedEffect(pendingDownloads) {
+                if (!pendingDownloads) return@LaunchedEffect
+                NavigationState.clearPendingDownloads()
+                if (navigator.lastItem !is DownloadsScreen) {
+                    navigator.popUntilRoot()
+                    navigator.push(DownloadsScreen())
+                }
+            }
             SlideTransition(navigator)
         }
     }
