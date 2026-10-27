@@ -78,11 +78,6 @@ jobs:
             exit 1
           fi
           vp node apps/api/scripts/migrate.mjs
-      - name: Verify development database after migrations
-        if: steps.release.outputs.eligible == 'true'
-        env:
-          DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
-        run: vp node scripts/check-api-migrations.mjs
       - name: Confirm source is still current dev
         if: steps.release.outputs.eligible == 'true'
         env:

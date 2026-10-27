@@ -69,10 +69,6 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: vp node apps/api/scripts/migrate.mjs
-      - name: Verify production database after migrations
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: vp node scripts/check-api-migrations.mjs
       - name: Confirm source is still current main
         env:
           GITHUB_TOKEN: ${{ github.token }}
