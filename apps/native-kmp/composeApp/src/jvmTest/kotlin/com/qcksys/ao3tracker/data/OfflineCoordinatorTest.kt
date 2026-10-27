@@ -4,6 +4,7 @@ import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.offline.*
 import com.qcksys.ao3tracker.data.settings.AppSettings
 import com.qcksys.ao3tracker.data.settings.OfflinePreferences
+import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.*
@@ -13,6 +14,28 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.test.*
 
 class OfflineCoordinatorTest {
+    @Test
+    fun `first whole work save resumes when reading scripts update the displayed URL`() = runBlocking {
+        fixture(initialIdentity = null) { coordinator, _ ->
+            val wholeUrl = "https://archiveofourown.org/works/123?view_full_work=true"
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            withTimeout(5000) { coordinator.message.first { it == "The work will be saved after AO3 confirms access." } }
+            val navigation = NavigationState.pendingNavigation.value
+            NavigationState.clearPendingNavigation()
+            assertEquals(wholeUrl, navigation?.url)
+            coordinator.liveNavigation("$wholeUrl&scrollTo=0&_t=123")
+            coordinator.observed(OfflinePageObservation("$wholeUrl&scroll=0", "user:fixture", true))
+            val capture = withTimeout(5000) { coordinator.capture.first { it != null }!! }
+            assertTrue(capture.isCurrent())
+            assertEquals("user:fixture", coordinator.store.context.value?.identity)
+            coordinator.liveNavigation("$wholeUrl&scroll=10")
+            assertTrue(capture.isCurrent())
+            coordinator.liveNavigation(url)
+            assertFalse(capture.isCurrent())
+        }
+    }
+
     @Test
     fun `initial account observation preserves a readable page received during startup`() = runBlocking {
         fixture(databaseContext = Dispatchers.Unconfined) { coordinator, _ ->
@@ -288,14 +311,14 @@ class OfflineCoordinatorTest {
         }
     }
 
-    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
+    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")
         val accounts = createTestAccounts(directory, databaseContext)
         // Match the app's main-thread confinement for coordinator calls and jobs.
         val scope = CoroutineScope(currentCoroutineContext() + SupervisorJob())
         try {
             val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
-            store.observeIdentity("user:fixture")
+            initialIdentity?.let { store.observeIdentity(it) }
             val network = MutableStateFlow(OfflineNetwork(true, true))
             val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync)
             accounts.block(coordinator, network)
