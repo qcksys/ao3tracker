@@ -58,7 +58,7 @@ class SyncRepository(
     private val chapterDao get() = accountData.database.chapterDao()
     private val tagDao get() = accountData.database.tagDao()
 
-    // Observe account cursors independently of the screens displaying sync status.
+    // The local cursor records the last successful sync's start; the remote cursor includes a replay window.
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val syncMutex = Mutex()
 
@@ -70,7 +70,7 @@ class SyncRepository(
     init {
         repositoryScope.launch {
             accountData.active.collect { account ->
-                _syncState.update { it.copy(lastSyncedAt = account?.remoteCursor) }
+                _syncState.update { it.copy(lastSyncedAt = account?.localCursor?.let(::toIso8601)) }
             }
         }
     }
@@ -240,7 +240,8 @@ class SyncRepository(
                 else accountData.saveSyncCursors(serverLastUpdated, syncStartedAt)
             }
 
-            _syncState.update { it.copy(lastSyncedAt = if (clearOnSuccess) null else serverLastUpdated) }
+            val syncedAt = toIso8601(syncStartedAt)
+            _syncState.update { it.copy(lastSyncedAt = if (clearOnSuccess) null else syncedAt) }
             finishSync("Sync completed: ${serverData.works.size} works and ${serverData.chapters.size} chapters downloaded; ${localWorks.size} works and ${localChapters.size} chapters uploaded")
 
             AppLogger.d("Sync completed: ${serverData.works.size} works, ${serverData.chapters.size} chapters from server; ${localWorks.size} works, ${localChapters.size} chapters to server", TAG)
@@ -249,7 +250,7 @@ class SyncRepository(
                 chaptersFromServer = serverData.chapters.size,
                 worksToServer = localWorks.size,
                 chaptersToServer = localChapters.size,
-                syncedAt = serverLastUpdated
+                syncedAt = syncedAt
             )
         } catch (e: CancellationException) {
             finishSync("Sync cancelled")

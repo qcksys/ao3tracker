@@ -73,12 +73,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -396,7 +398,7 @@ fun TrackScreen() {
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = formatSyncTimestamp(lastSync),
+                                text = rememberSyncTimestamp(lastSync),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1203,24 +1205,27 @@ private fun Int.formatWithCommas(): String {
 }
 
 @OptIn(kotlin.time.ExperimentalTime::class)
-private fun formatSyncTimestamp(iso8601: String): String {
-    return try {
-        val instant = kotlin.time.Instant.parse(iso8601)
-        val timestamp = instant.toEpochMilliseconds()
-        val now = kotlin.time.Clock.System.now().toEpochMilliseconds()
-        val diff = now - timestamp
-        val minutes = diff / (1000 * 60)
-        val hours = minutes / 60
-        val days = hours / 24
-
-        when {
-            minutes < 1 -> "Just now"
-            minutes < 60 -> "$minutes min ago"
-            hours < 24 -> "$hours hours ago"
-            days < 7 -> "$days days ago"
-            else -> iso8601.substringBefore("T")
+@Composable
+internal fun rememberSyncTimestamp(iso8601: String, clock: kotlin.time.Clock = kotlin.time.Clock.System): String {
+    val timestamp = remember(iso8601) {
+        runCatching { kotlin.time.Instant.parse(iso8601).toEpochMilliseconds() }.getOrNull()
+    } ?: return iso8601.substringBefore("T")
+    var now by remember(iso8601, clock) { mutableLongStateOf(clock.now().toEpochMilliseconds()) }
+    LaunchedEffect(iso8601, clock) {
+        while (true) {
+            delay(60_000 - (now - timestamp).coerceAtLeast(0) % 60_000)
+            now = clock.now().toEpochMilliseconds()
         }
-    } catch (e: Exception) {
-        iso8601.substringBefore("T")
+    }
+    val minutes = (now - timestamp) / (1000 * 60)
+    val hours = minutes / 60
+    val days = hours / 24
+
+    return when {
+        minutes < 1 -> "Just now"
+        minutes < 60 -> "$minutes min ago"
+        hours < 24 -> "$hours hours ago"
+        days < 7 -> "$days days ago"
+        else -> iso8601.substringBefore("T")
     }
 }
