@@ -1,9 +1,32 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { formatMigrationError, runMigrations } from "../apps/api/scripts/migrate.mjs";
-import { readMigrationManifest } from "./check-api-migrations.mjs";
+
+const migrationsDirectory = new URL("../apps/api/src/db/migrations/", import.meta.url);
+
+async function readMigrationManifest() {
+  const folders = (await readdir(migrationsDirectory)).sort((a, b) => a.localeCompare(b));
+  const migrations = await Promise.all(
+    folders.map(async (tag) => {
+      const [, year, month, day, hour, minute, second] =
+        /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(tag);
+      const sql = await readFile(new URL(`${tag}/migration.sql`, migrationsDirectory), "utf8");
+      const lfSql = sql.replaceAll("\r\n", "\n");
+      return {
+        tag,
+        when: Date.UTC(year, month - 1, day, hour, minute, second),
+        hashes: [lfSql, lfSql.replaceAll("\n", "\r\n")].map((text) =>
+          createHash("sha256").update(text).digest("hex"),
+        ),
+      };
+    }),
+  );
+  return { migrations };
+}
 
 void test("the real migrator uses the existing ledger and parameterized driver API", async (t) => {
   const queries = [];
