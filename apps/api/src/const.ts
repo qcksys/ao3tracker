@@ -6,4 +6,4 @@ export const LOCAL_ENV_NAME = "local";
 
 export const AO3_BASE_URL = "https://archiveofourown.org";
 
-export const AO3_USER_AGENT = "AO3Tracker/1.0 (https://github.com/qcksys/ao3tracker-api)";
+export const AO3_USER_AGENT = "AO3Tracker/1.0 (https://github.com/qcksys/ao3tracker)";

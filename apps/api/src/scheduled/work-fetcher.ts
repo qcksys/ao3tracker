@@ -12,6 +12,7 @@ import {
 import {
   fetchChapterIndexHtml,
   fetchWorkHtml,
+  isAo3Unavailable,
   NotFoundError,
   RestrictedWorkError,
   sleep,
@@ -171,6 +172,8 @@ export interface WorkProcessResult {
   success: boolean;
   restrictedWork?: boolean;
   notFound?: boolean;
+  /** AO3 itself failed (5xx, 429, timeout or network error), not the work */
+  unavailable?: boolean;
   error?: string;
   data?: ParsedWorkData;
 }
@@ -195,6 +198,7 @@ export async function fetchWorkDataSafe(
     return {
       workId,
       success: false,
+      unavailable: isAo3Unavailable(error),
       error: error instanceof Error ? error.message : String(error),
     };
   }

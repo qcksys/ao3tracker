@@ -3,8 +3,45 @@ import {
   fetchChapterHtml,
   fetchChapterIndexHtml,
   fetchWorkHtml,
+  isAo3Unavailable,
   NotFoundError,
 } from "~/lib/ao3-fetch";
+
+describe("AO3 availability classification", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function failure(response: Response | Error): Promise<unknown> {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => {
+        if (response instanceof Error) throw response;
+        return response.clone();
+      }),
+    );
+    return fetchChapterHtml(123, 456).catch((error: unknown) => error);
+  }
+
+  it.each([429, 503, 525])("treats HTTP %i as AO3 being unavailable", async (status) => {
+    vi.useFakeTimers();
+    const result = failure(new Response("", { status }));
+    await vi.runAllTimersAsync();
+    expect(isAo3Unavailable(await result)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("treats network failures as AO3 being unavailable", async () => {
+    vi.useFakeTimers();
+    const result = failure(new TypeError("fetch failed"));
+    await vi.runAllTimersAsync();
+    expect(isAo3Unavailable(await result)).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("does not treat a missing work or an unrelated error as AO3 being unavailable", async () => {
+    expect(isAo3Unavailable(await failure(new Response("", { status: 404 })))).toBe(false);
+    expect(isAo3Unavailable(new Error("Could not parse work page"))).toBe(false);
+  });
+});
 
 describe("AO3 work page request", () => {
   afterEach(() => vi.unstubAllGlobals());

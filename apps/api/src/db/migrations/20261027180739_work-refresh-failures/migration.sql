@@ -1,0 +1,1 @@
+ALTER TABLE `ao3track__work` ADD `refreshFailures` int unsigned DEFAULT 0 NOT NULL;

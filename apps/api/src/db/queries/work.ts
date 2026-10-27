@@ -3,7 +3,7 @@ import { and, asc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm"
 import type { TDatabase } from "~/db/db.client";
 import type { OmitTimestampCols } from "~/db/helpers/schema";
 import { tTrackWork } from "~/db/schema/track.work";
-import { type TWorkI, tWork, tWorkTimestampExclude } from "~/db/schema/work";
+import { type TWorkI, type TWorkS, tWork, tWorkTimestampExclude } from "~/db/schema/work";
 import {
   type TWorkChapterI,
   tWorkChapter,
@@ -37,9 +37,13 @@ export async function claimStaleWorks(
   staleThreshold: Date,
   retryAt: Date,
   limit: number,
-): Promise<{ id: number; currentChapters: number | null }[]> {
+): Promise<Pick<TWorkS, "id" | "currentChapters" | "refreshFailures">[]> {
   const candidates = await db
-    .select({ id: tWork.id, currentChapters: tWork.currentChapters })
+    .select({
+      id: tWork.id,
+      currentChapters: tWork.currentChapters,
+      refreshFailures: tWork.refreshFailures,
+    })
     .from(tWork)
     .where(and(lt(tWork.lastRefreshed, staleThreshold), isNull(tWork.rowDeletedAt)))
     .orderBy(asc(tWork.lastRefreshed), asc(tWork.id))
@@ -75,7 +79,23 @@ export async function updateWork(
 ): Promise<void> {
   await db
     .update(tWork)
-    .set({ ...data, lastRefreshed: new Date() })
+    .set({ ...data, lastRefreshed: new Date(), refreshFailures: 0 })
+    .where(eq(tWork.id, workId));
+}
+
+/**
+ * Record a failed scheduled refresh: store the consecutive failure count and make the work stale
+ * again at `retryAt`. Like the claim, this is not a metadata change, so rowUpdatedAt is kept.
+ */
+export async function recordWorkRefreshFailure(
+  db: TDatabase,
+  workId: number,
+  refreshFailures: number,
+  retryAt: Date,
+): Promise<void> {
+  await db
+    .update(tWork)
+    .set({ refreshFailures, lastRefreshed: retryAt, rowUpdatedAt: sql`${tWork.rowUpdatedAt}` })
     .where(eq(tWork.id, workId));
 }
 
