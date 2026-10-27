@@ -12,7 +12,10 @@ internal fun offlineWorkStatusText(download: OfflineWorkStatus?): String = when 
     else -> "${download.savedChapterIds.size} of ${download.publishedChapters} published chapters saved"
 }
 
-private val queueOrder = listOf("running", "queued", "failed")
+internal fun OfflineWorkStatus.savedChapterNumbers(): Set<Int> =
+    chapters.filter { it.id in savedChapterIds }.map { it.number }.toSet()
+
+private val queueOrder =listOf("running", "queued", "failed")
 
 /** Works with unfinished jobs, in the order the queue will handle them. */
 internal fun offlineDownloadQueue(downloads: List<OfflineWorkStatus>): List<OfflineWorkStatus> =

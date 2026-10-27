@@ -16,6 +16,13 @@ class OfflineDownloadStatusTest {
     }
 
     @Test
+    fun `saved chapter numbers map saved chapter IDs to their positions`() {
+        val chapters = listOf(OfflineChapter("10", 1, "One", "a"), OfflineChapter("20", 2, "Two", "b"), OfflineChapter("30", 3, "Three", "c"))
+        val download = status(1).copy(chapters = chapters, savedChapterIds = setOf("10", "30", "99"))
+        assertEquals(setOf(1, 3), download.savedChapterNumbers())
+    }
+
+    @Test
     fun `queue lists unfinished jobs with the running download first`() {
         val queue = offlineDownloadQueue(listOf(status(1, "failed"), status(2, "complete"), status(3, "queued"), status(4), status(5, "running")))
         assertEquals(listOf(5L, 3L, 1L), queue.map { it.work.workId })

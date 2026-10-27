@@ -101,6 +101,7 @@ import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.data.offline.offlineDownloadsSummary
+import com.qcksys.ao3tracker.data.offline.savedChapterNumbers
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.components.WorkMetadata
@@ -510,6 +511,7 @@ fun TrackScreen() {
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     items(visibleWorks, key = { it.id }) { work ->
+                        val download = downloads.firstOrNull { it.work.workId == work.id && it.savedChapterIds.isNotEmpty() }
                         WorkCard(
                             work = work,
                             onClick = {
@@ -518,9 +520,10 @@ fun TrackScreen() {
                             },
                             onFavourite = { screenModel.toggleFavourite(work.id, work.favourite) },
                             onDetails = { navigator.push(WorkDetailScreen(work.id)) },
-                            offlineCoverage = downloads.firstOrNull { it.work.workId == work.id && it.savedChapterIds.isNotEmpty() }?.let {
+                            offlineCoverage = download?.let {
                                 "Available offline · ${it.savedChapterIds.size}/${it.publishedChapters} chapters"
-                            }
+                            },
+                            downloadedChapters = download?.savedChapterNumbers().orEmpty()
                         )
                     }
                 }
@@ -552,7 +555,8 @@ internal fun WorkCard(
     onClick: () -> Unit,
     onFavourite: () -> Unit,
     onDetails: () -> Unit,
-    offlineCoverage: String? = null
+    offlineCoverage: String? = null,
+    downloadedChapters: Set<Int> = emptySet()
 ) {
     val lastChapter = work.lastChapterRead
 
@@ -644,7 +648,7 @@ internal fun WorkCard(
                 }
             }
 
-            ChapterProgressBar(work)
+            ChapterProgressBar(work, downloadedChapters)
 
             Spacer(modifier = Modifier.height(4.dp))
 
