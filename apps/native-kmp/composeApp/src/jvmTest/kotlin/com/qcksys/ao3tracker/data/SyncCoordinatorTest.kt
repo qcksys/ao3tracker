@@ -186,9 +186,10 @@ class SyncCoordinatorTest {
     @Test
     fun automaticSyncUpdatesProgressWithoutPublishingASnackbarResult() = runTest {
         withCoordinator { f ->
-            assertIs<SyncResult.Success>(f.coordinator.requestSync(showResult = false).await())
+            val result = assertIs<SyncResult.Success>(f.coordinator.requestSync(showResult = false).await())
             assertNull(f.coordinator.lastSyncResult.value)
-            assertEquals(STAMP, f.coordinator.syncState.value.lastSyncedAt)
+            assertEquals(result.syncedAt, f.coordinator.syncState.value.lastSyncedAt)
+            assertEquals(STAMP, f.accounts.active.value?.remoteCursor)
         }
     }
 
