@@ -32,6 +32,8 @@ internal data class OfflineDownloadRequest(val id: String, val workId: Long, val
     val mode: String = "save-discover", val done: Int = 0, val total: Int = 1)
 internal data class DownloadDebugEntry(val timestamp: String, val message: String)
 
+internal const val QUEUE_GRACE_MILLIS = 5_000L
+
 class OfflineCoordinator internal constructor(
     internal val store: OfflineContentStore,
     private val accounts: AccountDataStore,
@@ -42,8 +44,14 @@ class OfflineCoordinator internal constructor(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val requestSync: () -> Unit = {}
 ) {
+    private var storedStates: List<OfflineWorkStatus> = emptyList()
     private val workStates = MutableStateFlow<List<OfflineWorkStatus>>(emptyList())
     internal val downloads = workStates.asStateFlow()
+    // The latest chapter request, kept for a grace period after it ends so the short wait
+    // between chapters is not reported as a queued download.
+    private val shownRequest = MutableStateFlow<OfflineDownloadRequest?>(null)
+    internal val progress = shownRequest.asStateFlow()
+    private var shownRequestRelease: Job? = null
     private val storageState = MutableStateFlow(OfflineStorageUsage())
     internal val storageUsage = storageState.asStateFlow()
     private val backgroundRequest = MutableStateFlow<OfflineDownloadRequest?>(null)
@@ -106,7 +114,9 @@ class OfflineCoordinator internal constructor(
                             downloadTask?.cancel()
                             cancelCapture()
                             observation.value = null
+                            storedStates = emptyList()
                             workStates.value = emptyList()
+                            shownRequest.value = null
                             pendingSave = null
                             automaticPage = null
                             debugState.value = emptyList()
@@ -258,6 +268,7 @@ class OfflineCoordinator internal constructor(
         scope.launch {
             try {
                 if (event.identity != null && event.identity != store.context.value?.identity) {
+                    storedStates = emptyList()
                     workStates.value = emptyList()
                     automaticPage = null
                     debugState.value = emptyList()
@@ -396,7 +407,9 @@ class OfflineCoordinator internal constructor(
                     }, onProgress = ::debug)
                 val done = offlineJson.decodeFromString<List<String>>(job.completedJson).size
                 val total = done + offlineJson.decodeFromString<List<String>>(job.remainingJson).size
-                backgroundRequest.value = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total)
+                val download = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total)
+                backgroundRequest.value = download
+                showProgress(download)
                 refresh()
                 withTimeout(300_000) { result.await() }
             }
@@ -420,6 +433,7 @@ class OfflineCoordinator internal constructor(
         } finally {
             if (downloadId.value == id) downloadId.value = null
             if (backgroundRequest.value?.id == id) backgroundRequest.value = null
+            releaseProgress(id)
             withContext(NonCancellable) {
                 staged?.cancel()
                 runCatching { store.collectUnusedFiles() }
@@ -496,9 +510,36 @@ class OfflineCoordinator internal constructor(
 
     private suspend fun refresh() {
         val context = store.context.value
-        workStates.value = if (context != null && store.isCurrent(context)) store.statuses(context) else emptyList()
+        storedStates = if (context != null && store.isCurrent(context)) store.statuses(context) else emptyList()
+        publishStates()
         storageState.value = store.storageUsage()
         refreshQueueAvailability()
+    }
+
+    private fun publishStates() {
+        val active = shownRequest.value?.workId
+        workStates.value = storedStates.map { status ->
+            val job = status.job
+            if (job != null && job.state == "queued" && status.work.workId == active) status.copy(job = job.copy(state = "running")) else status
+        }
+    }
+
+    private fun showProgress(request: OfflineDownloadRequest) {
+        shownRequestRelease?.cancel()
+        shownRequest.value = request
+        publishStates()
+    }
+
+    private fun releaseProgress(id: String) {
+        if (shownRequest.value?.id != id) return
+        shownRequestRelease?.cancel()
+        shownRequestRelease = scope.launch {
+            delay(QUEUE_GRACE_MILLIS)
+            if (shownRequest.value?.id == id) {
+                shownRequest.value = null
+                publishStates()
+            }
+        }
     }
 
     private suspend fun refreshQueueAvailability() {

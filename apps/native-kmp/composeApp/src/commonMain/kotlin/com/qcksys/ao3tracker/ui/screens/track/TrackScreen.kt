@@ -480,11 +480,12 @@ fun TrackScreen() {
 
             if (offline.enabled) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically) {
-                FilterChip(selected = offlineOnly, onClick = { offlineOnly = !offlineOnly }, label = { Text("Available offline") })
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                FilterChip(selected = offlineOnly, onClick = { offlineOnly = !offlineOnly }, label = { Text("Available offline", maxLines = 1) })
+                Row(Modifier.weight(1f, fill = false).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(offlineDownloadsSummary(downloads), style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    TextButton(onClick = { navigator.push(DownloadsScreen()) }) { Text("Downloads") }
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false))
+                    TextButton(onClick = { navigator.push(DownloadsScreen()) }) { Text("Downloads", maxLines = 1, softWrap = false) }
                 }
             }
             // Works list
