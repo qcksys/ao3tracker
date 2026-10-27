@@ -7,7 +7,8 @@ data class OfflinePreferences(
     val automatic: Boolean = false,
     val wifiOnly: Boolean = true,
     val prefetchChapters: Int? = 2,
-    val autoDeleteRead: Boolean = false
+    val autoDeleteRead: Boolean = false,
+    val updateSavedWorks: Boolean = true
 ) {
     init { require(prefetchChapters == null || prefetchChapters >= 0) }
 }

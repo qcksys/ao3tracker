@@ -62,6 +62,14 @@ class MainScreen : Screen {
                 }
             }
 
+            // The Works tab's navigator consumes the request and pushes Downloads.
+            val pendingDownloads by NavigationState.pendingDownloads.collectAsState()
+            LaunchedEffect(pendingDownloads) {
+                if (pendingDownloads && tabNavigator.current.key != TrackTab.key) {
+                    tabNavigator.current = TrackTab
+                }
+            }
+
             MainScreenScaffold(isWebViewLoading) {
                 CurrentTab()
                 OfflineDownloadHost()

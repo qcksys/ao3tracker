@@ -3,7 +3,9 @@ package com.qcksys.ao3tracker.ui.navigation
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class NavigationStateTest {
     @AfterTest
@@ -51,6 +53,25 @@ class NavigationStateTest {
             ReadNavigation("https://archiveofourown.org/works/123", 0.5f),
             NavigationState.pendingNavigation.value
         )
+    }
+
+    @Test
+    fun `live work navigation opens the AO3 work page instead of a saved copy`() {
+        NavigationState.navigateToLiveWork(123)
+        assertEquals(
+            ReadNavigation("https://archiveofourown.org/works/123", 0f, live = true),
+            NavigationState.pendingNavigation.value
+        )
+    }
+
+    @Test
+    fun `download notification requests stay pending until the Works tab consumes them`() {
+        assertFalse(NavigationState.pendingDownloads.value)
+        NavigationState.navigateToDownloads()
+        assertTrue(NavigationState.pendingDownloads.value)
+        assertNull(NavigationState.pendingNavigation.value)
+        NavigationState.clearPendingDownloads()
+        assertFalse(NavigationState.pendingDownloads.value)
     }
 
     @Test

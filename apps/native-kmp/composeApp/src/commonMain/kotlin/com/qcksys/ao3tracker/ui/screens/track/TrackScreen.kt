@@ -100,6 +100,7 @@ import com.qcksys.ao3tracker.data.model.TagFilterMode
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
+import com.qcksys.ao3tracker.data.offline.offlineDownloadsSummary
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.components.WorkMetadata
@@ -476,9 +477,14 @@ fun TrackScreen() {
                 }
             }
 
-            if (offline.enabled) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            if (offline.enabled) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
                 FilterChip(selected = offlineOnly, onClick = { offlineOnly = !offlineOnly }, label = { Text("Available offline") })
-                TextButton(onClick = { navigator.push(DownloadsScreen()) }) { Text("Downloads") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(offlineDownloadsSummary(downloads), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { navigator.push(DownloadsScreen()) }) { Text("Downloads") }
+                }
             }
             // Works list
             if (visibleWorks.isEmpty()) {

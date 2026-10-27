@@ -16,6 +16,7 @@ import com.qcksys.ao3tracker.data.auth.getAndroidCredentialHelper
 import com.qcksys.ao3tracker.data.auth.initializeCredentialHelper
 import com.qcksys.ao3tracker.data.auth.initializeTokenStorage
 import com.qcksys.ao3tracker.data.database.initializeDatabase
+import com.qcksys.ao3tracker.data.offline.OfflineDownloadService
 import com.qcksys.ao3tracker.data.push.notificationWorkId
 import com.qcksys.ao3tracker.push.Ao3FirebaseMessagingService
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
@@ -84,6 +85,9 @@ class MainActivity : ComponentActivity() {
     private fun handleNavigationIntent(intent: Intent?) {
         if (intent?.action == Intent.ACTION_VIEW) {
             NavigationState.navigateToExternalAo3Url(intent.dataString)
+        }
+        if (intent?.action == OfflineDownloadService.ACTION_OPEN_DOWNLOADS) {
+            NavigationState.navigateToDownloads()
         }
         if (intent?.action == Ao3FirebaseMessagingService.ACTION_OPEN_WORK) {
             val workId = notificationWorkId(
