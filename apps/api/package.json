@@ -54,7 +54,7 @@
     "typescript": "catalog:",
     "varlock": "catalog:",
     "vite": "catalog:",
-    "vitest": "4.1.11",
+    "vitest": "catalog:",
     "wrangler": "catalog:"
   }
 }

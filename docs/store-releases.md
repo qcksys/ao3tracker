@@ -2,14 +2,14 @@
 
 The root GitHub Actions workflows provide:
 
-Every workflow uses the pinned `voidzero-dev/setup-vp` action to install Vite+ from the workspace catalog. Node version inputs are omitted so Vite+ resolves Node.js 24 from the root `package.json` → `engines.node` fallback. Dependency installation runs with `vp install --frozen-lockfile`; package scripts run through `vp run`. Vite+ retains the existing pnpm backend and lockfile. The Gradle WebView build also requires `vp` on PATH and uses the `vpInstall` task.
+Every workflow uses the pinned `voidzero-dev/setup-vp` action to install Vite+ from the workspace catalog. Node version inputs are omitted so Vite+ resolves Node.js 26 from the root `package.json` → `engines.node` fallback. Dependency installation runs with `vp install --frozen-lockfile`; package scripts run through `vp run`. Vite+ retains the existing pnpm backend and lockfile. The Gradle WebView build also requires `vp` on PATH and uses the `vpInstall` task.
 
 | Workflow                                | Trigger                                           | Result                                                                                                |
 | --------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `CI`                                    | Pull requests, pushes to `main`/`dev`, or manual  | Formatting, lint, workflow validation, JavaScript tests/builds, JVM tests, Android debug and Dev APKs |
 | `Generate patch notes and release tags` | Called after CI checks pass on a `main` push      | Update the version PR, or create missing Changesets package-version tags                              |
 | `Release main`                          | Successful current `main` push CI and Changesets  | Production API deployment, then Android Internal; new tags also select Android Alpha and Chrome       |
-| `Deploy production API`                 | Called by `Release main`                          | Pending migrations, database readiness check, then production Worker deployment                       |
+| `Deploy production API`                 | Called by `Release main`                          | Pending migrations, then production Worker deployment                                                 |
 | `Release dev`                           | Called after CI checks pass on a `dev` push       | Dev API deployment and health check, then changed Android Dev and Chrome Beta releases                |
 | `Release Android to Google Play`        | Called by `Release main`/`Release dev`, or manual | Signed AAB and R8 mapping; optionally a Google Play Internal and/or Alpha release                     |
 | `Release Chrome extension`              | Called by `Release main`/`Release dev`, or manual | Chrome ZIP; production draft upload or beta submission for review                                     |
@@ -89,9 +89,9 @@ The account ID is already recorded in `apps/api/wrangler.json`. Provision the pr
 
 The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations`. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.
 
-After migration, the read-only readiness checker requires every repository migration to be recorded with its UTC timestamp (to the second), SQL checksum, and RC migration folder name. The checker accepts LF/CRLF line-ending variants, checks required columns and temporal precision against the latest snapshot, and blocks on missing or mismatched history. It does not prove all indexes, defaults, or data are correct. Migration, readiness, or API deployment failures block both store releases.
+Migration or API deployment failures block both store releases.
 
-Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The repository conversion preserves all historical SQL. The first migration run upgrades a legacy ledger with `name` and `applied_at` columns, then applies pending SQL. Review migration SQL before merging and keep it compatible with the currently deployed Worker, since migrations run first. DDL is not transactionally rolled back; inspect partial failures before retrying. For databases changed through schema pushes or manual SQL, reconcile the ledger only after verifying which changes are already applied. CI does not baseline history or suppress mismatches.
+Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The repository conversion preserves all historical SQL. The first migration run upgrades a legacy ledger with `name` and `applied_at` columns, then applies pending SQL. Review migration SQL before merging and keep it compatible with the currently deployed Worker, since migrations run first. DDL is not transactionally rolled back; inspect partial failures before retrying. For databases changed through schema pushes or manual SQL, reconcile the ledger only after verifying which changes are already applied. CI does not baseline history.
 
 ### `api-development`
 
@@ -101,9 +101,9 @@ Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The
 | `DEV_CLOUDFLARE_API_TOKEN` | Optional token scoped to development Worker deployment and its bindings/domain |
 | `CLOUDFLARE_API_TOKEN`     | Existing deployment token, used when `DEV_CLOUDFLARE_API_TOKEN` is absent      |
 
-Set these as repository secrets, or in the `api-development` environment if the repository's GitHub plan supports environment secrets. Dev migrations and readiness checks use only `DEV_DATABASE_URL`; they never fall back to the production `DATABASE_URL`. The selected Cloudflare token must be able to deploy `ao3tracker-api-dev` and its configured resources.
+Set these as repository secrets, or in the `api-development` environment if the repository's GitHub plan supports environment secrets. Dev migrations use only `DEV_DATABASE_URL`; they never fall back to the production `DATABASE_URL`. The selected Cloudflare token must be able to deploy `ao3tracker-api-dev` and its configured resources.
 
-Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment; the protected release applies pending migrations, runs the same readiness check as production, deploys that artifact, then checks `https://dev.ao3tracker.com/ping`.
+Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment; the protected release applies pending migrations, deploys that artifact, then checks `https://dev.ao3tracker.com/ping`.
 
 ### `google-play`
 

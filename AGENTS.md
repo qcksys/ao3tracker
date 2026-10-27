@@ -36,7 +36,7 @@ Both clients (browser extension and native KMP app) ingest AO3 pages and sync to
 - **Target PRs at `dev` by default.** Set the base explicitly (`gh pr create --base dev`) rather than relying on GitHub's default branch. Use `main` for deliberate production promotions, or another target when the user requests it.
 - **Main pushes deploy the API and release Android to Internal.** After successful CI and Changesets on the current `main` commit, `Release main` deploys the production API and publishes Android even when native inputs are unchanged. A newly created and verified Changesets tag batch also publishes that Android build to Alpha and permits a production Chrome draft upload. See [store releases](docs/store-releases.md) for track selection and retries.
 - **Dev merges deploy and release apps.** Successful push CI on the current `dev` commit runs `Release dev`: check the dev database, deploy and smoke-test the dev API, then release the separate Android Dev app and Chrome Beta extension when their respective inputs changed since a successful automatic release.
-- **PR checks do not deploy.** Automatic releases require successful push CI from the same repository and reject superseded commits. Protected deployment jobs apply pending database migrations, then run read-only readiness checks before deploying the API. Migration, readiness, or deployment failures block the dependent store releases.
+- **PR checks do not deploy.** Automatic releases require successful push CI from the same repository and reject superseded commits. Protected deployment jobs apply pending database migrations before deploying the API. Migration or deployment failures block the dependent store releases.
 - **Cancel only before deployment.** Keep API builds cancellable per branch and protect the full API/Android/Chrome release chain once its deployment lock is acquired. Preserve artifact handoff and stale-source retry checks; see [release concurrency](docs/store-releases.md) before changing these boundaries.
 - **Releases run inside CI.** After workspace and Android/JVM checks pass, CI calls the reusable workflows from the same commit: `Release dev` on dev pushes, or Changesets followed by `Release main` on main pushes. Built-in-token tag pushes do not trigger separate workflows; CI forwards the verified tag result to select Alpha and Chrome releases. Keep cancellation on individual check/build jobs so an active deployment can finish.
 
@@ -55,7 +55,7 @@ vp run -r test    # Run tests in every workspace package
 vp run -r build   # Build every workspace package
 ```
 
-For app-specific commands (running dev servers, deploying, building a single platform), use the app's own AGENTS.md. Run workspace tests through `vp run -r test` so each package selects its runner. See [API testing guidance](apps/api/AGENTS.md#testing) for the Cloudflare Vitest 4 exception before upgrading test dependencies.
+For app-specific commands (running dev servers, deploying, building a single platform), use the app's own AGENTS.md. Run workspace tests through `vp run -r test` so each package selects its runner. See [API testing guidance](apps/api/AGENTS.md#testing) before upgrading test dependencies: the Cloudflare Vitest plugin limits the API's Vitest version.
 
 ## Conventions that apply everywhere
 
@@ -139,6 +139,10 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 ## Built-in Commands vs Scripts
 
 `vp <name>` runs a built-in command. `vp run <name>` runs a `package.json` script or a `vite.config.ts` task. Scripts cannot overwrite built-ins, so `vp dev` and `vp run dev` may do different things. Check `package.json` and `vite.config.ts` first, and run `vp run <name>` when the project defines a script or task with that name.
+
+## Running Scripts
+
+Run TypeScript and JavaScript files with `vpx <file>`, for example `vpx ./scripts/seed.ts --dry-run`. It handles enums, decorators, JSX, and tsconfig `paths`, so do not add `tsx` or `ts-node` to run scripts. `vpx --watch <file>` reruns the file when a file it uses changes, in place of `tsx watch`. `vp node <file>` runs plain Node.js.
 
 ## Tool Versions
 
