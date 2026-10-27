@@ -15,7 +15,7 @@ internal fun offlineWorkStatusText(download: OfflineWorkStatus?): String = when 
 internal fun OfflineWorkStatus.savedChapterNumbers(): Set<Int> =
     chapters.filter { it.id in savedChapterIds }.map { it.number }.toSet()
 
-private val queueOrder =listOf("running", "queued", "failed")
+private val queueOrder = listOf("running", "queued", "failed")
 
 /** Works with unfinished jobs, in the order the queue will handle them. */
 internal fun offlineDownloadQueue(downloads: List<OfflineWorkStatus>): List<OfflineWorkStatus> =
@@ -35,8 +35,29 @@ internal fun offlineDownloadsSummary(downloads: List<OfflineWorkStatus>): String
     return if (saved == 0) "None saved" else "$saved saved"
 }
 
+internal data class OfflineQueueProgress(val works: Int, val done: Int, val total: Int)
+
+/**
+ * Chapter counts (done to total) per work in this download session. Works that leave the queue
+ * count as finished, so the overall progress does not move backwards when a work completes.
+ */
+internal fun offlineQueueChapters(downloads: List<OfflineWorkStatus>, previous: Map<Long, Pair<Int, Int>>): Map<Long, Pair<Int, Int>> {
+    val current = downloads.mapNotNull { status ->
+        val job = status.job?.takeIf { it.state == "running" || it.state == "queued" } ?: return@mapNotNull null
+        val done = offlineJson.decodeFromString<List<String>>(job.completedJson).size
+        status.work.workId to (done to done + offlineJson.decodeFromString<List<String>>(job.remainingJson).size)
+    }.toMap()
+    return previous.mapValues { (_, chapters) -> chapters.second to chapters.second } + current
+}
+
+internal fun offlineQueueProgress(downloads: List<OfflineWorkStatus>, chapters: Map<Long, Pair<Int, Int>>) = OfflineQueueProgress(
+    works = downloads.count { it.job?.state == "running" || it.job?.state == "queued" },
+    done = chapters.values.sumOf { it.first },
+    total = chapters.values.sumOf { it.second }
+)
+
 internal fun offlineDownloadNotification(request: OfflineDownloadRequest?, status: OfflineWorkStatus?): OfflineDownloadNotification {
-    if (request == null) return OfflineDownloadNotification("Saving chapters for offline reading", "Waiting to download chapters")
+    if (request == null) return OfflineDownloadNotification("Saving chapters for offline reading", "Waiting for a connection or retry")
     val work = status?.work?.title ?: "Work ${request.workId}"
     val updating = request.mode.startsWith("update")
     val title = when {

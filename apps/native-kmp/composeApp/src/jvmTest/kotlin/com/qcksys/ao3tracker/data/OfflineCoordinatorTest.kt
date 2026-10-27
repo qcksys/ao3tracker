@@ -284,6 +284,30 @@ class OfflineCoordinatorTest {
     }
 
     @Test
+    fun `the pause between chapters is reported as downloading until the grace period ends`() = runBlocking {
+        fixture { coordinator, _ ->
+            val states = mutableListOf<String?>()
+            val watcher = launch { coordinator.downloads.collect { states += it.singleOrNull()?.job?.state } }
+            try {
+                coordinator.setForeground(true)
+                coordinator.saveWork(123)
+                val first = withTimeout(5000) { coordinator.background.first { it != null }!! }
+                first.capture.publish(multiChapterBundle())
+                withTimeout(5000) { coordinator.background.first { it != null && it.id != first.id } }
+                assertEquals(123L, coordinator.progress.value?.workId)
+                assertFalse("queued" in states.dropWhile { it != "running" }, "Observed states: $states")
+                coordinator.setForeground(false)
+                withTimeout(5000) { coordinator.background.first { it == null } }
+                assertEquals("running", coordinator.downloads.value.single().job?.state)
+                withTimeout(QUEUE_GRACE_MILLIS + 2000) { coordinator.downloads.first { it.single().job?.state == "queued" } }
+                assertNull(coordinator.progress.value)
+            } finally {
+                watcher.cancel()
+            }
+        }
+    }
+
+    @Test
     fun `new published chapters queue a background update for explicit downloads unless the setting is off`() = runBlocking {
         for (enabled in listOf(true, false)) {
             val settings = AppSettings(null)

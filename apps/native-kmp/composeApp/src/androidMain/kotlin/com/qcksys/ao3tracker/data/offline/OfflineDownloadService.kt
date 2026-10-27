@@ -30,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -60,15 +61,27 @@ class OfflineDownloadService : Service() {
             coordinator = next
             next.setDownloadServiceActive(true)
             observer = scope.launch {
-                combine(next.background, next.hasPendingDownloads, next.network, next.downloads) { request, pending, network, downloads ->
-                    ServiceState(request, pending, network.connected, downloads.firstOrNull { it.work.workId == request?.workId })
-                }.collect { (request, pending, connected, status) ->
+                var chapters = emptyMap<Long, Pair<Int, Int>>()
+                // Keep "Preparing" until the first chapter starts or the queue grace period passes.
+                var preparing: Job? = launch {
+                    delay(QUEUE_GRACE_MILLIS)
+                    if (next.progress.value == null) manager.notify(NOTIFICATION,
+                        notification(offlineDownloadNotification(null, null), offlineQueueProgress(next.downloads.value, chapters)))
+                }
+                combine(next.background, next.hasPendingDownloads, next.network, next.downloads, next.progress) { request, pending, network, downloads, shown ->
+                    ServiceState(request, pending, network.connected, downloads, shown)
+                }.collect { (request, pending, connected, downloads, shown) ->
                         if (!connected || !pending && request == null) { stopSelf(); return@collect }
                         if (request?.id != requestId) {
                             releasePage()
                             if (request != null) load(next, request)
                         }
-                        manager.notify(NOTIFICATION, notification(offlineDownloadNotification(request, status)))
+                        chapters = offlineQueueChapters(downloads, chapters)
+                        if (shown != null) { preparing?.cancel(); preparing = null }
+                        val content = if (shown == null && preparing?.isActive == true) {
+                            OfflineDownloadNotification("Saving chapters for offline reading", "Preparing chapter downloads")
+                        } else offlineDownloadNotification(shown, downloads.firstOrNull { it.work.workId == shown?.workId })
+                        manager.notify(NOTIFICATION, notification(content, offlineQueueProgress(downloads, chapters)))
                     }
             }
         }
@@ -129,12 +142,18 @@ class OfflineDownloadService : Service() {
         }
     }
 
-    private data class ServiceState(val request: OfflineDownloadRequest?, val pending: Boolean, val connected: Boolean, val status: OfflineWorkStatus?)
+    private data class ServiceState(val request: OfflineDownloadRequest?, val pending: Boolean, val connected: Boolean,
+        val downloads: List<OfflineWorkStatus>, val shown: OfflineDownloadRequest?)
 
-    private fun notification(content: OfflineDownloadNotification) = NotificationCompat.Builder(this, CHANNEL)
+    private fun notification(content: OfflineDownloadNotification, queue: OfflineQueueProgress? = null) = NotificationCompat.Builder(this, CHANNEL)
         .setSmallIcon(android.R.drawable.stat_sys_download)
         .setContentTitle(content.title)
         .setContentText(content.text)
+        .apply {
+            if (queue == null) return@apply
+            if (queue.works > 0) setSubText(if (queue.works == 1) "1 work in queue" else "${queue.works} works in queue")
+            if (queue.total > 0) setProgress(queue.total, queue.done, false)
+        }
         .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).apply {
             action = ACTION_OPEN_DOWNLOADS
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP

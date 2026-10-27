@@ -39,8 +39,23 @@ class OfflineDownloadStatusTest {
             offlineDownloadNotification(request("save", 0, 4), status(1, "running")))
         assertEquals("Saving upcoming chapters of Work 1",
             offlineDownloadNotification(request("prefetch", 0, 2, automatic = true), status(1, "running")).title)
-        assertEquals("Waiting to download chapters", offlineDownloadNotification(null, null).text)
+        assertEquals("Waiting for a connection or retry", offlineDownloadNotification(null, null).text)
     }
+
+    @Test
+    fun `queue progress counts queued works and keeps finished works as complete`() {
+        val first = status(1, "running").withJob(done = 1, remaining = 3)
+        val second = status(2, "queued").withJob(done = 0, remaining = 2)
+        val start = offlineQueueChapters(listOf(first, second, status(3, "failed")), emptyMap())
+        assertEquals(OfflineQueueProgress(works = 2, done = 1, total = 6), offlineQueueProgress(listOf(first, second), start))
+        val finished = status(1, "complete")
+        val later = offlineQueueChapters(listOf(finished, second.withJob(done = 1, remaining = 1)), start)
+        assertEquals(OfflineQueueProgress(works = 1, done = 5, total = 6), offlineQueueProgress(listOf(finished, second), later))
+    }
+
+    private fun OfflineWorkStatus.withJob(done: Int, remaining: Int) = copy(job = job!!.copy(
+        completedJson = offlineJson.encodeToString((1..done).map { "c$it" }),
+        remainingJson = offlineJson.encodeToString((1..remaining).map { "r$it" })))
 
     @Test
     fun `background updates target idle explicit downloads with new chapters or newer revisions`() {
