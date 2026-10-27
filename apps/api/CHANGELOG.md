@@ -1,5 +1,13 @@
 # @qcksys/ao3tracker-api
 
+## 0.1.3
+
+### Patch Changes
+
+- 16f65e8: Link the landing page to the Chrome Web Store listing for the browser extension.
+- eabbf88: Prevent repeated work updates from creating duplicate notification history entries and stop overlapping refreshes from dispatching the same pending alert. Preserve notifications for distinct chapter updates and retry failed deliveries.
+- 568524c: Detect new chapters sooner by fetching the lighter first-chapter AO3 page, retrying failed refreshes after 30 minutes instead of 6 hours, and refreshing the longest-waiting works first. Restore chapter list updates and stop overlapping refresh runs from fetching the same work twice.
+
 ## 0.1.2
 
 ### Patch Changes

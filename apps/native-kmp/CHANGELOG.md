@@ -1,5 +1,22 @@
 # @qcksys/ao3tracker-native-kmp
 
+## 0.5.0
+
+### Minor Changes
+
+- c027642: Update downloaded works in the background and show clearer download status.
+
+  Downloaded works now fetch new and revised chapters automatically when sync reports an update; turn this off under Settings → Offline reading. The Works screen shows an overall download status beside Downloads, and the download notification shows the chapter currently being saved or updated. Tapping the notification opens a new Download queue section at the top of Downloads. Chapter progress bars on the Works screen use separate colours for downloaded chapters. A work's offline reading section starts collapsed to its status, and queued downloads offer Open on AO3 to reconnect.
+
+### Patch Changes
+
+- 71286b8: Fix offline saves getting stuck waiting for AO3 access when the reader restores or updates its scroll position.
+- 47c2328: Stop downloads flashing "queued" between chapters.
+
+  Downloads keep showing as in progress during the short pause between chapters, and only show as waiting after 5 seconds without activity. The download notification now shows how many works are in the queue and an overall progress bar. The download status on the Works screen no longer wraps the Downloads button.
+
+- 4a9cf43: Show the local time of the last successful sync instead of the delayed server cursor, and keep the elapsed-time label updated while the Works screen is open.
+
 ## 0.4.1
 
 ### Patch Changes
