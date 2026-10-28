@@ -1346,6 +1346,39 @@ export const chapterIndexHtml = `
 </html>
 `;
 
+/**
+ * AO3's placeholder for a work hidden until its challenge reveals it, captured 2026-10-28 from
+ * work 71457876 (`#main` as served; collection link anonymised)
+ */
+export const unrevealedWorkPageHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Mystery Work - Chapter 1 | Archive of Our Own</title></head>
+<body>
+<div id="main" class="chapters-show region" role="main">
+          <div class="flash"></div>
+          <!--page description, messages-->
+  <p class="notice">
+  This work is part of an ongoing challenge and will be revealed soon!
+      You can find details here:
+      <a href="/collections/Example_Challenge">Example Challenge</a>
+</p>
+
+<!--/descriptions-->
+
+<!--subnav-->
+<!--/subnav-->
+
+<!-- BEGIN revealed -->
+<!-- END revealed -->
+
+          <div class="clear"><!--presentational--></div>
+        </div>
+        <!-- END main -->
+</body>
+</html>
+`;
+
 // Minimal HTML for edge cases
 export const minimalHtml = `
 <!DOCTYPE html>

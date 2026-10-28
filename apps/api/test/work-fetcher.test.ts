@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchChapterIndexHtml, fetchWorkHtml } from "~/lib/ao3-fetch";
+import { fetchChapterIndexHtml, fetchWorkHtml, UnrevealedWorkError } from "~/lib/ao3-fetch";
+import { isUnrevealedWorkPage } from "~/lib/ao3-parser";
 import { fetchWorkData, fetchWorkDataSafe } from "~/scheduled/work-fetcher";
-import { minimalHtml, workPageOnlyPublishedHtml } from "./ao3-parser.fixtures";
+import {
+  minimalHtml,
+  unrevealedWorkPageHtml,
+  workPageOnlyPublishedHtml,
+} from "./ao3-parser.fixtures";
 
 vi.mock("~/lib/ao3-fetch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/ao3-fetch")>()),
@@ -54,6 +59,27 @@ describe("work page validation", () => {
     expect(result.data).toBeUndefined();
     expect(result.notFound).toBeUndefined();
     expect(result.restrictedWork).toBeUndefined();
+    expect(result.unrevealed).toBeUndefined();
+  });
+
+  it("reports AO3's unrevealed-work placeholder as unrevealed, not as a failure", async () => {
+    vi.mocked(fetchWorkHtml).mockResolvedValue(unrevealedWorkPageHtml);
+
+    await expect(fetchWorkData(71457876)).rejects.toBeInstanceOf(UnrevealedWorkError);
+    expect(await fetchWorkDataSafe(71457876)).toEqual({
+      workId: 71457876,
+      success: false,
+      unrevealed: true,
+    });
+    expect(fetchChapterIndexHtml).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the unrevealed placeholder", unrevealedWorkPageHtml, true],
+    ["a maintenance notice", interstitialHtml, false],
+    ["a work page", workPageOnlyPublishedHtml, false],
+  ])("recognises %s", async (_name, html, unrevealed) => {
+    expect(await isUnrevealedWorkPage(html)).toBe(unrevealed);
   });
 
   it("accepts a single-chapter work page", async () => {

@@ -100,6 +100,22 @@ export async function recordWorkRefreshFailure(
 }
 
 /**
+ * Record a check that found the work unrevealed (AO3 hides it until its challenge reveals it):
+ * keep its metadata and check again after the normal refresh interval. Like a failure, this is not
+ * a metadata change, so rowUpdatedAt is kept.
+ */
+export async function recordWorkUnrevealed(db: TDatabase, workId: number): Promise<void> {
+  await db
+    .update(tWork)
+    .set({
+      refreshFailures: 0,
+      lastRefreshed: new Date(),
+      rowUpdatedAt: sql`${tWork.rowUpdatedAt}`,
+    })
+    .where(eq(tWork.id, workId));
+}
+
+/**
  * Upsert tags and update tag links for a work
  */
 export async function upsertWorkTags(
