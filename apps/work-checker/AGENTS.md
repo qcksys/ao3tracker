@@ -35,6 +35,7 @@ Schemas live in `@qcksys/ao3tracker-core/work-checker`; the routes are in [apps/
 2. `POST /checker/claim` returns jobs: missing tracked works first, then stale works leased for 30 minutes. While `enabled` is false it returns none, and the Worker cron fetches from AO3 itself.
 3. `POST /checker/results` takes one outcome per work (`page`, `not_found`, `restricted`, `unavailable`, `failed`). For a `page` with more chapters than stored, the Worker answers `needs_chapter_index`; the checker loads `/navigate` and posts again with both pages. Otherwise it answers `applied` with the backup formats to download.
 4. `PUT /checker/backups/:workId/:format?downloadUpdatedAt=<unix>` uploads a download. 409 (`superseded`) means AO3 has a newer revision; the next refresh lists it again.
+5. `POST /checker/status` reports the checker's state for the API's admin dashboard, at startup and after every poll: `CHECKER_ID` (one per environment, e.g. `hub-dev`), `CHECKER_VERSION` (the image's source commit, from the `SOURCE_REF` build argument), start time, the last poll's summary (claimed works, outcome counts, backups, whether it stopped early) and the last poll error. A failed report is logged and retried with the next poll.
 
 Missing works are not leased, so run **one** checker per API environment. A poll must finish inside the 30-minute refresh lease: keep `maxWorksPerPoll × (delayBetweenRequestsMs + page load time)` well under it.
 

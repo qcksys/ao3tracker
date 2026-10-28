@@ -72,10 +72,21 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
   VALUES ('work_checker', '{"enabled":true,"pollIntervalSeconds":300,"maxWorksPerPoll":12,"delayBetweenRequestsMs":2000}')
   ON DUPLICATE KEY UPDATE value = VALUES(value), rowDeletedAt = NULL;
   ```
-  A missing, soft-deleted or invalid value means disabled (invalid values are logged). While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs. `test/e2e/app-setting.test.ts` runs this statement against MySQL.
+  Admins can also change them at `/admin/settings` (see [Admin site](#admin-site)). A missing, soft-deleted or invalid value means disabled (invalid values are logged). While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs. `test/e2e/app-setting.test.ts` runs this statement against MySQL.
 - Results go through the cron's own handlers: `parseWorkPageHtml`/`completeWorkData` parse the HTML, then `handleRefreshResult` (stored work) or `handleFetchResult` (missing work) apply it, so notifications, soft-deletes and failure backoff behave identically. A stored work's chapter growth returns `needs_chapter_index` instead of applying a page without chapter dates.
 - Backups: the checker downloads the formats the result response lists and uploads them; only the work's current `downloadUpdatedAt` revision is stored.
 - Provision `WORK_CHECKER_TOKEN` in each environment before deploying: it is in `secrets.required`.
+
+### Admin site
+
+`/admin` ([routes/admin.tsx](src/routes/admin.tsx), views `src/views/admin-*.tsx`) is a server-rendered dashboard and settings page for administrators.
+
+- **Admins**: `ao3track__auth_user.role = 'admin'`. `role` is a Better Auth `additionalField` with `input: false`, so no sign-up or update request can set it; grant it with SQL (`UPDATE ao3track__auth_user SET role = 'admin' WHERE email = ...`).
+- **Guard** (`requireAdminMw`): no session redirects to `/admin/sign-in?next=...` (only `/admin` paths are accepted as `next`); a non-admin gets 403; every non-GET request must carry `Origin` equal to `BETTER_AUTH_URL`'s origin, since session cookies are SameSite=Lax. Responses are `no-store` and `noindex`.
+- **Sign-in** uses Better Auth's own endpoints from an inline script: `/auth/sign-in/email`, then `/auth/two-factor/verify-totp` when the response has `twoFactorRedirect`; or a passkey via `/auth/passkey/generate-authenticate-options` and `/auth/passkey/verify-authentication`, using the browser's `PublicKeyCredential.parseRequestOptionsFromJSON` and `credential.toJSON()` (no client library). Passkeys work on the origin of `BETTER_AUTH_URL`, which is the site's own.
+- **Dashboard** counts come from `getAdminStats` (`src/db/queries/admin-stats.ts`), one aggregate query each. "Refreshed in the last hour" requires `refreshFailures = 0`: refresh leases and failure backoff also move `lastRefreshed`, but only a success sets it to now with no failures. It also shows each work checker's latest status (below) and flags one silent for more than two poll intervals plus five minutes.
+- **Settings** edits the `work_checker` setting; the form re-renders with the submitted values on a validation error and redirects with `?saved=1` on success.
+- **Checker status**: `POST /checker/status` (checker token) stores the latest report per `checkerId` in `ao3track__work_checker_status` (JSON `status` plus the Worker's receive time `reportedAt`). The shape is the shared `workCheckerStatusSchema`.
 
 ### Framework Stack
 

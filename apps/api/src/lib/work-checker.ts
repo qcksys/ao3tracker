@@ -11,11 +11,13 @@ import {
   type WorkCheckerResult,
   type WorkCheckerResultResponse,
   type WorkCheckerSettings,
+  type WorkCheckerStatus,
   workCheckerSettingsSchema,
 } from "@qcksys/ao3tracker-core/work-checker";
 import type { TDatabase } from "~/db/db.client";
-import { getAppSetting } from "~/db/queries/app-setting";
+import { getAppSetting, upsertAppSetting } from "~/db/queries/app-setting";
 import { findMissingTrackedWorks, getWorkCheckState } from "~/db/queries/work";
+import { upsertWorkCheckerStatus } from "~/db/queries/work-checker-status";
 import { handleFetchResult } from "~/scheduled/fetch-missing-works";
 import {
   ao3BackupFormats,
@@ -56,6 +58,33 @@ export async function workCheckerSettings(db: TDatabase): Promise<WorkCheckerSet
     issues: parsed.error.issues,
   });
   return DISABLED_WORK_CHECKER_SETTINGS;
+}
+
+export async function saveWorkCheckerSettings(
+  db: TDatabase,
+  settings: WorkCheckerSettings,
+): Promise<void> {
+  await upsertAppSetting(db, WORK_CHECKER_SETTINGS_KEY, settings);
+}
+
+/**
+ * Store a checker's status report for the admin dashboard
+ */
+export async function recordWorkCheckerStatus(
+  db: TDatabase,
+  status: WorkCheckerStatus,
+  receivedAt: Date,
+): Promise<void> {
+  await upsertWorkCheckerStatus(db, {
+    checkerId: status.checkerId,
+    status,
+    reportedAt: receivedAt,
+  });
+}
+
+/** Report silence after which the dashboard flags a checker as stopped */
+export function workCheckerSilenceLimitMs(settings: WorkCheckerSettings): number {
+  return (settings.pollIntervalSeconds * 2 + 5 * 60) * 1000;
 }
 
 /**

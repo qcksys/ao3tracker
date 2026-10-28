@@ -22,6 +22,7 @@ services:
     image: ${DEV_IMAGE:-ghcr.io/qcksys/ao3tracker-work-checker:dev}
     environment:
       API_URL: https://dev.ao3tracker.com
+      CHECKER_ID: hub-dev
       WORK_CHECKER_TOKEN_FILE: /run/secrets/work_checker_token
     volumes:
       - dev-profile:/data
@@ -34,6 +35,7 @@ services:
     image: ${PROD_IMAGE:-ghcr.io/qcksys/ao3tracker-work-checker:main}
     environment:
       API_URL: https://ao3tracker.com
+      CHECKER_ID: hub-prod
       WORK_CHECKER_TOKEN_FILE: /run/secrets/work_checker_token
     volumes:
       - prod-profile:/data

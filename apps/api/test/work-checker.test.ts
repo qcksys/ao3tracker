@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TDatabase } from "~/db/db.client";
 import { getAppSetting } from "~/db/queries/app-setting";
 import { findMissingTrackedWorks, getWorkCheckState } from "~/db/queries/work";
+import { upsertWorkCheckerStatus } from "~/db/queries/work-checker-status";
 import {
   applyWorkCheckerResult,
   claimWorkCheckerJobs,
@@ -22,6 +23,7 @@ import { chapterIndexHtml, workPageHtml } from "~test/ao3-parser.fixtures";
 
 vi.mock("~/db/db.client", () => ({ createDbConnection: vi.fn(() => ({})) }));
 vi.mock("~/db/queries/app-setting", () => ({ getAppSetting: vi.fn() }));
+vi.mock("~/db/queries/work-checker-status", () => ({ upsertWorkCheckerStatus: vi.fn() }));
 vi.mock("~/db/queries/work", () => ({
   findMissingTrackedWorks: vi.fn(),
   getWorkCheckState: vi.fn(),
@@ -116,6 +118,58 @@ describe("work checker settings", () => {
 
     expect(await workCheckerSettings(db)).toEqual(DISABLED_WORK_CHECKER_SETTINGS);
     expect(error).toHaveBeenCalledOnce();
+  });
+});
+
+describe("work checker status", () => {
+  const status = {
+    checkerId: "hub-dev",
+    version: "3a8453f",
+    startedAt: "2026-10-28T07:00:00.000Z",
+    lastPoll: {
+      at: "2026-10-28T07:58:00.000Z",
+      durationMs: 30_000,
+      enabled: true,
+      claimed: 2,
+      outcomes: { page: 1, not_found: 0, restricted: 0, unavailable: 1, failed: 0 },
+      backupsUploaded: 0,
+      backupsFailed: 0,
+      stoppedEarly: true,
+    },
+    lastError: null,
+  };
+
+  it("stores a report with the time the Worker received it", async () => {
+    const response = await request("/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(status),
+    });
+
+    expect(response.status).toBe(204);
+    const [, record] = vi.mocked(upsertWorkCheckerStatus).mock.calls[0];
+    expect(record).toMatchObject({ checkerId: "hub-dev", status });
+    expect(record.reportedAt).toBeInstanceOf(Date);
+  });
+
+  it.each([
+    ["an invalid checker id", { ...status, checkerId: "Hub Dev!" }],
+    ["a missing poll summary field", { ...status, lastPoll: { at: status.lastPoll.at } }],
+  ])("rejects %s", async (_name, body) => {
+    const response = await request("/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    expect(response.status).toBe(400);
+    expect(upsertWorkCheckerStatus).not.toHaveBeenCalled();
+  });
+
+  it("requires the checker token", async () => {
+    const response = await request("/status", { method: "POST", body: "{}" }, "wrong-token");
+
+    expect(response.status).toBe(401);
   });
 });
 

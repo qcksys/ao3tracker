@@ -5,6 +5,7 @@ import {
   type WorkCheckerResult,
   type WorkCheckerResultResponse,
   type WorkCheckerSettings,
+  type WorkCheckerStatus,
   workCheckerBackupUploadResponseSchema,
   workCheckerClaimResponseSchema,
   workCheckerResultResponseSchema,
@@ -25,6 +26,7 @@ export interface CheckerApi {
     backup: WorkCheckerBackupRequest,
     content: Uint8Array<ArrayBuffer>,
   ): Promise<WorkCheckerBackupOutcome>;
+  postStatus(status: WorkCheckerStatus): Promise<void>;
 }
 
 export class CheckerApiError extends Error {
@@ -94,6 +96,15 @@ export function createCheckerApi(
         throw new CheckerApiError(path, response.status);
       }
       return workCheckerBackupUploadResponseSchema.parse(await response.json()).outcome;
+    },
+    postStatus: async (status) => {
+      const response = await send("/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(status),
+      });
+      await response.body?.cancel();
+      if (!response.ok) throw new CheckerApiError("/status", response.status);
     },
   };
 }

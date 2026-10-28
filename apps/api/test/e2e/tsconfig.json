@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "include": ["*.ts"],
-  "exclude": ["app-setting.test.ts", "notifications.test.ts"],
+  "exclude": ["admin.test.ts", "app-setting.test.ts", "notifications.test.ts"],
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["node"],
