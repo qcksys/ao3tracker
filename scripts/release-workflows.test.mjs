@@ -435,3 +435,26 @@ test("Android releases restore CI task outputs without publishing signed build c
     "${{ steps.version.outputs.android_version_code }}",
   );
 });
+
+test("work checker images follow each API deployment and move tags only from the current source", async () => {
+  for (const [branch, name, apiJob] of [
+    ["dev", "release-dev-apps", "deploy"],
+    ["main", "release-main-apps", "api"],
+  ]) {
+    const job = (await workflow(name)).jobs["work-checker"];
+    assert.equal(job.needs, apiJob);
+    assert.equal(job.uses, "./.github/workflows/release-work-checker.yml");
+    assert.equal(job.with.branch, branch);
+    assert.deepEqual(job.permissions, { contents: "read", packages: "write" });
+    assert.equal(job.secrets, undefined);
+  }
+  const { steps } = (await workflow("release-work-checker")).jobs.publish;
+  const push = steps.findIndex((step) => step.uses?.startsWith("docker/build-push-action@"));
+  const guard = steps.findIndex((step) => step.run?.includes("assert-current-source"));
+  const tag = steps.findIndex((step) => step.run?.includes("imagetools create"));
+  assert.equal(steps[push].with.tags, "${{ env.IMAGE }}:${{ inputs.source_ref }}");
+  assert.ok(
+    push < guard && guard < tag,
+    "push the commit image, check the source, then move the tag",
+  );
+});

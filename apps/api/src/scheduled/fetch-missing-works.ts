@@ -60,7 +60,7 @@ export async function fetchMissingWorks(env: CloudflareBindings): Promise<void> 
 /**
  * Handle the result of fetching a work
  */
-async function handleFetchResult(
+export async function handleFetchResult(
   db: TDatabase,
   env: CloudflareBindings,
   result: WorkProcessResult,

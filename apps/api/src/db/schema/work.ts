@@ -25,6 +25,8 @@ export const tWork = mysqlTable(
     lastRefreshed: datetime()
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
+    /** Consecutive failed scheduled refreshes; sets the retry backoff */
+    refreshFailures: int({ unsigned: true }).notNull().default(0),
     downloadPath: varchar({ length: 255 }),
     downloadUpdatedAt: datetime(),
     ...syncTimestampCols,

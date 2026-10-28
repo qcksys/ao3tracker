@@ -125,6 +125,12 @@ describe("notification dispatch outbox", () => {
       {
         DATABASE_URL: "mysql://unused:unused@localhost/unused",
         NOTIFICATION_QUEUE: queue,
+        WORK_CHECKER_SETTINGS: {
+          enabled: false,
+          pollIntervalSeconds: 300,
+          maxWorksPerPoll: 12,
+          delayBetweenRequestsMs: 2000,
+        },
       } as unknown as CloudflareBindings,
       {
         waitUntil: (promise: Promise<unknown>) => promises.push(promise),

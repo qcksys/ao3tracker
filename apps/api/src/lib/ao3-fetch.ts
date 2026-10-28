@@ -1,4 +1,4 @@
-import ky, { HTTPError } from "ky";
+import ky, { HTTPError, NetworkError, TimeoutError } from "ky";
 import { AO3_BASE_URL, AO3_USER_AGENT } from "~/const";
 
 /**
@@ -19,6 +19,17 @@ export class NotFoundError extends Error {
     super(`Work ${workId} not found (deleted from AO3)`);
     this.name = "NotFoundError";
   }
+}
+
+/**
+ * Whether a request failed because AO3 is unavailable or limiting requests, rather than because of
+ * the requested work. Callers should stop sending further requests when this is true.
+ */
+export function isAo3Unavailable(error: unknown): boolean {
+  if (error instanceof TimeoutError || error instanceof NetworkError) return true;
+  return (
+    error instanceof HTTPError && (error.response.status === 429 || error.response.status >= 500)
+  );
 }
 
 /**

@@ -12,6 +12,7 @@ import {
 import {
   fetchChapterIndexHtml,
   fetchWorkHtml,
+  isAo3Unavailable,
   NotFoundError,
   RestrictedWorkError,
   sleep,
@@ -56,6 +57,14 @@ export interface FetchWorkOptions {
   knownChapterCount?: number;
 }
 
+/** A parsed work page whose chapters still need the chapter index when it has new chapters */
+export interface ParsedWorkPage extends Omit<ParsedWorkData, "chapters" | "fetchedChapterIndex"> {
+  chaptersFromDropdown: ChapterData[];
+  knownChapterCount: number | undefined;
+  /** The page has more chapters than known, so the chapter index is needed for their dates */
+  needsChapterIndex: boolean;
+}
+
 /**
  * Fetch work data from AO3.
  *
@@ -70,64 +79,50 @@ export async function fetchWorkData(
   workId: number,
   options: FetchWorkOptions = {},
 ): Promise<ParsedWorkData> {
-  const { knownChapterCount } = options;
+  const page = await parseWorkPageHtml(workId, await fetchWorkHtml(workId), options);
+  if (!page.needsChapterIndex) return completeWorkData(workId, page, null);
 
-  // Step 1: Fetch work page (has metadata + chapter dropdown)
-  const workHtml = await fetchWorkHtml(workId);
+  await sleep(DELAY_BETWEEN_REQUESTS_MS);
+  return completeWorkData(workId, page, await fetchChapterIndexHtml(workId));
+}
+
+/**
+ * Parse a work page loaded by any client (the Worker or the browser work checker).
+ * @throws if the page is not a work page
+ */
+export async function parseWorkPageHtml(
+  workId: number,
+  workHtml: string,
+  options: FetchWorkOptions = {},
+): Promise<ParsedWorkPage> {
+  const { knownChapterCount } = options;
   const { workInfo, workTags, chapters: dropdownChapters } = await parseWorkPage(workHtml);
 
   // Parse the data
   const { current: currentChapters, total: totalChapters } = parseTotalChapters(
     workInfo.totalChapters,
   );
+
+  // Every work page has a title and at least one chapter. Without them the response was an
+  // interstitial or error page served with a success status; saving it would overwrite the work
+  // with "Unknown" metadata and zero chapters.
+  if (!workInfo.workName || currentChapters < 1) {
+    throw new Error(
+      `Work ${workId} response is not a work page (title: ${workInfo.workName !== null}, chapters: ${JSON.stringify(workInfo.totalChapters)})`,
+    );
+  }
+
   const lastUpdated = parseAo3Date(workInfo.workLastUpdated);
 
   // Collect tags
   const tags = collectTags(workTags);
 
-  // Map chapters from dropdown (no dates)
-  const chaptersFromDropdown = mapChaptersFromDropdown(dropdownChapters, workId);
-
-  // Step 2: Only fetch chapter index if there are new chapters
-  const hasNewChapters =
-    knownChapterCount === undefined || currentChapters > knownChapterCount || currentChapters === 0; // Always fetch for single-chapter works (no dropdown)
-
-  let chapters: ChapterData[];
-  let fetchedChapterIndex = false;
-
-  if (hasNewChapters && currentChapters > 0) {
-    // Fetch chapter index to get dates for chapters
-    await sleep(DELAY_BETWEEN_REQUESTS_MS);
-    const chapterIndexHtml = await fetchChapterIndexHtml(workId);
-    const chapterIndex = await parseChapterIndex(chapterIndexHtml);
-    const chaptersFromIndex = mapChaptersFromIndex(chapterIndex.chapters, workId);
-
-    // Merge: prefer index data (has dates), fallback to dropdown
-    chapters = mergeChapterData(chaptersFromDropdown, chaptersFromIndex);
-    fetchedChapterIndex = true;
-
-    console.log({
-      message: "Fetched chapter index for new chapters",
-      workId,
-      knownChapterCount,
-      currentChapters,
-      indexChapters: chaptersFromIndex.length,
-    });
-  } else {
-    // Use dropdown chapters (no dates, but saves a request)
-    chapters = chaptersFromDropdown;
-
-    console.log({
-      message: "Skipped chapter index (no new chapters)",
-      workId,
-      knownChapterCount,
-      currentChapters,
-    });
-  }
-
   return {
     workInfo,
     workTags,
+    chaptersFromDropdown: mapChaptersFromDropdown(dropdownChapters, workId),
+    knownChapterCount,
+    needsChapterIndex: knownChapterCount === undefined || currentChapters > knownChapterCount,
     parsed: {
       currentChapters,
       totalChapters,
@@ -139,8 +134,52 @@ export async function fetchWorkData(
       comments: parseNumber(workInfo.comments),
     },
     tags,
-    chapters,
-    fetchedChapterIndex,
+  };
+}
+
+/**
+ * Resolve a parsed work page's chapters, merging in the chapter index when one was loaded.
+ * Without it the dropdown chapters are used (no dates, but saves a request).
+ */
+export async function completeWorkData(
+  workId: number,
+  page: ParsedWorkPage,
+  chapterIndexHtml: string | null,
+): Promise<ParsedWorkData> {
+  const { chaptersFromDropdown, knownChapterCount } = page;
+  const data = {
+    workInfo: page.workInfo,
+    workTags: page.workTags,
+    parsed: page.parsed,
+    tags: page.tags,
+  };
+  const { currentChapters } = data.parsed;
+
+  if (chapterIndexHtml === null) {
+    console.log({
+      message: "Skipped chapter index (no new chapters)",
+      workId,
+      knownChapterCount,
+      currentChapters,
+    });
+    return { ...data, chapters: chaptersFromDropdown, fetchedChapterIndex: false };
+  }
+
+  const chapterIndex = await parseChapterIndex(chapterIndexHtml);
+  const chaptersFromIndex = mapChaptersFromIndex(chapterIndex.chapters, workId);
+  console.log({
+    message: "Fetched chapter index for new chapters",
+    workId,
+    knownChapterCount,
+    currentChapters,
+    indexChapters: chaptersFromIndex.length,
+  });
+
+  // Merge: prefer index data (has dates), fallback to dropdown
+  return {
+    ...data,
+    chapters: mergeChapterData(chaptersFromDropdown, chaptersFromIndex),
+    fetchedChapterIndex: true,
   };
 }
 
@@ -162,6 +201,8 @@ export interface WorkProcessResult {
   success: boolean;
   restrictedWork?: boolean;
   notFound?: boolean;
+  /** AO3 itself failed (5xx, 429, timeout or network error), not the work */
+  unavailable?: boolean;
   error?: string;
   data?: ParsedWorkData;
 }
@@ -186,6 +227,7 @@ export async function fetchWorkDataSafe(
     return {
       workId,
       success: false,
+      unavailable: isAo3Unavailable(error),
       error: error instanceof Error ? error.message : String(error),
     };
   }

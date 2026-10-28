@@ -62,6 +62,15 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 `POSTHOG_PROJECT_TOKEN` is an encrypted Worker secret, provisioned separately for each environment; never put it in source or the native app. `POSTHOG_REGION=eu` selects EU ingestion. QckSys projects are `ao3tracker-dev` (291114) for `ao3tracker-api-dev`, and `ao3tracker` (69100) for `ao3tracker-api-prod`. Local tests use inert tokens and mock fetch. For local live checks, supply a development token through the existing secret-loading mechanism. Keep exception autocapture enabled in each project. Deploy the Worker before releasing the native client; see [native diagnostics](../native-kmp/AGENTS.md#diagnostics).
 
+### Browser work checker
+
+`/checker/*` ([routes/checker.ts](src/routes/checker.ts), logic in [lib/work-checker.ts](src/lib/work-checker.ts)) serves the self-hosted browser container in [apps/work-checker](../work-checker/AGENTS.md), which loads AO3 pages because most Worker requests to AO3 fail. The container initiates every request; the Worker never contacts it. The router mounts before the session and database middleware and authenticates a bearer token against the `WORK_CHECKER_TOKEN` secret; an unset secret rejects every request.
+
+- Settings come from the `WORK_CHECKER_SETTINGS` JSON var, parsed with the shared `@qcksys/ao3tracker-core/work-checker` schema. Keep it in all three `wrangler.json` environments. While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs.
+- Results go through the cron's own handlers: `parseWorkPageHtml`/`completeWorkData` parse the HTML, then `handleRefreshResult` (stored work) or `handleFetchResult` (missing work) apply it, so notifications, soft-deletes and failure backoff behave identically. A stored work's chapter growth returns `needs_chapter_index` instead of applying a page without chapter dates.
+- Backups: the checker downloads the formats the result response lists and uploads them; only the work's current `downloadUpdatedAt` revision is stored.
+- Provision `WORK_CHECKER_TOKEN` in each environment before deploying: it is in `secrets.required`.
+
 ### Framework Stack
 
 - **Hono** - Web framework with OpenAPI support via `@hono/zod-openapi`
@@ -104,12 +113,12 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 **Scheduled Tasks** (`src/scheduled/`):
 
-- `handler.ts` - Cron dispatcher, runs every 5 minutes (`*/5 * * * *`)
-- `refresh-works.ts` - Refreshes stale work data (not refreshed in 6 hours, up to 12 works/run in batches of 4). Works are claimed least recently refreshed first by moving `lastRefreshed` to a retry time 30 minutes past the stale threshold without touching `rowUpdatedAt`; overlapping runs skip claimed works, and a failed fetch is retried after 30 minutes instead of 6 hours. Apply `20261027042301_work-last-refreshed-index` with this change. Fetches the first-chapter work view, not `view_full_work`: only that view has the `select#selected_id` chapter dropdown, and the full view renders every chapter. Downloads
-  and backs up each format to R2 if `downloadUpdatedAt` is newer than that format's latest active backup's `ao3UpdatedAt`. Failed formats retry on the next refresh even when another format already succeeded. Creates notifications
+- `handler.ts` - Cron dispatcher, runs every 5 minutes (`*/5 * * * *`); AO3 fetching is skipped while the [browser work checker](#browser-work-checker) is enabled
+- `refresh-works.ts` - Refreshes stale work data (not refreshed in 6 hours). Fetches one work at a time, up to 12 per run within a 4-minute budget so consecutive 5-minute runs do not overlap. Each work is claimed least recently refreshed first by moving `lastRefreshed` to 30 minutes past the stale threshold without touching `rowUpdatedAt`; overlapping runs skip claimed works. A failed fetch increments `refreshFailures` and retries after 30m, 1h, 2h, 4h, then 6h; success resets it. A 5xx, 429, timeout or network error (`isAo3Unavailable`) ends the run, because AO3 is failing rather than the work. Apply `20261027042301_work-last-refreshed-index` and `20261027180739_work-refresh-failures` with this change; `refreshFailures` is excluded from sync metadata. Fetches the first-chapter work view, not `view_full_work`: only that view has the `select#selected_id` chapter dropdown, and the full view renders every chapter. Downloads
+  and backs up each format to R2 (after `handleRefreshResult`, which leaves backups to its caller) if `downloadUpdatedAt` is newer than that format's latest active backup's `ao3UpdatedAt`. Failed formats retry on the next refresh even when another format already succeeded. Creates notifications
   for new chapters, work completion, deletion, and restriction.
 - `fetch-missing-works.ts` - Fetches data for tracked works missing from the works table (up to 12 works/run)
-- `work-fetcher.ts` - Shared utilities for fetching and parsing AO3 work pages
+- `work-fetcher.ts` - Shared utilities for fetching and parsing AO3 work pages. A successful response without a work title or a chapter count of at least 1 is a failed fetch (retried later), not a work: maintenance and other interstitial pages arrive with a 200 status.
 
 **Notification System** (`src/lib/notification-service.ts`, `src/db/queries/notification.ts`):
 

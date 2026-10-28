@@ -1,7 +1,7 @@
 import type { ExecutedQuery } from "@planetscale/database";
 import { describe, expect, it, vi } from "vitest";
 import { createDbConnection } from "~/db/db.client";
-import { claimStaleWorks } from "~/db/queries/work";
+import { claimStaleWorks, recordWorkRefreshFailure, updateWork } from "~/db/queries/work";
 
 function result(rows: ExecutedQuery["rows"] = [], rowsAffected = 0): ExecutedQuery {
   return {
@@ -27,15 +27,15 @@ describe("stale work claims", () => {
       .spyOn(db.$client, "execute")
       .mockResolvedValueOnce(
         result([
-          [11, 3],
-          [22, 7],
+          [11, 3, 2],
+          [22, 7, 0],
         ]),
       )
       .mockResolvedValueOnce(result([], 1))
       .mockResolvedValueOnce(result([], 0));
 
     expect(await claimStaleWorks(db, staleThreshold, retryAt, 12)).toEqual([
-      { id: 11, currentChapters: 3 },
+      { id: 11, currentChapters: 3, refreshFailures: 2 },
     ]);
 
     const [select, selectParams] = execute.mock.calls[0];
@@ -65,5 +65,38 @@ describe("stale work claims", () => {
 
     expect(await claimStaleWorks(db, staleThreshold, retryAt, 12)).toEqual([]);
     expect(execute).toHaveBeenCalledOnce();
+  });
+});
+
+describe("refresh failure bookkeeping", () => {
+  it("records the failure count and retry time without marking the work as changed", async () => {
+    const db = createDbConnection("mysql://unused:unused@localhost/unused");
+    const execute = vi.spyOn(db.$client, "execute").mockResolvedValue(result([], 1));
+
+    await recordWorkRefreshFailure(db, 11, 3, new Date("2026-10-27T02:00:00Z"));
+
+    const [update, params] = execute.mock.calls[0];
+    expect(update).toContain("`refreshFailures` = ?");
+    expect(update).toContain("`lastRefreshed` = ?");
+    expect(update).toContain("`rowUpdatedAt` = `ao3track__work`.`rowUpdatedAt`");
+    expect(params).toEqual(["2026-10-27 02:00:00.000", 3, 11]);
+  });
+
+  it("resets the failure count after a successful refresh", async () => {
+    const db = createDbConnection("mysql://unused:unused@localhost/unused");
+    const execute = vi.spyOn(db.$client, "execute").mockResolvedValue(result([], 1));
+
+    await updateWork(db, 11, {
+      title: "Work",
+      author: "Author",
+      language: "English",
+      wordCount: 1000,
+      currentChapters: 3,
+      lastUpdated: new Date("2026-10-26T00:00:00Z"),
+    });
+
+    const [update, params] = execute.mock.calls[0];
+    expect(update).toContain("`refreshFailures` = ?");
+    expect(params).toContain(0);
   });
 });
