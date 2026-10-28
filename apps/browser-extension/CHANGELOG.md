@@ -1,5 +1,14 @@
 # @qcksys/ao3tracker-browser-extension
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [b94046f]
+- Updated dependencies [cfdb574]
+  - @qcksys/ao3tracker-core@0.4.0
+  - @qcksys/ao3tracker-sync-client@0.1.3
+
 ## 0.3.0
 
 ### Minor Changes
