@@ -21,6 +21,7 @@ import com.qcksys.ao3tracker.data.model.*
 import com.qcksys.ao3tracker.data.offline.*
 import com.qcksys.ao3tracker.data.repository.*
 import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.data.settings.OfflinePreferences
 import com.qcksys.ao3tracker.data.sync.*
 import com.qcksys.ao3tracker.ui.navigation.ReadNavigation
 import com.qcksys.ao3tracker.ui.navigation.ReadTab
@@ -55,7 +56,10 @@ class OfflineReadScreenTest {
         val accounts = AccountDataStore(open("test.db"), open)
         val store = OfflineContentStore(accounts, DiskOfflineFiles(File(directory, "files")))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-        val settings = AppSettings(null)
+        // This test checks the manual update prompt. With background updates on, raising the published
+        // chapter count queues an update job that races the "Offline" click and opens the debug dialog;
+        // OfflineCoordinatorTest covers the background update path.
+        val settings = AppSettings(null).apply { setOfflinePreferences(OfflinePreferences(updateSavedWorks = false)) }
         val holder = directory.name
         val model = runBlocking(Dispatchers.Main) {
             accounts.initialize()
@@ -88,6 +92,14 @@ class OfflineReadScreenTest {
         val testKoin = koinApplication { modules(module {
             single { model.first }; single { model.second }; single { settings }
         }) }
+        fun shell(command: String) = instrumentation.uiAutomation.executeShellCommand(command).use {
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(it).use { output -> output.readBytes().decodeToString().trim() }
+        }
+        // The coordinator is told the device is offline, so take the device offline too. Otherwise the live
+        // reader created after each identity change loads AO3, and its navigations are intercepted as
+        // unavailable destinations that supersede the test's own navigation.
+        val airplaneModeWasOn = shell("settings get global airplane_mode_on") == "1"
+        shell("cmd connectivity airplane-mode enable")
         try {
             ActivityScenario.launch(OfflineReaderTestActivity::class.java).use { scenario ->
                 scenario.onActivity { activity -> activity.setContent {
@@ -140,7 +152,8 @@ class OfflineReadScreenTest {
                     var previousView: WebView? = null
                     scenario.onActivity { previousView = findWebView(it.findViewById(android.R.id.content)) }
                     runBlocking { store.observeIdentity("guest") }
-                    await { model.first.currentUrl.value == "https://archiveofourown.org" && model.first.savedChapter.value == null }
+                    // The recreated live WebView reports the home page with a trailing slash once it starts loading.
+                    await { model.first.isOnHomePage() && model.first.savedChapter.value == null }
                     await {
                         var replaced = false
                         scenario.onActivity { replaced = findWebView(it.findViewById(android.R.id.content)) !== previousView }
@@ -150,6 +163,7 @@ class OfflineReadScreenTest {
                 }
             }
         } finally {
+            if (!airplaneModeWasOn) shell("cmd connectivity airplane-mode disable")
             testKoin.close()
             runBlocking(Dispatchers.Main) { ScreenModelStore.onDisposeNavigator(holder) }
             scope.cancel()
