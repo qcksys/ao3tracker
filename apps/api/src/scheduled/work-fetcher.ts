@@ -80,6 +80,16 @@ export async function fetchWorkData(
   const { current: currentChapters, total: totalChapters } = parseTotalChapters(
     workInfo.totalChapters,
   );
+
+  // Every work page has a title and at least one chapter. Without them the response was an
+  // interstitial or error page served with a success status; saving it would overwrite the work
+  // with "Unknown" metadata and zero chapters.
+  if (!workInfo.workName || currentChapters < 1) {
+    throw new Error(
+      `Work ${workId} response is not a work page (title: ${workInfo.workName !== null}, chapters: ${JSON.stringify(workInfo.totalChapters)})`,
+    );
+  }
+
   const lastUpdated = parseAo3Date(workInfo.workLastUpdated);
 
   // Collect tags
@@ -89,13 +99,12 @@ export async function fetchWorkData(
   const chaptersFromDropdown = mapChaptersFromDropdown(dropdownChapters, workId);
 
   // Step 2: Only fetch chapter index if there are new chapters
-  const hasNewChapters =
-    knownChapterCount === undefined || currentChapters > knownChapterCount || currentChapters === 0; // Always fetch for single-chapter works (no dropdown)
+  const hasNewChapters = knownChapterCount === undefined || currentChapters > knownChapterCount;
 
   let chapters: ChapterData[];
   let fetchedChapterIndex = false;
 
-  if (hasNewChapters && currentChapters > 0) {
+  if (hasNewChapters) {
     // Fetch chapter index to get dates for chapters
     await sleep(DELAY_BETWEEN_REQUESTS_MS);
     const chapterIndexHtml = await fetchChapterIndexHtml(workId);

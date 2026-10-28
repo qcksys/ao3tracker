@@ -109,7 +109,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
   and backs up each format to R2 if `downloadUpdatedAt` is newer than that format's latest active backup's `ao3UpdatedAt`. Failed formats retry on the next refresh even when another format already succeeded. Creates notifications
   for new chapters, work completion, deletion, and restriction.
 - `fetch-missing-works.ts` - Fetches data for tracked works missing from the works table (up to 12 works/run)
-- `work-fetcher.ts` - Shared utilities for fetching and parsing AO3 work pages
+- `work-fetcher.ts` - Shared utilities for fetching and parsing AO3 work pages. A successful response without a work title or a chapter count of at least 1 is a failed fetch (retried later), not a work: maintenance and other interstitial pages arrive with a 200 status.
 
 **Notification System** (`src/lib/notification-service.ts`, `src/db/queries/notification.ts`):
 
