@@ -13,6 +13,7 @@ import { authMw } from "~/middleware/authMw";
 import { startupMw, type TRouterEnvFw } from "~/middleware/startupMw";
 import { queue } from "~/queue/handler";
 import { apiRouter } from "~/routes/api";
+import { checkerRouter } from "~/routes/checker";
 import { ingestRouter } from "~/routes/ingest";
 import { wellKnownRouter } from "~/routes/well-known";
 import { scheduled } from "~/scheduled/handler";
@@ -50,6 +51,7 @@ const openApiConfig = {
 
 appRouter.get("/privacy", (c) => c.html(<PrivacyPage />));
 appRouter.route("/ingest", ingestRouter);
+appRouter.route("/checker", checkerRouter);
 
 appRouter.use(timing());
 // Restrict CORS to the configured web origins (see `ALLOWED_ORIGINS`). Read

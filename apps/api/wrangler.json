@@ -22,7 +22,8 @@
       "GOOGLE_ID",
       "GOOGLE_SECRET",
       "FCM_SERVICE_ACCOUNT",
-      "POSTHOG_PROJECT_TOKEN"
+      "POSTHOG_PROJECT_TOKEN",
+      "WORK_CHECKER_TOKEN"
     ]
   },
   "r2_buckets": [
@@ -76,6 +77,12 @@
   },
   "vars": {
     "POSTHOG_REGION": "eu",
+    "WORK_CHECKER_SETTINGS": {
+      "enabled": false,
+      "pollIntervalSeconds": 300,
+      "maxWorksPerPoll": 12,
+      "delayBetweenRequestsMs": 2000
+    },
     "BETTER_AUTH_URL": "https://qcksys-ao3tracker-api-local.ta2.dev",
     "ENVIRONMENT": "local",
     "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
@@ -94,7 +101,8 @@
           "GOOGLE_ID",
           "GOOGLE_SECRET",
           "FCM_SERVICE_ACCOUNT",
-          "POSTHOG_PROJECT_TOKEN"
+          "POSTHOG_PROJECT_TOKEN",
+          "WORK_CHECKER_TOKEN"
         ]
       },
       "r2_buckets": [
@@ -160,6 +168,12 @@
       },
       "vars": {
         "POSTHOG_REGION": "eu",
+        "WORK_CHECKER_SETTINGS": {
+          "enabled": true,
+          "pollIntervalSeconds": 300,
+          "maxWorksPerPoll": 12,
+          "delayBetweenRequestsMs": 2000
+        },
         "BETTER_AUTH_URL": "https://dev.ao3tracker.com",
         "ENVIRONMENT": "dev",
         "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
@@ -175,7 +189,8 @@
           "GOOGLE_ID",
           "GOOGLE_SECRET",
           "FCM_SERVICE_ACCOUNT",
-          "POSTHOG_PROJECT_TOKEN"
+          "POSTHOG_PROJECT_TOKEN",
+          "WORK_CHECKER_TOKEN"
         ]
       },
       "r2_buckets": [
@@ -241,6 +256,12 @@
       },
       "vars": {
         "POSTHOG_REGION": "eu",
+        "WORK_CHECKER_SETTINGS": {
+          "enabled": false,
+          "pollIntervalSeconds": 300,
+          "maxWorksPerPoll": 12,
+          "delayBetweenRequestsMs": 2000
+        },
         "BETTER_AUTH_URL": "https://ao3tracker.com",
         "ENVIRONMENT": "prod",
         "SYSTEM_EMAIL_ADDRESS": "hello@ao3tracker.com",

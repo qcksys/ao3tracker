@@ -247,6 +247,34 @@ export async function getWorkChapterCount(db: TDatabase, workId: number): Promis
   return result[0]?.currentChapters ?? null;
 }
 
+/** Work state needed to apply a browser work checker result */
+export type WorkCheckState = Pick<
+  TWorkS,
+  "currentChapters" | "refreshFailures" | "downloadUpdatedAt" | "rowDeletedAt"
+>;
+
+/**
+ * Get the state used to apply a browser work checker result. Returns null if the work is not
+ * stored yet.
+ */
+export async function getWorkCheckState(
+  db: TDatabase,
+  workId: number,
+): Promise<WorkCheckState | null> {
+  const result = await db
+    .select({
+      currentChapters: tWork.currentChapters,
+      refreshFailures: tWork.refreshFailures,
+      downloadUpdatedAt: tWork.downloadUpdatedAt,
+      rowDeletedAt: tWork.rowDeletedAt,
+    })
+    .from(tWork)
+    .where(eq(tWork.id, workId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
 /** Work state data needed for notification comparison */
 export interface WorkStateData {
   title: string;

@@ -1,0 +1,52 @@
+# Hub deployment: one checker per API environment. update.ts sets each image to the digest
+# it verified; the defaults only let Compose validate before an environment's first deploy.
+name: ao3-work-checker
+
+x-checker: &checker
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 1m
+  # Chrome uses /dev/shm for rendering; Docker's 64 MB default makes tabs crash.
+  shm_size: 1gb
+  mem_limit: 2g
+  cpus: 1.0
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  dev:
+    <<: *checker
+    image: ${DEV_IMAGE:-ghcr.io/qcksys/ao3tracker-work-checker:dev}
+    environment:
+      API_URL: https://dev.ao3tracker.com
+      WORK_CHECKER_TOKEN_FILE: /run/secrets/work_checker_token
+    volumes:
+      - dev-profile:/data
+    secrets:
+      - source: dev_token
+        target: work_checker_token
+
+  prod:
+    <<: *checker
+    image: ${PROD_IMAGE:-ghcr.io/qcksys/ao3tracker-work-checker:main}
+    environment:
+      API_URL: https://ao3tracker.com
+      WORK_CHECKER_TOKEN_FILE: /run/secrets/work_checker_token
+    volumes:
+      - prod-profile:/data
+    secrets:
+      - source: prod_token
+        target: work_checker_token
+
+volumes:
+  dev-profile:
+  prod-profile:
+
+secrets:
+  dev_token:
+    file: ./secrets/dev_token
+  prod_token:
+    file: ./secrets/prod_token

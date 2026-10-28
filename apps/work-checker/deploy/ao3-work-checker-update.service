@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy the latest CI-published ao3tracker work checker images
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ao3-work-checker
+# flock skips a run while a manual one is still deploying.
+ExecStart=/usr/bin/flock --nonblock %h/ao3-work-checker/.update.lock /usr/bin/node %h/ao3-work-checker/update.ts
+TimeoutStartSec=30min
+UMask=0077
