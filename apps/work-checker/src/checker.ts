@@ -1,5 +1,6 @@
 import type {
   WorkCheckerJob,
+  WorkCheckerPollSummary,
   WorkCheckerResult,
   WorkCheckerSettings,
 } from "@qcksys/ao3tracker-core/work-checker";
@@ -62,20 +63,26 @@ async function loadPage(
   }
 }
 
+export interface WorkCheck {
+  outcome: WorkCheckerResult["outcome"];
+  backupsUploaded: number;
+  backupsFailed: number;
+}
+
 /**
- * Check one work and report it to the Worker. Returns false when AO3 is unavailable, so the
- * caller stops sending it requests until the next poll.
+ * Check one work and report it to the Worker. An `unavailable` outcome means AO3 is failing, so
+ * the caller stops sending it requests until the next poll.
  */
 export async function checkWork(
   job: WorkCheckerJob,
   settings: WorkCheckerSettings,
   { api, browser, sleep }: CheckerDeps,
-): Promise<boolean> {
+): Promise<WorkCheck> {
   const { workId } = job;
-  const report = async (result: WorkCheckerResult) => {
+  const report = async (result: WorkCheckerResult): Promise<WorkCheck> => {
     await api.postResult(result);
     log.info({ message: "Reported work", workId, kind: job.kind, outcome: result.outcome });
-    return result.outcome !== "unavailable";
+    return { outcome: result.outcome, backupsUploaded: 0, backupsFailed: 0 };
   };
 
   const work = await loadPage(browser, workId, workUrl(workId));
@@ -98,6 +105,7 @@ export async function checkWork(
   }
   log.info({ message: "Reported work", workId, kind: job.kind, outcome: "page" });
 
+  const check: WorkCheck = { outcome: "page", backupsUploaded: 0, backupsFailed: 0 };
   for (const backup of response.backups) {
     await sleep(settings.delayBetweenRequestsMs);
     try {
@@ -114,10 +122,12 @@ export async function checkWork(
           status: download.status,
           contentType: download.contentType,
         });
+        check.backupsFailed++;
         continue;
       }
       const outcome = await api.uploadBackup(workId, backup, download.body);
       log.info({ message: "Uploaded backup", workId, format: backup.format, outcome });
+      if (outcome === "stored") check.backupsUploaded++;
     } catch (error) {
       log.error({
         message: "Failed to back up work format",
@@ -125,32 +135,61 @@ export async function checkWork(
         format: backup.format,
         error: errorMessage(error),
       });
+      check.backupsFailed++;
     }
   }
-  return true;
+  return check;
+}
+
+export interface Poll {
+  settings: WorkCheckerSettings;
+  summary: WorkCheckerPollSummary;
 }
 
 /**
  * One poll: read the settings, claim works and check them one at a time. Returns the settings so
- * the caller can wait the configured interval.
+ * the caller can wait the configured interval, and a summary for the status report.
  */
-export async function runPoll(deps: CheckerDeps): Promise<WorkCheckerSettings> {
+export async function runPoll(deps: CheckerDeps, now = () => new Date()): Promise<Poll> {
+  const startedAt = now();
+  const summary: WorkCheckerPollSummary = {
+    at: startedAt.toISOString(),
+    durationMs: 0,
+    enabled: false,
+    claimed: 0,
+    outcomes: { page: 0, not_found: 0, restricted: 0, unavailable: 0, failed: 0 },
+    backupsUploaded: 0,
+    backupsFailed: 0,
+    stoppedEarly: false,
+  };
+  const finish = (settings: WorkCheckerSettings): Poll => {
+    summary.durationMs = now().getTime() - startedAt.getTime();
+    return { settings, summary };
+  };
+
   const settings = await deps.api.settings();
-  if (!settings.enabled) return settings;
+  summary.enabled = settings.enabled;
+  if (!settings.enabled) return finish(settings);
 
   const jobs = await deps.api.claim();
+  summary.claimed = jobs.length;
   for (const [index, job] of jobs.entries()) {
     if (index > 0) await deps.sleep(settings.delayBetweenRequestsMs);
-    if (!(await checkWork(job, settings, deps))) {
+    const check = await checkWork(job, settings, deps);
+    summary.outcomes[check.outcome]++;
+    summary.backupsUploaded += check.backupsUploaded;
+    summary.backupsFailed += check.backupsFailed;
+    if (check.outcome === "unavailable") {
       // Unprocessed refresh claims expire and are handed out again later.
       log.warn({
         message: "AO3 unavailable, ending poll",
         workId: job.workId,
         skipped: jobs.length - index - 1,
       });
+      summary.stoppedEarly = index < jobs.length - 1;
       break;
     }
   }
   log.info({ message: "Poll completed", claimed: jobs.length });
-  return settings;
+  return finish(settings);
 }

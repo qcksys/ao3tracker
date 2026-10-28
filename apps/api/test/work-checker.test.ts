@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TDatabase } from "~/db/db.client";
+import { getAppSetting } from "~/db/queries/app-setting";
 import { findMissingTrackedWorks, getWorkCheckState } from "~/db/queries/work";
-import { applyWorkCheckerResult, claimWorkCheckerJobs } from "~/lib/work-checker";
+import { upsertWorkCheckerStatus } from "~/db/queries/work-checker-status";
+import {
+  applyWorkCheckerResult,
+  claimWorkCheckerJobs,
+  DISABLED_WORK_CHECKER_SETTINGS,
+  workCheckerSettings,
+} from "~/lib/work-checker";
 import { checkerRouter } from "~/routes/checker";
 import { fetchMissingWorks, handleFetchResult } from "~/scheduled/fetch-missing-works";
 import { scheduled } from "~/scheduled/handler";
@@ -15,6 +22,8 @@ import {
 import { chapterIndexHtml, workPageHtml } from "~test/ao3-parser.fixtures";
 
 vi.mock("~/db/db.client", () => ({ createDbConnection: vi.fn(() => ({})) }));
+vi.mock("~/db/queries/app-setting", () => ({ getAppSetting: vi.fn() }));
+vi.mock("~/db/queries/work-checker-status", () => ({ upsertWorkCheckerStatus: vi.fn() }));
 vi.mock("~/db/queries/work", () => ({
   findMissingTrackedWorks: vi.fn(),
   getWorkCheckState: vi.fn(),
@@ -40,10 +49,7 @@ const settings = {
   maxWorksPerPoll: 3,
   delayBetweenRequestsMs: 2000,
 };
-const env = {
-  WORK_CHECKER_TOKEN: "checker-token",
-  WORK_CHECKER_SETTINGS: settings,
-} as unknown as CloudflareBindings;
+const env = { WORK_CHECKER_TOKEN: "checker-token" } as unknown as CloudflareBindings;
 /** The fixture work page: 87 chapters, with download links updated at this time */
 const workId = 10828137;
 const downloadUpdatedAt = new Date(1731356383 * 1000);
@@ -64,7 +70,12 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.spyOn(console, "log").mockImplementation(() => {});
   vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.mocked(getAppSetting).mockResolvedValue(settings);
 });
+
+function disableChecker() {
+  vi.mocked(getAppSetting).mockResolvedValue({ ...settings, enabled: false });
+}
 afterEach(() => vi.restoreAllMocks());
 
 describe("work checker authentication", () => {
@@ -89,13 +100,84 @@ describe("work checker authentication", () => {
   });
 });
 
+describe("work checker settings", () => {
+  it("reads the work_checker setting", async () => {
+    expect(await workCheckerSettings(db)).toEqual(settings);
+    expect(getAppSetting).toHaveBeenCalledWith(db, "work_checker");
+  });
+
+  it("treats a missing setting as disabled, leaving AO3 fetching to the Worker", async () => {
+    vi.mocked(getAppSetting).mockResolvedValue(null);
+
+    expect(await workCheckerSettings(db)).toEqual(DISABLED_WORK_CHECKER_SETTINGS);
+  });
+
+  it("treats a value outside the schema as disabled and reports it", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getAppSetting).mockResolvedValue({ enabled: "yes" });
+
+    expect(await workCheckerSettings(db)).toEqual(DISABLED_WORK_CHECKER_SETTINGS);
+    expect(error).toHaveBeenCalledOnce();
+  });
+});
+
+describe("work checker status", () => {
+  const status = {
+    checkerId: "hub-dev",
+    version: "3a8453f",
+    startedAt: "2026-10-28T07:00:00.000Z",
+    lastPoll: {
+      at: "2026-10-28T07:58:00.000Z",
+      durationMs: 30_000,
+      enabled: true,
+      claimed: 2,
+      outcomes: { page: 1, not_found: 0, restricted: 0, unavailable: 1, failed: 0 },
+      backupsUploaded: 0,
+      backupsFailed: 0,
+      stoppedEarly: true,
+    },
+    lastError: null,
+  };
+
+  it("stores a report with the time the Worker received it", async () => {
+    const response = await request("/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(status),
+    });
+
+    expect(response.status).toBe(204);
+    const [, record] = vi.mocked(upsertWorkCheckerStatus).mock.calls[0];
+    expect(record).toMatchObject({ checkerId: "hub-dev", status });
+    expect(record.reportedAt).toBeInstanceOf(Date);
+  });
+
+  it.each([
+    ["an invalid checker id", { ...status, checkerId: "Hub Dev!" }],
+    ["a missing poll summary field", { ...status, lastPoll: { at: status.lastPoll.at } }],
+  ])("rejects %s", async (_name, body) => {
+    const response = await request("/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    expect(response.status).toBe(400);
+    expect(upsertWorkCheckerStatus).not.toHaveBeenCalled();
+  });
+
+  it("requires the checker token", async () => {
+    const response = await request("/status", { method: "POST", body: "{}" }, "wrong-token");
+
+    expect(response.status).toBe(401);
+  });
+});
+
 describe("work checker claims", () => {
   it("hands out no jobs while the checker is disabled", async () => {
-    const response = await checkerRouter.request(
-      "/claim",
-      { method: "POST", headers: { Authorization: "Bearer checker-token" } },
-      { ...env, WORK_CHECKER_SETTINGS: { ...settings, enabled: false } },
-    );
+    disableChecker();
+
+    const response = await request("/claim", { method: "POST" });
     expect(await response.json()).toEqual({ jobs: [] });
     expect(findMissingTrackedWorks).not.toHaveBeenCalled();
     expect(claimWorksForRefresh).not.toHaveBeenCalled();
@@ -319,11 +401,9 @@ describe("scheduled AO3 fetching", () => {
   });
 
   it("runs in the Worker while the checker is disabled", async () => {
-    await scheduled(
-      event,
-      { ...env, WORK_CHECKER_SETTINGS: { ...settings, enabled: false } } as CloudflareBindings,
-      ctx,
-    );
+    disableChecker();
+
+    await scheduled(event, env, ctx);
 
     expect(refreshStaleWorks).toHaveBeenCalledOnce();
     expect(fetchMissingWorks).toHaveBeenCalledOnce();

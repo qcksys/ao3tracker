@@ -156,6 +156,10 @@ export const auth = ({ env, db }: { env: CloudflareBindings; db: TDatabase }) =>
     },
     user: {
       fields: {},
+      additionalFields: {
+        // Granted with SQL only; `input: false` keeps sign-up and update requests from setting it.
+        role: { type: "string", defaultValue: "user", input: false },
+      },
     },
     plugins: [
       twoFactor(),

@@ -12,6 +12,7 @@ import { parseAllowedOrigins } from "~/lib/origins";
 import { authMw } from "~/middleware/authMw";
 import { startupMw, type TRouterEnvFw } from "~/middleware/startupMw";
 import { queue } from "~/queue/handler";
+import { adminRouter } from "~/routes/admin";
 import { apiRouter } from "~/routes/api";
 import { checkerRouter } from "~/routes/checker";
 import { ingestRouter } from "~/routes/ingest";
@@ -126,6 +127,7 @@ appRouter.get("/reset-password", (c) => c.html(<ResetPasswordPage />));
 appRouter.on(["POST", "GET"], "/auth/*", (c) => c.var.auth.handler(c.req.raw));
 
 appRouter.route("/api", apiRouter);
+appRouter.route("/admin", adminRouter);
 appRouter.route("/.well-known", wellKnownRouter);
 
 appRouter.all("*", () => {

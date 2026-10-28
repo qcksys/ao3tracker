@@ -41,6 +41,23 @@ describe("checker API client", () => {
     await expect(api.claim()).rejects.toThrow();
   });
 
+  it("posts a status report", async () => {
+    const { fetchFn, api } = apiWith(new Response(null, { status: 204 }));
+    const status = {
+      checkerId: "hub-dev",
+      version: "abc1234",
+      startedAt: "2026-10-28T08:00:00.000Z",
+      lastPoll: null,
+      lastError: null,
+    };
+
+    await api.postStatus(status);
+
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe("https://dev.ao3tracker.com/checker/status");
+    expect(JSON.parse(init?.body as string)).toEqual(status);
+  });
+
   it("uploads a backup with its download revision", async () => {
     const { fetchFn, api } = apiWith(Response.json({ outcome: "stored" }));
 

@@ -16,6 +16,8 @@ export const tAuthUser = mysqlTable(`${DB_TABLE_PREFIX}auth_user`, {
     .default(sql`CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`)
     .notNull(),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  /** `admin` opens the /admin pages. Server-owned: Better Auth never accepts it as input. */
+  role: varchar({ length: 32 }).notNull().default("user"),
 });
 
 export type TAuthUserS = InferSelectModel<typeof tAuthUser>;

@@ -26,6 +26,9 @@ COPY apps/work-checker/src apps/work-checker/src
 RUN mkdir -p /data/profile && chown -R node:node /data
 USER node
 WORKDIR /app/apps/work-checker
+# Reported as the checker's version on the admin dashboard; CI passes the source commit.
+ARG SOURCE_REF=unknown
+ENV CHECKER_VERSION=$SOURCE_REF
 ENV PROFILE_DIR=/data/profile
 VOLUME /data
 LABEL org.opencontainers.image.source="https://github.com/qcksys/ao3tracker"

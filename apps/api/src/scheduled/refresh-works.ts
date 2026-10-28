@@ -24,7 +24,7 @@ import {
   type WorkProcessResult,
 } from "~/scheduled/work-fetcher";
 
-const STALE_THRESHOLD_HOURS = 6;
+export const STALE_THRESHOLD_HOURS = 6;
 const RETRY_BASE_DELAY_MINUTES = 30;
 const MAX_WORKS_PER_RUN = 12;
 /** Shorter than the 5-minute cron interval, so consecutive runs do not overlap */
