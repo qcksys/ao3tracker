@@ -23,6 +23,8 @@ vi.mock("~/db/queries/notification", () => ({
   recordNotificationDispatch: vi.fn(),
 }));
 
+// No work checker setting: the Worker cron fetches from AO3 itself.
+vi.mock("~/db/queries/app-setting", () => ({ getAppSetting: vi.fn(async () => null) }));
 vi.mock("~/scheduled/refresh-works", () => ({ refreshStaleWorks: vi.fn() }));
 vi.mock("~/scheduled/fetch-missing-works", () => ({ fetchMissingWorks: vi.fn() }));
 
@@ -125,12 +127,6 @@ describe("notification dispatch outbox", () => {
       {
         DATABASE_URL: "mysql://unused:unused@localhost/unused",
         NOTIFICATION_QUEUE: queue,
-        WORK_CHECKER_SETTINGS: {
-          enabled: false,
-          pollIntervalSeconds: 300,
-          maxWorksPerPoll: 12,
-          delayBetweenRequestsMs: 2000,
-        },
       } as unknown as CloudflareBindings,
       {
         waitUntil: (promise: Promise<unknown>) => promises.push(promise),

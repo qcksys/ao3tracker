@@ -1,3 +1,4 @@
+import { tAppSetting } from "./app.setting";
 import { tAuthAccount } from "./auth.account";
 import { tEmailSendLog } from "./auth.emailSendLog";
 import { tAuthPasskey } from "./auth.passkey";
@@ -19,6 +20,7 @@ import { tWorkTag } from "./work.tag";
 import { tWorkTagLink } from "./work.tag.link";
 
 export const schema = {
+  tAppSetting,
   tAuthAccount,
   tEmailSendLog,
   tAuthPasskey,

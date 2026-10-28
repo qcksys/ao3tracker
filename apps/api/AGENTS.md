@@ -66,7 +66,13 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 `/checker/*` ([routes/checker.ts](src/routes/checker.ts), logic in [lib/work-checker.ts](src/lib/work-checker.ts)) serves the self-hosted browser container in [apps/work-checker](../work-checker/AGENTS.md), which loads AO3 pages because most Worker requests to AO3 fail. The container initiates every request; the Worker never contacts it. The router mounts before the session and database middleware and authenticates a bearer token against the `WORK_CHECKER_TOKEN` secret; an unset secret rejects every request.
 
-- Settings come from the `WORK_CHECKER_SETTINGS` JSON var, parsed with the shared `@qcksys/ao3tracker-core/work-checker` schema. Keep it in all three `wrangler.json` environments. While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs.
+- Settings are the `work_checker` row of `ao3track__app_setting` (one JSON value per key, read on every cron run and checker request), parsed with the shared `@qcksys/ao3tracker-core/work-checker` schema. Change them with SQL against the environment's database; no deployment is needed:
+  ```sql
+  INSERT INTO ao3track__app_setting (`key`, value)
+  VALUES ('work_checker', '{"enabled":true,"pollIntervalSeconds":300,"maxWorksPerPoll":12,"delayBetweenRequestsMs":2000}')
+  ON DUPLICATE KEY UPDATE value = VALUES(value), rowDeletedAt = NULL;
+  ```
+  A missing, soft-deleted or invalid value means disabled (invalid values are logged). While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs. `test/e2e/app-setting.test.ts` runs this statement against MySQL.
 - Results go through the cron's own handlers: `parseWorkPageHtml`/`completeWorkData` parse the HTML, then `handleRefreshResult` (stored work) or `handleFetchResult` (missing work) apply it, so notifications, soft-deletes and failure backoff behave identically. A stored work's chapter growth returns `needs_chapter_index` instead of applying a page without chapter dates.
 - Backups: the checker downloads the formats the result response lists and uploads them; only the work's current `downloadUpdatedAt` revision is stored.
 - Provision `WORK_CHECKER_TOKEN` in each environment before deploying: it is in `secrets.required`.
@@ -254,6 +260,8 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 ### Database dependency compatibility
 
 Drizzle ORM and Kit are pinned together at `1.0.0-rc.5`. Keep `@planetscale/database` on 1.x: driver 2.x removes the parameterized `execute` API the RC adapter still requires. RC.5 relational queries throw on `undefined` filter values; use `EmptyFilter` from `drizzle-orm/relations` for an intentionally absent filter. `test/db-client.test.ts` and `test/backup-queries.test.ts` exercise the real adapter with mocked HTTP responses; root migration tests exercise the real migrator. The `db:migrate` script uses the checked-in migration folders and `ao3track__migrations` ledger, with credential-redacted error causes.
+
+Drizzle Kit RC renders `timestampCols`' `rowUpdatedAt` default as `DEFAULT (CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`, which MySQL rejects. When a generated `CREATE TABLE` uses `timestampCols`, edit its SQL to `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` (as in `20261028080354_app-setting`), and run `vp run test:e2e`, which applies every migration to MySQL 8.
 
 The first RC migration run, in CI or via local `vp run db:migrate`, upgrades a legacy ledger by adding `name` and `applied_at`, backfilling names, and then applying pending SQL. Deployment database credentials require DDL and write access for this runner. The repository format conversion preserves historical SQL. `drizzle.config.ts` forces UTC to avoid RC.4's mixed local-year/UTC migration-name bug at New Year.
 

@@ -14,6 +14,7 @@ import {
   workCheckerSettingsSchema,
 } from "@qcksys/ao3tracker-core/work-checker";
 import type { TDatabase } from "~/db/db.client";
+import { getAppSetting } from "~/db/queries/app-setting";
 import { findMissingTrackedWorks, getWorkCheckState } from "~/db/queries/work";
 import { handleFetchResult } from "~/scheduled/fetch-missing-works";
 import {
@@ -30,10 +31,31 @@ import {
   type WorkProcessResult,
 } from "~/scheduled/work-fetcher";
 
-export function workCheckerSettings(
-  env: Pick<CloudflareBindings, "WORK_CHECKER_SETTINGS">,
-): WorkCheckerSettings {
-  return workCheckerSettingsSchema.parse(env.WORK_CHECKER_SETTINGS);
+/** `ao3track__app_setting` key holding the settings JSON */
+export const WORK_CHECKER_SETTINGS_KEY = "work_checker";
+
+/** Used while the setting is missing or invalid, so the Worker cron keeps fetching from AO3 */
+export const DISABLED_WORK_CHECKER_SETTINGS: WorkCheckerSettings = {
+  enabled: false,
+  pollIntervalSeconds: 300,
+  maxWorksPerPoll: 12,
+  delayBetweenRequestsMs: 2000,
+};
+
+/**
+ * Read the settings from the database, so they change with SQL rather than a deployment.
+ */
+export async function workCheckerSettings(db: TDatabase): Promise<WorkCheckerSettings> {
+  const stored = await getAppSetting(db, WORK_CHECKER_SETTINGS_KEY);
+  if (stored === null) return DISABLED_WORK_CHECKER_SETTINGS;
+  const parsed = workCheckerSettingsSchema.safeParse(stored);
+  if (parsed.success) return parsed.data;
+  console.error({
+    message: "Invalid work checker settings; treating the checker as disabled",
+    key: WORK_CHECKER_SETTINGS_KEY,
+    issues: parsed.error.issues,
+  });
+  return DISABLED_WORK_CHECKER_SETTINGS;
 }
 
 /**

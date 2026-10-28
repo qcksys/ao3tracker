@@ -35,12 +35,14 @@ checkerRouter.use(
   }),
 );
 
-checkerRouter.get("/settings", (c) => c.json(workCheckerSettings(c.env)));
+checkerRouter.get("/settings", async (c) =>
+  c.json(await workCheckerSettings(createDbConnection(c.env.DATABASE_URL))),
+);
 
 checkerRouter.post("/claim", async (c) => {
-  const settings = workCheckerSettings(c.env);
-  if (!settings.enabled) return c.json({ jobs: [] });
   const db = createDbConnection(c.env.DATABASE_URL);
+  const settings = await workCheckerSettings(db);
+  if (!settings.enabled) return c.json({ jobs: [] });
   return c.json({ jobs: await claimWorkCheckerJobs(db, settings.maxWorksPerPoll) });
 });
 
