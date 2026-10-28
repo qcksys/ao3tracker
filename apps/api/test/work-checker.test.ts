@@ -19,7 +19,7 @@ import {
   refreshStaleWorks,
   storeWorkBackup,
 } from "~/scheduled/refresh-works";
-import { chapterIndexHtml, workPageHtml } from "~test/ao3-parser.fixtures";
+import { chapterIndexHtml, unrevealedWorkPageHtml, workPageHtml } from "~test/ao3-parser.fixtures";
 
 vi.mock("~/db/db.client", () => ({ createDbConnection: vi.fn(() => ({})) }));
 vi.mock("~/db/queries/app-setting", () => ({ getAppSetting: vi.fn() }));
@@ -280,6 +280,23 @@ describe("work checker results", () => {
     expect(result).toMatchObject({ workId, success: false });
     expect(result.error).toContain("is not a work page");
     expect(result.notFound).toBeUndefined();
+  });
+
+  it("passes an unrevealed work's placeholder page on as unrevealed", async () => {
+    vi.mocked(getWorkCheckState).mockResolvedValue(storedWork);
+
+    const response = await applyWorkCheckerResult(db, env, {
+      outcome: "page",
+      workId,
+      workHtml: unrevealedWorkPageHtml,
+    });
+
+    expect(response).toEqual({ status: "applied", backups: [] });
+    expect(handleRefreshResult).toHaveBeenCalledWith(db, env, 2, {
+      workId,
+      success: false,
+      unrevealed: true,
+    });
   });
 
   it.each([

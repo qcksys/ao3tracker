@@ -16,8 +16,15 @@ import {
   NotFoundError,
   RestrictedWorkError,
   sleep,
+  UnrevealedWorkError,
 } from "~/lib/ao3-fetch";
-import { parseChapterIndex, parseWorkPage, type WorkInfo, type WorkTags } from "~/lib/ao3-parser";
+import {
+  isUnrevealedWorkPage,
+  parseChapterIndex,
+  parseWorkPage,
+  type WorkInfo,
+  type WorkTags,
+} from "~/lib/ao3-parser";
 import {
   collectTags,
   DELAY_BETWEEN_REQUESTS_MS,
@@ -29,7 +36,7 @@ import {
   parseTotalChapters,
 } from "~/scheduled/helpers";
 
-export { NotFoundError, RestrictedWorkError };
+export { NotFoundError, RestrictedWorkError, UnrevealedWorkError };
 
 /** Parsed work data ready for database insertion */
 export interface ParsedWorkData {
@@ -88,6 +95,7 @@ export async function fetchWorkData(
 
 /**
  * Parse a work page loaded by any client (the Worker or the browser work checker).
+ * @throws {UnrevealedWorkError} if AO3 hides the work until its challenge reveals it
  * @throws if the page is not a work page
  */
 export async function parseWorkPageHtml(
@@ -107,6 +115,7 @@ export async function parseWorkPageHtml(
   // interstitial or error page served with a success status; saving it would overwrite the work
   // with "Unknown" metadata and zero chapters.
   if (!workInfo.workName || currentChapters < 1) {
+    if (await isUnrevealedWorkPage(workHtml)) throw new UnrevealedWorkError(workId);
     throw new Error(
       `Work ${workId} response is not a work page (title: ${workInfo.workName !== null}, chapters: ${JSON.stringify(workInfo.totalChapters)})`,
     );
@@ -201,6 +210,8 @@ export interface WorkProcessResult {
   success: boolean;
   restrictedWork?: boolean;
   notFound?: boolean;
+  /** AO3 hides the work until its challenge reveals it; not a failure */
+  unrevealed?: boolean;
   /** AO3 itself failed (5xx, 429, timeout or network error), not the work */
   unavailable?: boolean;
   error?: string;
@@ -223,6 +234,9 @@ export async function fetchWorkDataSafe(
     }
     if (error instanceof NotFoundError) {
       return { workId, success: false, notFound: true };
+    }
+    if (error instanceof UnrevealedWorkError) {
+      return { workId, success: false, unrevealed: true };
     }
     return {
       workId,
