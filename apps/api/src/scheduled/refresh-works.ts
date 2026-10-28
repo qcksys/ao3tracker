@@ -7,6 +7,7 @@ import { migrateSingleChapterTracking } from "~/db/queries/track";
 import {
   claimStaleWorks,
   getWorkState,
+  recordWorkRefreshFailure,
   softDeleteWork,
   updateWork,
   type WorkUpdateData,
@@ -17,17 +18,28 @@ import type { WorkInfo } from "~/lib/ao3-parser";
 import { createWorkNotifications } from "~/lib/notification-service";
 import { DELAY_BETWEEN_REQUESTS_MS } from "~/scheduled/helpers";
 import {
-  fetchWorksBatch,
+  fetchWorkDataSafe,
   type ParsedWorkData,
   saveWorkRelations,
   type WorkProcessResult,
 } from "~/scheduled/work-fetcher";
 
 const STALE_THRESHOLD_HOURS = 6;
-/** A claimed work that is not refreshed successfully becomes stale again after this delay. */
-const RETRY_DELAY_MINUTES = 30;
+const RETRY_BASE_DELAY_MINUTES = 30;
 const MAX_WORKS_PER_RUN = 12;
-const PARALLEL_REQUESTS = 4;
+/** Shorter than the 5-minute cron interval, so consecutive runs do not overlap */
+const RUN_BUDGET_MS = 4 * 60 * 1000;
+
+/**
+ * Minutes until a work is retried after its nth consecutive failed refresh: 30m, 1h, 2h, 4h, then
+ * the normal refresh interval. A claimed work that is never processed uses the first delay.
+ */
+export function refreshRetryDelayMinutes(failures: number): number {
+  return Math.min(
+    RETRY_BASE_DELAY_MINUTES * 2 ** Math.max(failures - 1, 0),
+    STALE_THRESHOLD_HOURS * 60,
+  );
+}
 
 /**
  * Download a work from AO3 and store in R2
@@ -230,6 +242,7 @@ async function processRefreshResult(
 async function handleRefreshResult(
   db: TDatabase,
   env: CloudflareBindings,
+  previousFailures: number,
   result: WorkProcessResult,
 ): Promise<void> {
   if (!result.success) {
@@ -266,11 +279,18 @@ async function handleRefreshResult(
       // Soft-delete so the work stops being refreshed (same as deleted works)
       await softDeleteWork(db, result.workId);
     } else {
-      // The claim left lastRefreshed at its retry time, so the work is retried after the delay.
+      const failures = previousFailures + 1;
+      const retryAt = addMinutes(
+        subHours(new Date(), STALE_THRESHOLD_HOURS),
+        refreshRetryDelayMinutes(failures),
+      );
+      await recordWorkRefreshFailure(db, result.workId, failures, retryAt);
       console.error({
         message: "Failed to refresh work",
         workId: result.workId,
         error: result.error,
+        failures,
+        retryAt,
       });
     }
     return;
@@ -292,50 +312,35 @@ async function handleRefreshResult(
  */
 export async function refreshStaleWorks(env: CloudflareBindings): Promise<void> {
   const db = createDbConnection(env.DATABASE_URL);
+  const startedAt = Date.now();
+  let refreshed = 0;
 
-  const staleThreshold = subHours(new Date(), STALE_THRESHOLD_HOURS);
-  const retryAt = addMinutes(staleThreshold, RETRY_DELAY_MINUTES);
+  // Fetch one work at a time, and stop claiming once the budget is spent so this run ends before
+  // the next cron run starts; overlapping runs would send AO3 parallel requests again.
+  while (refreshed < MAX_WORKS_PER_RUN && Date.now() - startedAt < RUN_BUDGET_MS) {
+    const staleThreshold = subHours(new Date(), STALE_THRESHOLD_HOURS);
+    const [work] = await claimStaleWorks(
+      db,
+      staleThreshold,
+      addMinutes(staleThreshold, refreshRetryDelayMinutes(1)),
+      1,
+    );
+    if (!work) break;
 
-  const staleWorks = await claimStaleWorks(db, staleThreshold, retryAt, MAX_WORKS_PER_RUN);
+    const result = await fetchWorkDataSafe(work.id, { knownChapterCount: work.currentChapters });
+    await handleRefreshResult(db, env, work.refreshFailures, result);
+    refreshed++;
 
-  console.log({
-    message: "Found stale works to refresh",
-    count: staleWorks.length,
-    works: staleWorks.map((w) => w.id),
-  });
-
-  // Process in batches of PARALLEL_REQUESTS
-  for (let i = 0; i < staleWorks.length; i += PARALLEL_REQUESTS) {
-    const batch = staleWorks.slice(i, i + PARALLEL_REQUESTS);
-    const workIds = batch.map((w) => w.id);
-
-    // Build map of known chapter counts for optimization
-    const knownChapterCounts = new Map<number, number>();
-    for (const work of batch) {
-      if (work.currentChapters !== null) {
-        knownChapterCounts.set(work.id, work.currentChapters);
-      }
+    if (result.unavailable) {
+      console.warn({
+        message: "AO3 unavailable, stopping work refresh run",
+        workId: work.id,
+        error: result.error,
+      });
+      break;
     }
-
-    console.log({
-      message: "Processing batch of stale works",
-      start: i,
-      size: batch.length,
-      works: batch.map((w) => w.id),
-    });
-
-    const results = await fetchWorksBatch(workIds, knownChapterCounts);
-
-    // Process results sequentially (backup downloads need to be rate-limited)
-    for (const result of results) {
-      await handleRefreshResult(db, env, result);
-    }
-
-    // Delay between batches to avoid rate limiting
-    if (i + PARALLEL_REQUESTS < staleWorks.length) {
-      await sleep(DELAY_BETWEEN_REQUESTS_MS);
-    }
+    await sleep(DELAY_BETWEEN_REQUESTS_MS);
   }
 
-  console.log({ message: "Scheduled work refresh completed" });
+  console.log({ message: "Scheduled work refresh completed", refreshed });
 }

@@ -74,7 +74,10 @@ export type TrackChapterUpsert = Pick<
 >;
 
 /** Work metadata returned in sync responses (excludes internal fields) */
-export type WorkMetadata = Omit<TWorkS, "lastRefreshed" | TAllTimestampColNames>;
+export type WorkMetadata = Omit<
+  TWorkS,
+  "lastRefreshed" | "refreshFailures" | TAllTimestampColNames
+>;
 
 /** Chapter metadata returned in sync responses */
 export type ChapterMetadata = Pick<
