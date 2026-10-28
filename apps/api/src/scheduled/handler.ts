@@ -11,11 +11,10 @@ export const scheduled = async (
 ): Promise<void> => {
   switch (event.cron) {
     case "*/5 * * * *": {
-      ctx.waitUntil(
-        dispatchPendingNotifications(createDbConnection(env.DATABASE_URL), env.NOTIFICATION_QUEUE),
-      );
+      const db = createDbConnection(env.DATABASE_URL);
+      ctx.waitUntil(dispatchPendingNotifications(db, env.NOTIFICATION_QUEUE));
       // While the browser work checker is enabled it loads AO3 pages instead of the Worker.
-      if (!workCheckerSettings(env).enabled) {
+      if (!(await workCheckerSettings(db)).enabled) {
         ctx.waitUntil(refreshStaleWorks(env));
         ctx.waitUntil(fetchMissingWorks(env));
       }

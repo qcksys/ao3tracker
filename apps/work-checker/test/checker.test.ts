@@ -35,6 +35,7 @@ const api = {
   claim: vi.fn<CheckerApi["claim"]>(),
   postResult: vi.fn<CheckerApi["postResult"]>(),
   uploadBackup: vi.fn<CheckerApi["uploadBackup"]>(),
+  postStatus: vi.fn<CheckerApi["postStatus"]>(),
 };
 const browser = {
   load: vi.fn<Ao3Browser["load"]>(),
@@ -78,7 +79,11 @@ describe("checking a work", () => {
   it("posts the work page and stops there when no chapter index is needed", async () => {
     browser.load.mockResolvedValue(page());
 
-    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toBe(true);
+    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toEqual({
+      outcome: "page",
+      backupsUploaded: 0,
+      backupsFailed: 0,
+    });
 
     expect(browser.load).toHaveBeenCalledExactlyOnceWith(workUrl(7));
     expect(postedResults()).toEqual([
@@ -107,7 +112,9 @@ describe("checking a work", () => {
   it("reports a navigation timeout as AO3 being unavailable", async () => {
     browser.load.mockRejectedValue(new Error("page.goto: Timeout 60000ms exceeded"));
 
-    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toBe(false);
+    expect((await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).outcome).toBe(
+      "unavailable",
+    );
 
     expect(postedResults()).toEqual([
       { outcome: "unavailable", workId: 7, error: "page.goto: Timeout 60000ms exceeded" },
@@ -117,7 +124,9 @@ describe("checking a work", () => {
   it("reports a deleted work without stopping the poll", async () => {
     browser.load.mockResolvedValue(page({ status: 404 }));
 
-    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toBe(true);
+    expect((await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).outcome).toBe(
+      "not_found",
+    );
     expect(postedResults()).toEqual([{ outcome: "not_found", workId: 7 }]);
   });
 
@@ -128,10 +137,11 @@ describe("checking a work", () => {
     browser.download.mockResolvedValue({ status: 200, attachment: true, contentType: "", body });
     api.uploadBackup.mockResolvedValue("stored");
 
-    await checkWork({ workId: 7, kind: "refresh" }, settings, deps);
+    const check = await checkWork({ workId: 7, kind: "refresh" }, settings, deps);
 
     expect(browser.download).toHaveBeenCalledWith(backup.url);
     expect(api.uploadBackup).toHaveBeenCalledWith(7, backup, body);
+    expect(check).toMatchObject({ backupsUploaded: 1, backupsFailed: 0 });
   });
 
   it("uploads an inline response of the requested format", async () => {
@@ -164,7 +174,10 @@ describe("checking a work", () => {
       body: new Uint8Array(),
     });
 
-    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toBe(true);
+    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toMatchObject({
+      outcome: "page",
+      backupsFailed: 1,
+    });
     expect(api.uploadBackup).not.toHaveBeenCalled();
   });
 
@@ -175,7 +188,10 @@ describe("checking a work", () => {
       new Error('Timeout 105000ms exceeded waiting for "download"'),
     );
 
-    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toBe(true);
+    expect(await checkWork({ workId: 7, kind: "refresh" }, settings, deps)).toMatchObject({
+      outcome: "page",
+      backupsFailed: 1,
+    });
     expect(api.uploadBackup).not.toHaveBeenCalled();
   });
 });
@@ -184,9 +200,47 @@ describe("polling", () => {
   it("claims nothing while the checker is disabled", async () => {
     api.settings.mockResolvedValue({ ...settings, enabled: false });
 
-    await runPoll(deps);
+    const { summary } = await runPoll(deps);
 
     expect(api.claim).not.toHaveBeenCalled();
+    expect(summary).toMatchObject({ enabled: false, claimed: 0 });
+  });
+
+  it("summarises what the poll did for the status report", async () => {
+    const times = [new Date("2026-10-28T08:00:00Z"), new Date("2026-10-28T08:00:12Z")];
+    api.settings.mockResolvedValue(settings);
+    api.claim.mockResolvedValue([
+      { workId: 7, kind: "refresh" },
+      { workId: 8, kind: "refresh" },
+      { workId: 9, kind: "missing" },
+    ]);
+    browser.load
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(page({ status: 404 }))
+      .mockResolvedValueOnce(page());
+    api.postResult
+      .mockResolvedValueOnce({ status: "applied", backups: [backup] })
+      .mockResolvedValue(applied);
+    browser.download.mockResolvedValue({
+      status: 200,
+      attachment: true,
+      contentType: "",
+      body: new Uint8Array([80, 75]),
+    });
+    api.uploadBackup.mockResolvedValue("stored");
+
+    const { summary } = await runPoll(deps, () => times.shift() ?? new Date());
+
+    expect(summary).toEqual({
+      at: "2026-10-28T08:00:00.000Z",
+      durationMs: 12_000,
+      enabled: true,
+      claimed: 3,
+      outcomes: { page: 2, not_found: 1, restricted: 0, unavailable: 0, failed: 0 },
+      backupsUploaded: 1,
+      backupsFailed: 0,
+      stoppedEarly: false,
+    });
   });
 
   it("checks claimed works one at a time with the configured delay", async () => {
@@ -211,8 +265,9 @@ describe("polling", () => {
     ]);
     browser.load.mockResolvedValue(page({ status: 503 }));
 
-    await runPoll(deps);
+    const { summary } = await runPoll(deps);
 
     expect(browser.load).toHaveBeenCalledOnce();
+    expect(summary).toMatchObject({ stoppedEarly: true, outcomes: { unavailable: 1 } });
   });
 });

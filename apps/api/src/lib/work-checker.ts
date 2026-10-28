@@ -11,10 +11,13 @@ import {
   type WorkCheckerResult,
   type WorkCheckerResultResponse,
   type WorkCheckerSettings,
+  type WorkCheckerStatus,
   workCheckerSettingsSchema,
 } from "@qcksys/ao3tracker-core/work-checker";
 import type { TDatabase } from "~/db/db.client";
+import { getAppSetting, upsertAppSetting } from "~/db/queries/app-setting";
 import { findMissingTrackedWorks, getWorkCheckState } from "~/db/queries/work";
+import { upsertWorkCheckerStatus } from "~/db/queries/work-checker-status";
 import { handleFetchResult } from "~/scheduled/fetch-missing-works";
 import {
   ao3BackupFormats,
@@ -30,10 +33,58 @@ import {
   type WorkProcessResult,
 } from "~/scheduled/work-fetcher";
 
-export function workCheckerSettings(
-  env: Pick<CloudflareBindings, "WORK_CHECKER_SETTINGS">,
-): WorkCheckerSettings {
-  return workCheckerSettingsSchema.parse(env.WORK_CHECKER_SETTINGS);
+/** `ao3track__app_setting` key holding the settings JSON */
+export const WORK_CHECKER_SETTINGS_KEY = "work_checker";
+
+/** Used while the setting is missing or invalid, so the Worker cron keeps fetching from AO3 */
+export const DISABLED_WORK_CHECKER_SETTINGS: WorkCheckerSettings = {
+  enabled: false,
+  pollIntervalSeconds: 300,
+  maxWorksPerPoll: 12,
+  delayBetweenRequestsMs: 2000,
+};
+
+/**
+ * Read the settings from the database, so they change with SQL rather than a deployment.
+ */
+export async function workCheckerSettings(db: TDatabase): Promise<WorkCheckerSettings> {
+  const stored = await getAppSetting(db, WORK_CHECKER_SETTINGS_KEY);
+  if (stored === null) return DISABLED_WORK_CHECKER_SETTINGS;
+  const parsed = workCheckerSettingsSchema.safeParse(stored);
+  if (parsed.success) return parsed.data;
+  console.error({
+    message: "Invalid work checker settings; treating the checker as disabled",
+    key: WORK_CHECKER_SETTINGS_KEY,
+    issues: parsed.error.issues,
+  });
+  return DISABLED_WORK_CHECKER_SETTINGS;
+}
+
+export async function saveWorkCheckerSettings(
+  db: TDatabase,
+  settings: WorkCheckerSettings,
+): Promise<void> {
+  await upsertAppSetting(db, WORK_CHECKER_SETTINGS_KEY, settings);
+}
+
+/**
+ * Store a checker's status report for the admin dashboard
+ */
+export async function recordWorkCheckerStatus(
+  db: TDatabase,
+  status: WorkCheckerStatus,
+  receivedAt: Date,
+): Promise<void> {
+  await upsertWorkCheckerStatus(db, {
+    checkerId: status.checkerId,
+    status,
+    reportedAt: receivedAt,
+  });
+}
+
+/** Report silence after which the dashboard flags a checker as stopped */
+export function workCheckerSilenceLimitMs(settings: WorkCheckerSettings): number {
+  return (settings.pollIntervalSeconds * 2 + 5 * 60) * 1000;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { tAppSetting } from "./app.setting";
 import { tAuthAccount } from "./auth.account";
 import { tEmailSendLog } from "./auth.emailSendLog";
 import { tAuthPasskey } from "./auth.passkey";
@@ -15,10 +16,12 @@ import { tUserSavedSearch } from "./user.savedSearch";
 import { tWork } from "./work";
 import { tWorkBackup } from "./work.backup";
 import { tWorkChapter } from "./work.chapter";
+import { tWorkCheckerStatus } from "./work.checker.status";
 import { tWorkTag } from "./work.tag";
 import { tWorkTagLink } from "./work.tag.link";
 
 export const schema = {
+  tAppSetting,
   tAuthAccount,
   tEmailSendLog,
   tAuthPasskey,
@@ -35,6 +38,7 @@ export const schema = {
   tUserSavedSearch,
   tWorkBackup,
   tWorkChapter,
+  tWorkCheckerStatus,
   tWorkTagLink,
   tWorkTag,
   tWork,

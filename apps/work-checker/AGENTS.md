@@ -31,10 +31,11 @@ The checker sends raw HTML and never parses AO3 pages: the Worker parses them wi
 
 Schemas live in `@qcksys/ao3tracker-core/work-checker`; the routes are in [apps/api/src/routes/checker.ts](../api/src/routes/checker.ts). Change both sides in the same PR. Every request carries `Authorization: Bearer <WORK_CHECKER_TOKEN>`.
 
-1. `GET /checker/settings` returns the `WORK_CHECKER_SETTINGS` var from `wrangler.json`. Settings change with a Worker deploy; the container picks them up on its next poll.
+1. `GET /checker/settings` returns the `work_checker` row of the API database's `ao3track__app_setting` table (see [the API guide](../api/AGENTS.md#browser-work-checker) for the SQL). They change without a deployment; the container picks them up on its next poll.
 2. `POST /checker/claim` returns jobs: missing tracked works first, then stale works leased for 30 minutes. While `enabled` is false it returns none, and the Worker cron fetches from AO3 itself.
 3. `POST /checker/results` takes one outcome per work (`page`, `not_found`, `restricted`, `unavailable`, `failed`). For a `page` with more chapters than stored, the Worker answers `needs_chapter_index`; the checker loads `/navigate` and posts again with both pages. Otherwise it answers `applied` with the backup formats to download.
 4. `PUT /checker/backups/:workId/:format?downloadUpdatedAt=<unix>` uploads a download. 409 (`superseded`) means AO3 has a newer revision; the next refresh lists it again.
+5. `POST /checker/status` reports the checker's state for the API's admin dashboard, at startup and after every poll: `CHECKER_ID` (one per environment, e.g. `hub-dev`), `CHECKER_VERSION` (the image's source commit, from the `SOURCE_REF` build argument), start time, the last poll's summary (claimed works, outcome counts, backups, whether it stopped early) and the last poll error. A failed report is logged and retried with the next poll.
 
 Missing works are not leased, so run **one** checker per API environment. A poll must finish inside the 30-minute refresh lease: keep `maxWorksPerPoll × (delayBetweenRequestsMs + page load time)` well under it.
 
@@ -55,4 +56,4 @@ The hub (`ssh hub`) runs [deploy/](deploy/) from `~/ao3-work-checker`: one Compo
 - Tokens: the `env.WORK_CHECKER_TOKEN` field of the 1Password items "ao3tracker-api .dev.vars.dev" (`Work/QckSys`) and "ao3tracker-api .dev.vars.prod" (`Development`), tagged `dev/ao3tracker`. Those items hold each Worker's secrets as one concealed field per variable in an `env` section; add new secrets there as fields rather than as new items. The value is also each Worker's `WORK_CHECKER_TOKEN` secret. The hub keeps copies in `~/ao3-work-checker/secrets/{dev,prod}_token` (mode 600). Rotate by updating 1Password, the Worker secret and the hub file together.
 - Host files are copied from a reviewed revision of `deploy/`; only images update automatically. The updater's logic is tested in `test/update.test.ts`.
 - Operate with `systemctl --user list-timers ao3-work-checker-update.timer`, `journalctl --user -u ao3-work-checker-update.service`, and `docker compose -p ao3-work-checker logs <dev|prod>`. Pause deployment by stopping the timer. Roll back by setting `<DEV|PROD>_IMAGE` to `previousImage` from `deployment.json` and running `docker compose up -d --wait <service>` with the timer stopped.
-- `WORK_CHECKER_SETTINGS.enabled` in [wrangler.json](../api/wrangler.json) hands an environment's AO3 fetching to its checker; while it is false the checker idles and the Worker cron fetches.
+- `enabled` in an environment's `work_checker` setting hands its AO3 fetching to its checker; while it is false or unset the checker idles and the Worker cron fetches.

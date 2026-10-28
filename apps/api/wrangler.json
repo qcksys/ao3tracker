@@ -77,12 +77,6 @@
   },
   "vars": {
     "POSTHOG_REGION": "eu",
-    "WORK_CHECKER_SETTINGS": {
-      "enabled": false,
-      "pollIntervalSeconds": 300,
-      "maxWorksPerPoll": 12,
-      "delayBetweenRequestsMs": 2000
-    },
     "BETTER_AUTH_URL": "https://qcksys-ao3tracker-api-local.ta2.dev",
     "ENVIRONMENT": "local",
     "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
@@ -168,12 +162,6 @@
       },
       "vars": {
         "POSTHOG_REGION": "eu",
-        "WORK_CHECKER_SETTINGS": {
-          "enabled": true,
-          "pollIntervalSeconds": 300,
-          "maxWorksPerPoll": 12,
-          "delayBetweenRequestsMs": 2000
-        },
         "BETTER_AUTH_URL": "https://dev.ao3tracker.com",
         "ENVIRONMENT": "dev",
         "SYSTEM_EMAIL_ADDRESS": "hello@dev.ao3tracker.com",
@@ -256,12 +244,6 @@
       },
       "vars": {
         "POSTHOG_REGION": "eu",
-        "WORK_CHECKER_SETTINGS": {
-          "enabled": false,
-          "pollIntervalSeconds": 300,
-          "maxWorksPerPoll": 12,
-          "delayBetweenRequestsMs": 2000
-        },
         "BETTER_AUTH_URL": "https://ao3tracker.com",
         "ENVIRONMENT": "prod",
         "SYSTEM_EMAIL_ADDRESS": "hello@ao3tracker.com",

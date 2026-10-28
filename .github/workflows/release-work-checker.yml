@@ -61,6 +61,7 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ inputs.source_ref }}
           labels: org.opencontainers.image.revision=${{ inputs.source_ref }}
+          build-args: SOURCE_REF=${{ inputs.source_ref }}
           cache-from: type=gha,scope=work-checker
           cache-to: type=gha,scope=work-checker,mode=max
       # The hub deploys the branch tag; a superseded commit must not move it.

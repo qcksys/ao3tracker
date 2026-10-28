@@ -1,6 +1,7 @@
 import {
   workCheckerBackupFormatSchema,
   workCheckerResultSchema,
+  workCheckerStatusSchema,
 } from "@qcksys/ao3tracker-core/work-checker";
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
@@ -10,6 +11,7 @@ import { createDbConnection } from "~/db/db.client";
 import {
   applyWorkCheckerResult,
   claimWorkCheckerJobs,
+  recordWorkCheckerStatus,
   storeWorkCheckerBackup,
   workCheckerSettings,
 } from "~/lib/work-checker";
@@ -35,13 +37,22 @@ checkerRouter.use(
   }),
 );
 
-checkerRouter.get("/settings", (c) => c.json(workCheckerSettings(c.env)));
+checkerRouter.get("/settings", async (c) =>
+  c.json(await workCheckerSettings(createDbConnection(c.env.DATABASE_URL))),
+);
 
 checkerRouter.post("/claim", async (c) => {
-  const settings = workCheckerSettings(c.env);
-  if (!settings.enabled) return c.json({ jobs: [] });
   const db = createDbConnection(c.env.DATABASE_URL);
+  const settings = await workCheckerSettings(db);
+  if (!settings.enabled) return c.json({ jobs: [] });
   return c.json({ jobs: await claimWorkCheckerJobs(db, settings.maxWorksPerPoll) });
+});
+
+checkerRouter.post("/status", bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
+  const parsed = workCheckerStatusSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: "Invalid status" }, 400);
+  await recordWorkCheckerStatus(createDbConnection(c.env.DATABASE_URL), parsed.data, new Date());
+  return c.body(null, 204);
 });
 
 checkerRouter.post("/results", bodyLimit({ maxSize: MAX_RESULT_BYTES }), async (c) => {
