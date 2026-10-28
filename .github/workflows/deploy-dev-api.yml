@@ -25,6 +25,10 @@ jobs:
   deploy:
     needs: prepare
     if: needs.prepare.outputs.eligible == 'true'
+    permissions:
+      contents: read
+      actions: read
+      packages: write
     concurrency:
       group: api-development
       cancel-in-progress: false

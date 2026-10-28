@@ -1,0 +1,9 @@
+# The build context is the repository root; send only what the image copies.
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!packages/ao3-core/package.json
+!packages/ao3-core/src
+!apps/work-checker/package.json
+!apps/work-checker/src
