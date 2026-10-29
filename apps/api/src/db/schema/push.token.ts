@@ -23,7 +23,6 @@ export const tPushToken = mysqlTable(
     return [
       primaryKey({ columns: [table.userId, table.deviceId] }),
       index("idx_push_token_token").on(table.token),
-      index("idx_push_token_userId").on(table.userId),
       index("idx_push_token_rowDeletedAt").on(table.rowDeletedAt),
     ];
   },

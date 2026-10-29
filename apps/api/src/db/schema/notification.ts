@@ -49,7 +49,6 @@ export const tNotification = mysqlTable(
   },
   (table) => {
     return [
-      index("idx_notification_userId").on(table.userId),
       uniqueIndex("idx_notification_event").on(
         table.userId,
         table.workId,

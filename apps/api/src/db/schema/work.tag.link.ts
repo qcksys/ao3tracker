@@ -15,6 +15,7 @@ export const tWorkTagLink = mysqlTable(
     return [
       primaryKey({ columns: [table.tag, table.work] }),
       index("idx_tags_rowCreatedAt").on(table.rowCreatedAt),
+      index("idx_tags_work").on(table.work),
     ];
   },
 );
