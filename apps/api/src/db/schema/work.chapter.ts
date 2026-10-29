@@ -20,6 +20,7 @@ export const tWorkChapter = mysqlTable(
       index("idx_chapters_rowCreatedAt").on(table.rowCreatedAt),
       index("idx_chapters_rowUpdatedAt").on(table.rowUpdatedAt),
       index("idx_chapters_rowDeletedAt").on(table.rowDeletedAt),
+      index("idx_chapters_workId_number").on(table.workId, table.number),
     ];
   },
 );
