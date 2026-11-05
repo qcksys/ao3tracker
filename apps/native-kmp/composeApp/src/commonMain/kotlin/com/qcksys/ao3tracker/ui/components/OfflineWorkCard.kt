@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.qcksys.ao3tracker.data.offline.OfflineBackupDownload
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.data.offline.OfflineWorkStatus
 import com.qcksys.ao3tracker.data.offline.offlineWorkStatusText
@@ -39,6 +40,8 @@ internal fun OfflineWorkCard(workId: Long) {
     val coordinator = koinInject<OfflineCoordinator>()
     if (!coordinator.enabled) return
     val downloads by coordinator.downloads.collectAsState()
+    val backups by coordinator.backupDownloads.collectAsState()
+    val backupsAvailable by coordinator.backupsAvailable.collectAsState()
     var showDebug by remember(workId) { mutableStateOf(false) }
     if (showDebug) DownloadDebugDialog(coordinator, workId) { showDebug = false }
     OfflineWorkCardContent(
@@ -51,7 +54,10 @@ internal fun OfflineWorkCard(workId: Long) {
         onOpenLive = {
             coordinator.retry(workId)
             NavigationState.navigateToLiveWork(workId)
-        }
+        },
+        canDownloadBackup = backupsAvailable,
+        backup = backups[workId],
+        onDownloadBackup = { coordinator.downloadBackup(workId) }
     )
 }
 
@@ -63,7 +69,10 @@ internal fun OfflineWorkCardContent(
     onRetry: () -> Unit,
     onRemove: () -> Unit,
     onShowDebug: () -> Unit,
-    onOpenLive: () -> Unit
+    onOpenLive: () -> Unit,
+    canDownloadBackup: Boolean = false,
+    backup: OfflineBackupDownload? = null,
+    onDownloadBackup: () -> Unit = {}
 ) {
     var expanded by rememberSaveable(workId) { mutableStateOf(false) }
     val status = offlineWorkStatusText(download)
@@ -108,6 +117,13 @@ internal fun OfflineWorkCardContent(
                 }
                 TextButton(onClick = { onSave(download != null) }) {
                     Text(if (download == null) "Save whole work" else "Update saved work")
+                }
+                if (canDownloadBackup) {
+                    TextButton(onClick = onDownloadBackup, enabled = backup?.running != true) {
+                        Text(if (backup?.running == true) "Downloading backup…" else "Download from backup")
+                    }
+                    Text(backup?.message ?: "Saves the tracker's latest copy without loading AO3. Backups have no work skin or images.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (download?.job?.state == "failed") TextButton(onClick = onRetry) { Text("Retry download") }
                 if (download != null) TextButton(onClick = onRemove) { Text("Remove download") }

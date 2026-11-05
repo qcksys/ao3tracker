@@ -198,6 +198,10 @@ The acceptance evidence combines actual Android WebView/Room checks on an API 35
 
 During implementation, install workspace dependencies with `vp install` and run the relevant package scripts through `vp run`. Use core/WebView fixture tests, WebView typecheck/build/biome checks, and `./gradlew :composeApp:jvmTest` from the native app. Build and smoke-test Android with airplane mode and process restart; iOS build and simulator/device verification require macOS and Xcode. Run repository formatting/lint checks and `git diff --check` for the delivered changes. Add a minor native changeset and changesets for any shared package whose public behaviour changes; documentation-only planning needs none.
 
+## Backup downloads
+
+The API keeps an HTML backup of each tracked work. **Download from backup** saves its latest backup as individual chapters without contacting AO3, so a reader can still save a work while AO3 is unavailable. The API splits and sanitizes the file and labels each chapter with its AO3 chapter ID; the app wraps each chapter in an AO3-shaped page and publishes it like any other explicit, pinned save. AO3 downloads omit work skins, and the offline reader cannot load their remote images, so backup copies use the active saved site skin (or the download's own CSS) and report images as missing. Chapters already saved at the backup's revision or newer are kept. See the [native](../apps/native-kmp/AGENTS.md#offline-reading-android) and [API](../apps/api/AGENTS.md) guides for the contract.
+
 ## Verified decisions and deferred scope
 
 Capture and Android fixtures establish separation of site/work styles, rejection of previews and ambiguous identities, inherited/replacement skin order, and the isolated local origin and bridge. Captures are bounded to 1,000 assets, 16 MiB per resource, 64 MiB per bundle, and 8 MiB of source HTML, with chunked transfer. Percentage restoration passes the Android rotation, appearance, and cold-start checks; an additional cross-device anchor field is unnecessary for this release.
