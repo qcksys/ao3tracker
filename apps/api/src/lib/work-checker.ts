@@ -30,6 +30,7 @@ import {
 import {
   completeWorkData,
   parseWorkPageHtml,
+  UnrevealedWorkError,
   type WorkProcessResult,
 } from "~/scheduled/work-fetcher";
 
@@ -128,6 +129,8 @@ async function toProcessResult(
         const data = await completeWorkData(workId, page, result.chapterIndexHtml ?? null);
         return { workId, success: true, data };
       } catch (error) {
+        if (error instanceof UnrevealedWorkError)
+          return { workId, success: false, unrevealed: true };
         return {
           workId,
           success: false,

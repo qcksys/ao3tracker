@@ -108,6 +108,12 @@ export async function handleFetchResult(
         workTitle: "[Restricted]",
         type: "work_restricted",
       });
+    } else if (result.unrevealed) {
+      // Nothing to store until it is revealed; it stays missing and is fetched again.
+      console.log({
+        message: "Tracked work is unrevealed, fetching it later",
+        workId: result.workId,
+      });
     } else {
       console.error({
         message: "Failed to fetch work",

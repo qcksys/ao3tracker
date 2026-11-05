@@ -3,6 +3,7 @@ import {
   claimStaleWorks,
   getWorkState,
   recordWorkRefreshFailure,
+  recordWorkUnrevealed,
   softDeleteWork,
   updateWork,
 } from "~/db/queries/work";
@@ -14,6 +15,7 @@ vi.mock("~/db/queries/work", () => ({
   claimStaleWorks: vi.fn(),
   getWorkState: vi.fn(),
   recordWorkRefreshFailure: vi.fn(),
+  recordWorkUnrevealed: vi.fn(),
   softDeleteWork: vi.fn(),
   updateWork: vi.fn(),
 }));
@@ -87,6 +89,24 @@ describe("stale work refresh", () => {
     );
     expect(updateWork).not.toHaveBeenCalled();
     expect(softDeleteWork).not.toHaveBeenCalled();
+  });
+
+  it("keeps an unrevealed work on the normal schedule without counting a failure", async () => {
+    vi.mocked(claimStaleWorks)
+      .mockResolvedValueOnce([{ id: 71457876, currentChapters: 5, refreshFailures: 3 }])
+      .mockResolvedValue([]);
+    vi.mocked(fetchWorkDataSafe).mockResolvedValue({
+      workId: 71457876,
+      success: false,
+      unrevealed: true,
+    });
+
+    await refreshStaleWorks(env);
+
+    expect(recordWorkUnrevealed).toHaveBeenCalledWith({}, 71457876);
+    expect(recordWorkRefreshFailure).not.toHaveBeenCalled();
+    expect(softDeleteWork).not.toHaveBeenCalled();
+    expect(updateWork).not.toHaveBeenCalled();
   });
 
   it("continues past a failure that is specific to one work", async () => {

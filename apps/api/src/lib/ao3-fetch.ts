@@ -22,6 +22,17 @@ export class NotFoundError extends Error {
 }
 
 /**
+ * Error thrown when AO3 hides a work until its challenge reveals it ("Mystery Work"): the page
+ * exists but has no metadata to read, and the work comes back unchanged once revealed
+ */
+export class UnrevealedWorkError extends Error {
+  constructor(public workId: number) {
+    super(`Work ${workId} is unrevealed (hidden until its challenge reveals it)`);
+    this.name = "UnrevealedWorkError";
+  }
+}
+
+/**
  * Whether a request failed because AO3 is unavailable or limiting requests, rather than because of
  * the requested work. Callers should stop sending further requests when this is true.
  */

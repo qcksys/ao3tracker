@@ -8,6 +8,7 @@ import {
   claimStaleWorks,
   getWorkState,
   recordWorkRefreshFailure,
+  recordWorkUnrevealed,
   softDeleteWork,
   updateWork,
   type WorkUpdateData,
@@ -335,6 +336,13 @@ export async function handleRefreshResult(
 
       // Soft-delete so the work stops being refreshed (same as deleted works)
       await softDeleteWork(db, result.workId);
+    } else if (result.unrevealed) {
+      // The work still exists; AO3 shows its stored metadata again once it is revealed.
+      await recordWorkUnrevealed(db, result.workId);
+      console.log({
+        message: "Work is unrevealed, keeping its metadata until it is revealed",
+        workId: result.workId,
+      });
     } else {
       const failures = previousFailures + 1;
       const retryAt = addMinutes(

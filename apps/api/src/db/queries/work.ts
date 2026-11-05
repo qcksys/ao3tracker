@@ -6,6 +6,7 @@ import { tTrackWork } from "~/db/schema/track.work";
 import { type TWorkI, type TWorkS, tWork, tWorkTimestampExclude } from "~/db/schema/work";
 import {
   type TWorkChapterI,
+  type TWorkChapterS,
   tWorkChapter,
   tWorkChapterPK,
   tWorkChapterTimestampExclude,
@@ -100,6 +101,22 @@ export async function recordWorkRefreshFailure(
 }
 
 /**
+ * Record a check that found the work unrevealed (AO3 hides it until its challenge reveals it):
+ * keep its metadata and check again after the normal refresh interval. Like a failure, this is not
+ * a metadata change, so rowUpdatedAt is kept.
+ */
+export async function recordWorkUnrevealed(db: TDatabase, workId: number): Promise<void> {
+  await db
+    .update(tWork)
+    .set({
+      refreshFailures: 0,
+      lastRefreshed: new Date(),
+      rowUpdatedAt: sql`${tWork.rowUpdatedAt}`,
+    })
+    .where(eq(tWork.id, workId));
+}
+
+/**
  * Upsert tags and update tag links for a work
  */
 export async function upsertWorkTags(
@@ -190,6 +207,20 @@ export async function upsertWorkChapters(db: TDatabase, chapters: TWorkChapterI[
         exclude: [...tWorkChapterPK, ...tWorkChapterTimestampExclude],
       }),
     );
+}
+
+/** A stored chapter's AO3 ID and title, keyed by its position in the work */
+export type WorkChapterLabel = Pick<TWorkChapterS, "id" | "number" | "title">;
+
+/**
+ * Find a work's live chapters in position order
+ */
+export async function findWorkChapters(db: TDatabase, workId: number): Promise<WorkChapterLabel[]> {
+  return db
+    .select({ id: tWorkChapter.id, number: tWorkChapter.number, title: tWorkChapter.title })
+    .from(tWorkChapter)
+    .where(and(eq(tWorkChapter.workId, workId), isNull(tWorkChapter.rowDeletedAt)))
+    .orderBy(asc(tWorkChapter.number));
 }
 
 /**

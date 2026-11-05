@@ -35,6 +35,8 @@ export const tTrackChapter = mysqlTable(
       index("idx_track_chapter_rowDeletedAt").on(table.rowDeletedAt),
       // Composite index for incremental sync queries
       index("idx_track_chapter_user_lastReadAt").on(table.userId, table.lastReadAt),
+      // Chapter-zero migration looks up every user's rows for one work
+      index("idx_track_chapter_work_chapter").on(table.workId, table.chapterId),
     ];
   },
 );

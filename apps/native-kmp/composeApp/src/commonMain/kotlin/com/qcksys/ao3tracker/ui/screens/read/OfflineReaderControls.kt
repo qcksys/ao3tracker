@@ -40,8 +40,11 @@ internal fun OfflineReaderControls(
     val capture by coordinator.capture.collectAsState()
     val canGoBack by model.canGoBack.collectAsState()
     val canGoForward by model.canGoForward.collectAsState()
+    val backups by coordinator.backupDownloads.collectAsState()
+    val backupsAvailable by coordinator.backupsAvailable.collectAsState()
     val status = downloads.firstOrNull { it.work.workId.toString() == location.workId }
     val workId = location.workId.toLong()
+    val backupRunning = backups[workId]?.running == true
     var expanded by remember(workId) { mutableStateOf(false) }
     var showDebug by remember(workId) { mutableStateOf(false) }
     if (showDebug) DownloadDebugDialog(coordinator, workId) { showDebug = false }
@@ -87,6 +90,11 @@ internal fun OfflineReaderControls(
                     TextButton(onClick = { model.goForward(); expanded = false }, enabled = canGoForward) { Text("Forward") }
                 }
                 TextButton(onClick = { coordinator.saveWork(workId); expanded = false }, enabled = capture == null) { Text("Save whole work") }
+                if (backupsAvailable) {
+                    TextButton(onClick = { coordinator.downloadBackup(workId); expanded = false }, enabled = !backupRunning) {
+                        Text(if (backupRunning) "Downloading backup…" else "Download from backup")
+                    }
+                }
                 if (status != null) {
                     TextButton(onClick = { coordinator.saveWork(workId, update = true); expanded = false }) { Text("Update saved work") }
                     if (status.job?.state == "failed") TextButton(onClick = { coordinator.retry(workId); expanded = false }) { Text("Retry download") }

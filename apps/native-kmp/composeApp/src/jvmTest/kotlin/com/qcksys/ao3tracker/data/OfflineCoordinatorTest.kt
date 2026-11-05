@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.*
 
@@ -360,7 +361,84 @@ class OfflineCoordinatorTest {
         }
     }
 
-    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
+    @Test
+    fun `backup download saves every chapter without AO3 and replaces the queued AO3 download`() = runBlocking {
+        val owners = mutableListOf<String>()
+        val source = backupSource { workId, owner -> owners += owner; backup(workId) }
+        fixture(backups = source) { coordinator, _ ->
+            val context = assertNotNull(coordinator.store.context.value)
+            coordinator.store.enqueueWork(context, 123)
+            withTimeout(5000) { coordinator.backupsAvailable.first { it } }
+
+            coordinator.downloadBackup(123)
+            val result = withTimeout(5000) { coordinator.backupDownloads.first { it[123]?.running == false } }
+            assertEquals("Saved 2 chapters from the latest backup.", result[123]?.message)
+            assertEquals(listOf(context.owner), owners)
+            val status = withTimeout(5000) { coordinator.downloads.first { it.any { status -> status.work.workId == 123L } } }.single()
+            assertEquals(setOf("456", "457"), status.savedChapterIds)
+            assertTrue(status.work.pinned)
+            assertNull(status.job)
+            assertNull(coordinator.background.value)
+            val opened = assertNotNull(coordinator.open(url))
+            assertTrue("<p>First</p>" in opened.document.page.html)
+            assertEquals("2026-10-01T12:00:00Z", opened.document.page.downloadUpdatedAt)
+            opened.document.close()
+
+            coordinator.downloadBackup(123)
+            withTimeout(5000) {
+                coordinator.backupDownloads.first { it[123]?.message == "Your saved chapters already match the latest backup." }
+            }
+        }
+    }
+
+    @Test
+    fun `backup chapters use the download's CSS until an AO3 site skin is captured for the same AO3 account`() = runBlocking {
+        fixture(backups = backupSource { workId, _ -> backup(workId) }) { coordinator, _ ->
+            val context = assertNotNull(coordinator.store.context.value)
+            suspend fun openedHtml(): String {
+                val opened = assertNotNull(coordinator.open(url))
+                return assertNotNull(opened.document.readPath(opened.document.path)).bytes.decodeToString().also { opened.document.close() }
+            }
+            coordinator.downloadBackup(123)
+            withTimeout(5000) { coordinator.backupDownloads.first { it[123]?.running == false } }
+            assertTrue("p { color: black; }" in openedHtml())
+
+            // A foreground capture of another work selects the AO3 site skin.
+            val skin = listOf(OfflineStyle("#main { color: rebeccapurple; }", "https://archiveofourown.org/stylesheets/site.css", "screen", false))
+            val other = "https://archiveofourown.org/works/9/chapters/90"
+            val page = bundle().page.copy(url = other, workId = "9", chapterId = "90", siteStyles = skin, chapters = listOf(OfflineChapter("90", 1, "One", other)))
+            val capture = coordinator.store.beginCapture(context)
+            capture.publish(OfflineBundle(page, offlineSkinHash(skin), emptyList(), emptyList()), foreground = true, pin = true)
+            capture.cancel()
+
+            val html = openedHtml()
+            assertTrue("#main { color: rebeccapurple; }" in html)
+            assertFalse("p { color: black; }" in html)
+        }
+    }
+
+    @Test
+    fun `backup download reports why the API could not provide a backup`() = runBlocking {
+        val source = backupSource { _, _ -> throw OfflineBackupUnavailable("No backup of this work is available yet.") }
+        fixture(backups = source) { coordinator, _ ->
+            coordinator.downloadBackup(123)
+            val result = withTimeout(5000) { coordinator.backupDownloads.first { it[123]?.running == false } }
+            assertEquals("No backup of this work is available yet.", result[123]?.message)
+            assertEquals("No backup of this work is available yet.", coordinator.message.value)
+            assertTrue(coordinator.downloads.value.none { it.work.workId == 123L })
+        }
+    }
+
+    private fun backupSource(fetch: suspend (Long, String) -> OfflineBackup) = object : OfflineBackupSource {
+        override val available = flowOf(true)
+        override suspend fun fetch(workId: Long, owner: String) = fetch(workId, owner)
+    }
+
+    private fun backup(workId: Long) = OfflineBackup(workId, "Backup", "2026-10-01T12:00:00Z", "p { color: black; }", "", "",
+        listOf(OfflineBackupChapter("456", 1, "One", "<div class=\"userstuff\"><p>First</p></div>", emptyList()),
+            OfflineBackupChapter("457", 2, "Two", "<div class=\"userstuff\"><p>Second</p></div>", emptyList())))
+
+    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", backups: OfflineBackupSource? = null, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")
         val accounts = createTestAccounts(directory, databaseContext)
         // Match the app's main-thread confinement for coordinator calls and jobs.
@@ -369,7 +447,7 @@ class OfflineCoordinatorTest {
             val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
             initialIdentity?.let { store.observeIdentity(it) }
             val network = MutableStateFlow(OfflineNetwork(true, true))
-            val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync)
+            val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync, backups)
             accounts.block(coordinator, network)
             assertTrue(accounts.database.chapterDao().getAllChaptersIncludingDeletedOnce().isEmpty())
             assertTrue(accounts.database.workDao().getAllWorksIncludingDeletedOnce().isEmpty())

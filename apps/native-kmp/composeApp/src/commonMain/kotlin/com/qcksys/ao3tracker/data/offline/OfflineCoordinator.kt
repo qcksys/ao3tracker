@@ -15,22 +15,27 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false,
     val mode: String = "save-discover", val done: Int = 0, val total: Int = 1)
 internal data class DownloadDebugEntry(val timestamp: String, val message: String)
+/** A work's latest backup download: in progress, or finished with [message]. */
+internal data class OfflineBackupDownload(val running: Boolean, val message: String? = null)
 
 internal const val QUEUE_GRACE_MILLIS = 5_000L
 
@@ -42,7 +47,8 @@ class OfflineCoordinator internal constructor(
     internal val network: StateFlow<OfflineNetwork>,
     val enabled: Boolean,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
-    private val requestSync: () -> Unit = {}
+    private val requestSync: () -> Unit = {},
+    private val backups: OfflineBackupSource? = null
 ) {
     private var storedStates: List<OfflineWorkStatus> = emptyList()
     private val workStates = MutableStateFlow<List<OfflineWorkStatus>>(emptyList())
@@ -69,6 +75,10 @@ class OfflineCoordinator internal constructor(
     internal val debugEntries = debugState.asStateFlow()
     private val queueActive = MutableStateFlow(false)
     internal val hasPendingDownloads = queueActive.asStateFlow()
+    private val backupState = MutableStateFlow<Map<Long, OfflineBackupDownload>>(emptyMap())
+    internal val backupDownloads = backupState.asStateFlow()
+    internal val backupsAvailable: StateFlow<Boolean> =
+        backups?.available?.map { enabled && it }?.stateIn(scope, SharingStarted.Eagerly, false) ?: MutableStateFlow(false)
     private var automaticPage: OfflinePage? = null
     private val liveNavigation = MutableStateFlow(0L)
     private val captureId = MutableStateFlow<String?>(null)
@@ -310,6 +320,69 @@ class OfflineCoordinator internal constructor(
             debug(if (update) "Queued saved-work update." else "Queued whole-work download.")
             refresh()
             kick()
+        }
+    }
+
+    /**
+     * Saves every chapter of the work's latest HTML backup from the tracker API, without contacting AO3.
+     * Saved chapters at the backup's revision or newer are kept; queued AO3 downloads of the work are dropped.
+     */
+    internal fun downloadBackup(workId: Long) {
+        val source = backups ?: return
+        if (!enabled || backupState.value[workId]?.running == true) return
+        backupState.update { it + (workId to OfflineBackupDownload(running = true)) }
+        scope.launch {
+            var message: String? = null
+            try {
+                message = try {
+                    saveBackup(source, workId)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: OfflineBackupUnavailable) {
+                    error.message
+                } catch (_: Exception) {
+                    "The backup could not be saved. Try again."
+                }
+            } finally {
+                // Publish saved coverage before the result, so the two never disagree.
+                withContext(NonCancellable) { runCatching { refresh() } }
+                val result = message
+                backupState.update { if (result == null) it - workId else it + (workId to OfflineBackupDownload(running = false, message = result)) }
+                if (result != null) statusMessage.value = result
+                kick()
+            }
+        }
+    }
+
+    private suspend fun saveBackup(source: OfflineBackupSource, workId: Long): String {
+        // AO3 may be unreachable, so a first download cannot wait for it to confirm the AO3 account.
+        val context = store.context.value?.takeIf(store::isCurrent) ?: store.initialize() ?: store.observeIdentity("guest")
+        debug("Downloading the latest backup.")
+        val backup = source.fetch(workId, context.owner)
+        check(backup.workId == workId && store.isCurrent(context))
+        store.replaceQueuedDownloads(context, workId)
+        if (backgroundRequest.value?.workId == workId) { downloadId.value = null; downloadTask?.cancel() }
+        val revision = backup.ao3UpdatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+        val snapshots = store.statuses(context).firstOrNull { it.work.workId == workId }?.snapshots.orEmpty().associateBy { it.key }
+        var saved = 0
+        offlineBackupPages(backup, context.identity).forEachIndexed { index, page ->
+            val current = snapshots[chapterKey(page.url, page.chapterId)]
+            val currentRevision = current?.downloadUpdatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
+            if (current != null && (revision == null || currentRevision != null && currentRevision >= revision)) return@forEachIndexed
+            val capture = store.beginCapture(context)
+            try {
+                capture.publish(OfflineBundle(page, offlineSkinHash(page.siteStyles), emptyList(), backup.chapters[index].missingResources),
+                    foreground = false, pin = true)
+            } finally {
+                withContext(NonCancellable) { capture.cancel() }
+            }
+            saved++
+        }
+        debug("Saved $saved backup chapters. Download revision: ${backup.ao3UpdatedAt ?: "unknown"}.")
+        return when (saved) {
+            0 -> "Your saved chapters already match the latest backup."
+            1 -> "Saved 1 chapter from the latest backup."
+            else -> "Saved $saved chapters from the latest backup."
         }
     }
 

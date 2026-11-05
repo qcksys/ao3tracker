@@ -53,6 +53,9 @@ export const auth = ({ env, db }: { env: CloudflareBindings; db: TDatabase }) =>
   return betterAuth({
     appName: `QckSys AO3 Tracker ${env.ENVIRONMENT !== PROD_ENV_NAME ? `(${env.ENVIRONMENT})` : ""}`,
     basePath: "/auth",
+    // list-sessions returns every session's raw token, which `bearer()` accepts as a
+    // credential, so one session could copy the others. No client lists sessions.
+    disabledPaths: ["/list-sessions"],
     ...(trustedOrigins.length > 0 ? { trustedOrigins } : {}),
     experimental: {
       // joins: true,
@@ -89,6 +92,8 @@ export const auth = ({ env, db }: { env: CloudflareBindings; db: TDatabase }) =>
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
+      // A reset is the recovery path, so it must sign out every other session and bearer token.
+      revokeSessionsOnPasswordReset: true,
       // Wrapped to enforce a per-email cooldown on top of Better Auth's
       // per-IP rate limit. Better Auth only invokes this callback when
       // the account exists, so this naturally implements "only send for

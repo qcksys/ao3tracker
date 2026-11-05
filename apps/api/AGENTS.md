@@ -112,7 +112,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - `api.ts` - Main API router, applies `requireAuthMw` for all `/api/*` routes
 - `api.parse.ts` - AO3 HTML parsing endpoints (`/api/parse/{workId}`, `/api/parse/{workId}/chapters`)
 - `api.track.ts` - Bidirectional sync endpoint (`/api/track/sync`)
-- `api.backup.ts` - Backup creation and listing (`/api/backup`, `/api/backup/{workId}`)
+- `api.backup.ts` - Backup creation, listing, file download and offline chapters (`/api/backup`, `/api/backup/{workId}`, `/api/backup/{workId}/offline`)
 
 **Middleware Pattern** (`src/middleware/`):
 
@@ -135,7 +135,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
   and backs up each format to R2 (after `handleRefreshResult`, which leaves backups to its caller) if `downloadUpdatedAt` is newer than that format's latest active backup's `ao3UpdatedAt`. Failed formats retry on the next refresh even when another format already succeeded. Creates notifications
   for new chapters, work completion, deletion, and restriction.
 - `fetch-missing-works.ts` - Fetches data for tracked works missing from the works table (up to 12 works/run)
-- `work-fetcher.ts` - Shared utilities for fetching and parsing AO3 work pages. A successful response without a work title or a chapter count of at least 1 is a failed fetch (retried later), not a work: maintenance and other interstitial pages arrive with a 200 status.
+- `work-fetcher.ts` - Shared utilities for fetching and parsing AO3 work pages. A successful response without a work title or a chapter count of at least 1 is a failed fetch (retried later), not a work: maintenance and other interstitial pages arrive with a 200 status. The exception is AO3's placeholder for an unrevealed work ("Mystery Work", a `#main p.notice` saying it "will be revealed soon"; `isUnrevealedWorkPage`): `UnrevealedWorkError` / `unrevealed: true`. A stored work keeps its metadata, resets `refreshFailures` and is checked again after the normal interval (`recordWorkUnrevealed`), with no notification; a missing tracked work stays missing and is fetched again later.
 
 **Notification System** (`src/lib/notification-service.ts`, `src/db/queries/notification.ts`):
 
@@ -155,6 +155,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - Downloads epub and html formats when works are refreshed with newer `downloadUpdatedAt`
 - R2 key format: `{workId}/{downloadUpdatedAt_timestamp}.{format}`
 - Backup metadata tracked in `work.backup.ts` schema
+- `GET /api/backup/{workId}/offline` serves the native app's Download from backup action ([offline reading](../native-kmp/AGENTS.md#offline-reading-android)). It requires the caller to track the work, reads the active HTML backup with the newest `ao3UpdatedAt`, and splits it with `readHtmlBackup` (`src/lib/html-backup.ts`). AO3 downloads follow `downloads/show.html.erb`: `#preface`, `#chapters` with a `div.meta.group` header per chapter (none for a single-chapter work), then `#afterword`. Downloads carry no chapter IDs, so the route labels chapters by position from `work_chapter` rows, omits chapters without a stored ID, and uses ID `0` for an unindexed single chapter. The splitter removes scripts, embeds, forms, event attributes, comments, contents headings and "posted originally" messages, upgrades `http` AO3 links (older downloads) to `https`, and drops image sources, reporting them per chapter as `missingResources`. It returns 404 without a backup and 422 when the file is not an AO3 download or no chapter has an ID. Keep the native `OfflineBackup` DTO aligned with its response.
 
 **Database Schema** (`src/db/schema/`):
 

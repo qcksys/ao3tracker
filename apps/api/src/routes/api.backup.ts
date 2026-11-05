@@ -1,9 +1,16 @@
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import { AO3_BASE_URL, AO3_USER_AGENT } from "~/const";
-import { findActiveBackupByR2Key, findBackupsByWorkId, upsertBackup } from "~/db/queries/backup";
+import {
+  findActiveBackupByR2Key,
+  findBackupsByWorkId,
+  findLatestActiveBackup,
+  upsertBackup,
+} from "~/db/queries/backup";
 import { isUserTrackingWork } from "~/db/queries/track";
+import { findWorkChapters, getWorkState } from "~/db/queries/work";
 import { type BackupFormat, backupFormats, sWorkBackupS } from "~/db/schema/work.backup";
+import { readHtmlBackup } from "~/lib/html-backup";
 import { enforceAo3ProxyLimit } from "~/middleware/rateLimitMw";
 import type { TRouterEnvAuthReq } from "~/middleware/requireAuthMw";
 
@@ -66,6 +73,28 @@ const backupListItemSchema = backupResponseSchema
     downloadPath: z.string(),
   })
   .openapi({ description: "Backup record with authenticated download path" });
+
+const offlineBackupSchema = z
+  .object({
+    workId: z.number().int().positive(),
+    title: z.string(),
+    /** AO3 download revision of the backup */
+    ao3UpdatedAt: dateToIsoString.nullable(),
+    styles: z.string(),
+    preface: z.string(),
+    afterword: z.string(),
+    chapters: z.array(
+      z.object({
+        /** AO3 chapter ID; "0" for a single-chapter work whose chapter ID is not stored */
+        id: z.string(),
+        number: z.number().int().positive(),
+        title: z.string(),
+        html: z.string(),
+        missingResources: z.array(z.string()),
+      }),
+    ),
+  })
+  .openapi({ description: "Latest HTML backup split into chapters for offline reading" });
 
 const createBackupRoute = createRoute({
   method: "post",
@@ -130,6 +159,42 @@ const listBackupsRoute = createRoute({
     },
     403: {
       description: "User is not tracking this work",
+    },
+  },
+});
+
+const offlineBackupRoute = createRoute({
+  method: "get",
+  path: "/:workId/offline",
+  tags: ["API/Backup"],
+  summary: "Get the latest HTML backup for offline reading",
+  description:
+    "Reads the newest HTML backup of a tracked work and returns its sanitized chapters, labelled with stored AO3 chapter IDs. Chapters without a stored ID are omitted.",
+  request: {
+    params: z.object({
+      workId: z.coerce.number().int().positive(),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Backup chapters",
+      content: {
+        "application/json": {
+          schema: offlineBackupSchema,
+        },
+      },
+    },
+    401: {
+      description: "Unauthorized",
+    },
+    403: {
+      description: "User is not tracking this work",
+    },
+    404: {
+      description: "No HTML backup is available",
+    },
+    422: {
+      description: "The backup or the work's chapter list cannot be used",
     },
   },
 });
@@ -209,6 +274,63 @@ export const backupRouter = new OpenAPIHono<TRouterEnvAuthReq>()
           downloadPath: `/api/backup/${b.workId}/file/${filename}`,
         };
       }),
+      200,
+    );
+  })
+  .openapi(offlineBackupRoute, async (c) => {
+    const { workId } = c.req.valid("param");
+
+    const isTracking = await isUserTrackingWork(c.var.db, c.var.user.id, workId);
+    if (!isTracking) {
+      throw new HTTPException(403, {
+        message: "You must be tracking a work to download backups",
+      });
+    }
+
+    const backup = await findLatestActiveBackup(c.var.db, workId, "html");
+    const object = backup ? await c.var.env.WORK_BACKUPS_BUCKET.get(backup.r2Key) : null;
+    if (!backup || !object) {
+      throw new HTTPException(404, { message: "No HTML backup is available for this work" });
+    }
+
+    const content = await readHtmlBackup(await object.text());
+    if (!content) {
+      throw new HTTPException(422, { message: "The HTML backup could not be read" });
+    }
+
+    const [work, storedChapters] = await Promise.all([
+      getWorkState(c.var.db, workId),
+      findWorkChapters(c.var.db, workId),
+    ]);
+    const byNumber = new Map(storedChapters.map((chapter) => [chapter.number, chapter]));
+    const chapters = content.chapters.flatMap((chapter, index) => {
+      const stored = byNumber.get(index + 1);
+      const id = stored ? String(stored.id) : content.chapters.length === 1 ? "0" : null;
+      if (id === null) return [];
+      return [
+        {
+          id,
+          number: index + 1,
+          title: stored?.title ?? "",
+          html: chapter.html,
+          missingResources: chapter.images,
+        },
+      ];
+    });
+    if (chapters.length === 0) {
+      throw new HTTPException(422, { message: "The work's chapter list is not available yet" });
+    }
+
+    return c.json(
+      {
+        workId,
+        title: work?.title ?? `Work ${workId}`,
+        ao3UpdatedAt: backup.ao3UpdatedAt?.toISOString() ?? null,
+        styles: content.styles,
+        preface: content.preface,
+        afterword: content.afterword,
+        chapters,
+      },
       200,
     );
   })

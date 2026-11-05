@@ -574,6 +574,24 @@ export async function parseWorkPage(html: string): Promise<ParsedWork> {
 }
 
 /**
+ * Whether a page is AO3's placeholder for an unrevealed work: a challenge or collection hides the
+ * work (titled "Mystery Work") until its reveal, behind a `#main p.notice` saying it "will be
+ * revealed soon", with no title, metadata or chapters.
+ */
+export async function isUnrevealedWorkPage(html: string): Promise<boolean> {
+  let notice = "";
+  await new HTMLRewriter()
+    .on("#main p.notice", {
+      text(text) {
+        notice += text.text;
+      },
+    })
+    .transform(new Response(html))
+    .text();
+  return /will be revealed soon/i.test(notice);
+}
+
+/**
  * Parse chapter index from an AO3 work navigate page HTML
  */
 export async function parseChapterIndex(html: string): Promise<WorkChapterIndex> {
