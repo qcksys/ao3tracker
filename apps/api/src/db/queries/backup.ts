@@ -1,5 +1,5 @@
 import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
-import { and, eq, isNull, max } from "drizzle-orm";
+import { and, desc, eq, isNull, max } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import {
   type TWorkBackupI,
@@ -50,6 +50,37 @@ export async function findActiveBackupByR2Key(
     where: { r2Key, rowDeletedAt: { isNull: true } },
   });
   return result ?? null;
+}
+
+/**
+ * Find the active backup of one format with the newest AO3 download revision
+ */
+export async function findLatestActiveBackup(
+  db: TDatabase,
+  workId: number,
+  format: TWorkBackupS["format"],
+): Promise<BackupRecord | null> {
+  const result = await db
+    .select({
+      workId: tWorkBackup.workId,
+      format: tWorkBackup.format,
+      r2Key: tWorkBackup.r2Key,
+      fileSize: tWorkBackup.fileSize,
+      ao3UpdatedAt: tWorkBackup.ao3UpdatedAt,
+      rowCreatedAt: tWorkBackup.rowCreatedAt,
+    })
+    .from(tWorkBackup)
+    .where(
+      and(
+        eq(tWorkBackup.workId, workId),
+        eq(tWorkBackup.format, format),
+        isNull(tWorkBackup.rowDeletedAt),
+      ),
+    )
+    .orderBy(desc(tWorkBackup.ao3UpdatedAt), desc(tWorkBackup.rowCreatedAt))
+    .limit(1);
+
+  return result[0] ?? null;
 }
 
 /**
