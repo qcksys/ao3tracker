@@ -1,5 +1,27 @@
 # @qcksys/ao3tracker-api
 
+## 0.3.0
+
+### Minor Changes
+
+- 8a7160e: Download a tracked work for offline reading from its latest backup, even while AO3 is down.
+
+  Work Details, Downloads and the reader's offline menu have a Download from backup action for signed-in readers. It saves every chapter of the work's latest HTML backup from the tracker server without loading AO3, and the chapters open in the offline reader like other saved chapters. Backup copies have no author work skin or images. The API adds `GET /api/backup/{workId}/offline`, which returns the backup's sanitized chapters labelled with their AO3 chapter IDs.
+
+### Patch Changes
+
+- 659219f: Speed up sync and work refreshes by indexing chapter and tag lookups by work.
+
+  Sync, tag replacement and moving single-chapter reading progress to real chapter IDs no longer scan whole tables. Two redundant indexes are dropped. Migration `20261029184713_db-insights-indexes` only adds and drops indexes, so it is compatible with the currently deployed API.
+
+- 4a40a8b: Sign out every other session when a password is reset.
+
+  Resetting your password now ends all existing sessions and app sign-ins, so anyone holding an old session loses access. The unused session-listing endpoint is disabled, because it returned other sessions' sign-in tokens.
+
+- 2a38a2b: Keep unrevealed AO3 works on their normal refresh schedule instead of treating them as failures.
+
+  AO3 hides works in an ongoing challenge behind a "Mystery Work" placeholder until they are revealed. Refreshes now recognise that page, keep the work's stored details and check again later, rather than backing off as if the fetch had failed.
+
 ## 0.2.0
 
 ### Minor Changes
