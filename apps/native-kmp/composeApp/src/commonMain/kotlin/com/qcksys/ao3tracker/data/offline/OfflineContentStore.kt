@@ -279,6 +279,14 @@ internal class OfflineContentStore(
         }
     }
 
+    /** Drops the work's queued downloads and pins its saved copy before a backup download replaces them. */
+    suspend fun replaceQueuedDownloads(context: OfflineContext, workId: Long) = mutex.withLock {
+        forContext(context) { dao ->
+            dao.deleteWorkJobs(context.id, workId)
+            dao.work(context.id, workId)?.let { dao.saveWork(it.copy(pinned = true)) }
+        }
+    }
+
     suspend fun enqueuePrefetch(context: OfflineContext, page: OfflinePage, refreshCurrent: Boolean = false,
         preferences: OfflinePreferences = OfflinePreferences(), isAllowed: () -> Boolean = { true }) = mutex.withLock {
         forContext(context, isAllowed) { dao ->

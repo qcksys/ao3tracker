@@ -29,6 +29,7 @@ import com.qcksys.ao3tracker.data.repository.FavouriteTagRepository
 import com.qcksys.ao3tracker.data.repository.SavedSearchRepository
 import com.qcksys.ao3tracker.data.repository.SearchCheckRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
+import com.qcksys.ao3tracker.data.offline.ApiOfflineBackupSource
 import com.qcksys.ao3tracker.data.offline.OfflineContentStore
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.data.offline.Ao3RequestGate
@@ -84,7 +85,10 @@ val appModule = module {
     }
     single { OfflineContentStore(get(), getOfflineFiles()) }
     single { Ao3RequestGate() }
-    single { OfflineCoordinator(get(), get(), get(), get(), offlineNetworkState(), supportsOfflineReading(), requestSync = get<SyncTriggers>()::notifyReadingConnection) }
+    single {
+        OfflineCoordinator(get(), get(), get(), get(), offlineNetworkState(), supportsOfflineReading(),
+            requestSync = get<SyncTriggers>()::notifyReadingConnection, backups = ApiOfflineBackupSource(get(), get(), get()))
+    }
 
     single { Ao3Repository(get()) }
 

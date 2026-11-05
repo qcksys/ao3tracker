@@ -112,7 +112,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - `api.ts` - Main API router, applies `requireAuthMw` for all `/api/*` routes
 - `api.parse.ts` - AO3 HTML parsing endpoints (`/api/parse/{workId}`, `/api/parse/{workId}/chapters`)
 - `api.track.ts` - Bidirectional sync endpoint (`/api/track/sync`)
-- `api.backup.ts` - Backup creation and listing (`/api/backup`, `/api/backup/{workId}`)
+- `api.backup.ts` - Backup creation, listing, file download and offline chapters (`/api/backup`, `/api/backup/{workId}`, `/api/backup/{workId}/offline`)
 
 **Middleware Pattern** (`src/middleware/`):
 
@@ -155,6 +155,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - Downloads epub and html formats when works are refreshed with newer `downloadUpdatedAt`
 - R2 key format: `{workId}/{downloadUpdatedAt_timestamp}.{format}`
 - Backup metadata tracked in `work.backup.ts` schema
+- `GET /api/backup/{workId}/offline` serves the native app's Download from backup action ([offline reading](../native-kmp/AGENTS.md#offline-reading-android)). It requires the caller to track the work, reads the active HTML backup with the newest `ao3UpdatedAt`, and splits it with `readHtmlBackup` (`src/lib/html-backup.ts`). AO3 downloads follow `downloads/show.html.erb`: `#preface`, `#chapters` with a `div.meta.group` header per chapter (none for a single-chapter work), then `#afterword`. Downloads carry no chapter IDs, so the route labels chapters by position from `work_chapter` rows, omits chapters without a stored ID, and uses ID `0` for an unindexed single chapter. The splitter removes scripts, embeds, forms, event attributes, comments, contents headings and "posted originally" messages, upgrades `http` AO3 links (older downloads) to `https`, and drops image sources, reporting them per chapter as `missingResources`. It returns 404 without a backup and 422 when the file is not an AO3 download or no chapter has an ID. Keep the native `OfflineBackup` DTO aligned with its response.
 
 **Database Schema** (`src/db/schema/`):
 
