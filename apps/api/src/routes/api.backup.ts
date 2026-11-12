@@ -10,7 +10,8 @@ import {
 import { isUserTrackingWork } from "~/db/queries/track";
 import { findWorkChapters, getWorkState } from "~/db/queries/work";
 import { type BackupFormat, backupFormats, sWorkBackupS } from "~/db/schema/work.backup";
-import { readHtmlBackup } from "~/lib/html-backup";
+import { ao3DefaultSkin } from "~/lib/ao3-skins";
+import { backupChapterPage, readHtmlBackup } from "~/lib/html-backup";
 import { enforceAo3ProxyLimit } from "~/middleware/rateLimitMw";
 import type { TRouterEnvAuthReq } from "~/middleware/requireAuthMw";
 
@@ -80,8 +81,13 @@ const offlineBackupSchema = z
     title: z.string(),
     /** AO3 download revision of the backup */
     ao3UpdatedAt: dateToIsoString.nullable(),
+    /** AO3's default site skin, then Reversi for dark mode; the reader's captured skin takes precedence */
+    skins: z.array(z.object({ css: z.string(), media: z.string(), sourceUrl: z.string() })),
+    /** Deprecated: the download's own CSS, for app releases that predate `skins` */
     styles: z.string(),
+    /** Deprecated: empty, because each chapter page includes the work preface */
     preface: z.string(),
+    /** Deprecated: empty, because each chapter page includes the work end notes */
     afterword: z.string(),
     chapters: z.array(
       z.object({
@@ -89,6 +95,7 @@ const offlineBackupSchema = z
         id: z.string(),
         number: z.number().int().positive(),
         title: z.string(),
+        /** A complete chapter page in AO3's live markup */
         html: z.string(),
         missingResources: z.array(z.string()),
       }),
@@ -169,7 +176,7 @@ const offlineBackupRoute = createRoute({
   tags: ["API/Backup"],
   summary: "Get the latest HTML backup for offline reading",
   description:
-    "Reads the newest HTML backup of a tracked work and returns its sanitized chapters, labelled with stored AO3 chapter IDs. Chapters without a stored ID are omitted.",
+    "Reads the newest HTML backup of a tracked work and rebuilds each chapter as a sanitized page in AO3's live chapter markup, labelled with stored AO3 chapter IDs, with AO3's default and Reversi skins. Chapters without a stored ID are omitted.",
   request: {
     params: z.object({
       workId: z.coerce.number().int().positive(),
@@ -303,33 +310,35 @@ export const backupRouter = new OpenAPIHono<TRouterEnvAuthReq>()
       findWorkChapters(c.var.db, workId),
     ]);
     const byNumber = new Map(storedChapters.map((chapter) => [chapter.number, chapter]));
+    const workUrl = `${AO3_BASE_URL}/works/${workId}`;
     const chapters = content.chapters.flatMap((chapter, index) => {
       const stored = byNumber.get(index + 1);
       const id = stored ? String(stored.id) : content.chapters.length === 1 ? "0" : null;
       if (id === null) return [];
-      return [
-        {
-          id,
-          number: index + 1,
-          title: stored?.title ?? "",
-          html: chapter.html,
-          missingResources: chapter.images,
-        },
-      ];
+      const url = id === "0" ? workUrl : `${workUrl}/chapters/${id}`;
+      return [{ ...chapter, id, number: index + 1, title: stored?.title ?? "", url }];
     });
     if (chapters.length === 0) {
       throw new HTTPException(422, { message: "The work's chapter list is not available yet" });
     }
 
+    const title = work?.title ?? `Work ${workId}`;
     return c.json(
       {
         workId,
-        title: work?.title ?? `Work ${workId}`,
+        title,
         ao3UpdatedAt: backup.ao3UpdatedAt?.toISOString() ?? null,
-        styles: content.styles,
-        preface: content.preface,
-        afterword: content.afterword,
-        chapters,
+        skins: ao3DefaultSkin,
+        styles: content.downloadCss,
+        preface: "",
+        afterword: "",
+        chapters: chapters.map((chapter, position) => ({
+          id: chapter.id,
+          number: chapter.number,
+          title: chapter.title,
+          html: backupChapterPage(content, title, chapters, position),
+          missingResources: chapter.images,
+        })),
       },
       200,
     );
