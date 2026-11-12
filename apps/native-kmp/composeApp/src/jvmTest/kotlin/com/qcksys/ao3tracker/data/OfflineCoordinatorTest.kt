@@ -392,7 +392,7 @@ class OfflineCoordinatorTest {
     }
 
     @Test
-    fun `backup chapters use the download's CSS until an AO3 site skin is captured for the same AO3 account`() = runBlocking {
+    fun `backup chapters use AO3's default skins until an AO3 site skin is captured for the same AO3 account`() = runBlocking {
         fixture(backups = backupSource { workId, _ -> backup(workId) }) { coordinator, _ ->
             val context = assertNotNull(coordinator.store.context.value)
             suspend fun openedHtml(): String {
@@ -434,9 +434,13 @@ class OfflineCoordinatorTest {
         override suspend fun fetch(workId: Long, owner: String) = fetch(workId, owner)
     }
 
-    private fun backup(workId: Long) = OfflineBackup(workId, "Backup", "2026-10-01T12:00:00Z", "p { color: black; }", "", "",
-        listOf(OfflineBackupChapter("456", 1, "One", "<div class=\"userstuff\"><p>First</p></div>", emptyList()),
-            OfflineBackupChapter("457", 2, "Two", "<div class=\"userstuff\"><p>Second</p></div>", emptyList())))
+    private fun backupPage(text: String) =
+        "<html><head></head><body><div id=\"chapters\"><div class=\"userstuff module\"><p>$text</p></div></div></body></html>"
+
+    private fun backup(workId: Long) = OfflineBackup(workId, "Backup", "2026-10-01T12:00:00Z",
+        listOf(OfflineBackupStyle("p { color: black; }", "screen", "https://archiveofourown.org/stylesheets/site/2.0/01-core.css")),
+        listOf(OfflineBackupChapter("456", 1, "One", backupPage("First"), emptyList()),
+            OfflineBackupChapter("457", 2, "Two", backupPage("Second"), emptyList())))
 
     private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", backups: OfflineBackupSource? = null, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")

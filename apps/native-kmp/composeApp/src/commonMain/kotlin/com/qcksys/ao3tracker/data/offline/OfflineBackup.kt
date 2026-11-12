@@ -14,7 +14,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 
-/** One chapter of `GET /api/backup/{workId}/offline`; the API has already removed unsafe markup. */
+/**
+ * One chapter of `GET /api/backup/{workId}/offline`: a complete page in AO3's live chapter markup, from which the API has
+ * already removed unsafe markup.
+ */
 @Serializable
 internal data class OfflineBackupChapter(
     val id: String,
@@ -24,15 +27,19 @@ internal data class OfflineBackupChapter(
     val missingResources: List<String>
 )
 
-/** The latest HTML backup of a work, split into chapters by the API. */
+@Serializable
+internal data class OfflineBackupStyle(val css: String, val media: String, val sourceUrl: String)
+
+/**
+ * The latest HTML backup of a work, rebuilt as chapter pages by the API, with AO3's default skins. The response's
+ * deprecated `styles`, `preface` and `afterword` fields serve earlier app releases and are ignored.
+ */
 @Serializable
 internal data class OfflineBackup(
     val workId: Long,
     val title: String,
     val ao3UpdatedAt: String?,
-    val styles: String,
-    val preface: String,
-    val afterword: String,
+    val skins: List<OfflineBackupStyle>,
     val chapters: List<OfflineBackupChapter>
 )
 
@@ -55,8 +62,7 @@ internal class ApiOfflineBackupSource(
     override val available: Flow<Boolean> = auth.authState.map { it is AuthState.Authenticated }
 
     override suspend fun fetch(workId: Long, owner: String): OfflineBackup {
-        val token = (auth.authState.value as? AuthState.Authenticated)?.token
-        if (token == null || !auth.isCurrentSession(token, owner)) throw OfflineBackupUnavailable("Sign in to download backups.")
+        val token = backupSessionToken(auth, owner)
         try {
             val response = authService.getClient().get("${settings.getApiBaseUrl()}/backup/$workId/offline") {
                 header("Authorization", "Bearer $token")
@@ -80,8 +86,25 @@ internal class ApiOfflineBackupSource(
 }
 
 /**
- * Saved-chapter pages for a backup, in the same form as captured AO3 chapters. The download's own CSS is the
- * pages' skin, used only while no AO3 site skin has been captured for the AO3 account.
+ * The session token for the tracker account [owner]. A session restored while offline has no account until it is
+ * validated, so it is validated first, as before a sync.
+ */
+internal suspend fun backupSessionToken(auth: SyncAuthentication, owner: String): String {
+    if (auth.authState.value !is AuthState.Authenticated) throw OfflineBackupUnavailable("Sign in to download backups.")
+    if (!auth.prepareSession()) {
+        throw OfflineBackupUnavailable(
+            if (auth.authState.value is AuthState.Authenticated) "Your session could not be checked. Check your connection and try again."
+            else "Sign in again to download backups."
+        )
+    }
+    val token = (auth.authState.value as? AuthState.Authenticated)?.token
+    if (token == null || !auth.isCurrentSession(token, owner)) throw OfflineBackupUnavailable("Sign in to download backups.")
+    return token
+}
+
+/**
+ * Saved-chapter pages for a backup, in the same form as captured AO3 chapters. AO3's default skins are the pages'
+ * skin, used only while no AO3 site skin has been captured for the AO3 account.
  */
 internal fun offlineBackupPages(backup: OfflineBackup, identity: String): List<OfflinePage> {
     val workId = backup.workId.toString()
@@ -89,28 +112,11 @@ internal fun offlineBackupPages(backup: OfflineBackup, identity: String): List<O
         if (chapter.id == "0") "https://archiveofourown.org/works/$workId"
         else "https://archiveofourown.org/works/$workId/chapters/${chapter.id}"
     val manifest = backup.chapters.map { OfflineChapter(it.id, it.number, it.title, url(it)) }
-    val styles = listOfNotNull(backup.styles.takeIf { it.isNotBlank() }
-        ?.let { OfflineStyle(it, "https://archiveofourown.org/works/$workId", "all", false) })
-    return backup.chapters.mapIndexed { index, chapter ->
+    val styles = backup.skins.map { OfflineStyle(it.css, it.sourceUrl, it.media, false) }
+    return backup.chapters.map { chapter ->
+        // The reader inserts its content policy and styles into the document head.
+        require(Regex("<head(\\s[^>]*)?>").containsMatchIn(chapter.html)) { "The backup chapter has no document head." }
         OfflinePage(1, url(chapter), workId, chapter.id, "chapter", backup.title, identity, canSelectSkin = false,
-            html = backupChapterDocument(backup, index), siteStyles = styles, chapters = manifest,
-            downloadUpdatedAt = backup.ao3UpdatedAt)
+            html = chapter.html, siteStyles = styles, chapters = manifest, downloadUpdatedAt = backup.ao3UpdatedAt)
     }
-}
-
-/** An AO3-shaped chapter page, so a captured site skin styles it like a live chapter. */
-private fun backupChapterDocument(backup: OfflineBackup, index: Int): String {
-    val chapter = backup.chapters[index]
-    val title = backup.title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    val preface = if (index == 0 && backup.preface.isNotBlank()) backup.preface else "<h2 class=\"title heading\">$title</h2>"
-    val afterword = if (index == backup.chapters.lastIndex && backup.afterword.isNotBlank())
-        "<div id=\"afterword\" class=\"preface group\">${backup.afterword}</div>" else ""
-    return "<html lang=\"en\"><head><meta charset=\"utf-8\">" +
-        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>$title</title></head>" +
-        "<body><div id=\"outer\" class=\"wrapper\"><div id=\"inner\" class=\"wrapper\">" +
-        "<div id=\"main\" class=\"works-show region\" role=\"main\"><div id=\"workskin\">" +
-        "<div class=\"preface group\">$preface</div>" +
-        "<div id=\"chapters\" role=\"article\"><div class=\"chapter\" id=\"chapter-${chapter.number}\">${chapter.html}</div></div>" +
-        afterword +
-        "</div></div></div></div></body></html>"
 }
