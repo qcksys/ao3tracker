@@ -161,6 +161,11 @@ class OfflineReadScreenTest {
                     }
                     assertFalse(model.first.canGoBack.value)
                 }
+                await { nodes().any { it.text?.toString() == "AO3 could not load this page" } }
+                assertTrue(nodes().any { it.text?.toString() == "Downloads" })
+                assertFalse(nodes().any { it.text?.contains("net::ERR_") == true })
+                await { clickText("Retry") }
+                await { nodes().any { it.text?.toString() == "AO3 could not load this page" } }
             }
         } finally {
             if (!airplaneModeWasOn) shell("cmd connectivity airplane-mode disable")

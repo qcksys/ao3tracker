@@ -1317,6 +1317,10 @@ private fun PushNotificationsSection(
     if (!isPushSupported) {
         return
     }
+    val requestPermission = rememberNotificationPermissionRequest {
+        if (!preferences.enabled) savePreferences(preferences.copy(enabled = true))
+    }
+    val alertsEnabled = preferences.enabled && requestPermission == null
 
     // Show notification history modal
     if (showHistoryModal) {
@@ -1331,11 +1335,11 @@ private fun PushNotificationsSection(
         summary = when {
             isSaving -> "Saving notification settings..."
             isRegistering -> "Registering notifications..."
-            !preferences.enabled -> "Off on this device"
+            !alertsEnabled -> "Off on this device"
             !isAuthenticated -> "Sign in to receive alerts"
             else -> "On this device · Alert types and history"
         },
-        icon = if (preferences.enabled) Icons.Default.Notifications else Icons.Default.NotificationsOff
+        icon = if (alertsEnabled) Icons.Default.Notifications else Icons.Default.NotificationsOff
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -1348,19 +1352,20 @@ private fun PushNotificationsSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            NotificationSettingRow("Enable notifications", preferences.enabled, !isSaving && !isRegistering) {
-                savePreferences(preferences.copy(enabled = it))
+            NotificationSettingRow("Enable notifications", alertsEnabled, !isSaving && !isRegistering) {
+                if (it && requestPermission != null) requestPermission()
+                else savePreferences(preferences.copy(enabled = it))
             }
-            NotificationSettingRow("New chapters", preferences.newChapters, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("New chapters", preferences.newChapters, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(newChapters = it))
             }
-            NotificationSettingRow("Completed works", preferences.workCompleted, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("Completed works", preferences.workCompleted, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(workCompleted = it))
             }
-            NotificationSettingRow("Restricted works", preferences.workRestricted, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("Restricted works", preferences.workRestricted, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(workRestricted = it))
             }
-            NotificationSettingRow("Deleted works", preferences.workDeleted, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("Deleted works", preferences.workDeleted, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(workDeleted = it))
             }
             if (isSaving) {
@@ -1380,7 +1385,7 @@ private fun PushNotificationsSection(
                 )
                 Text(
                     text = when {
-                        !preferences.enabled -> "Disabled on this device"
+                        !alertsEnabled -> "Disabled on this device"
                         hasToken -> "Push token available"
                         else -> "No push token available"
                     },
@@ -1413,7 +1418,7 @@ private fun PushNotificationsSection(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = isAuthenticated && preferences.enabled && !isRegistering && !isSaving
+                enabled = isAuthenticated && alertsEnabled && !isRegistering && !isSaving
             ) {
                 if (isRegistering) {
                     CircularProgressIndicator(
