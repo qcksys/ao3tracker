@@ -6,7 +6,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class NavigationStateTest {
     @AfterTest
     fun clearNavigation() {
@@ -75,8 +80,41 @@ class NavigationStateTest {
     }
 
     @Test
+    fun `reselecting Works returns to the list before scrolling it to the top`() = runTest {
+        val scrolls = mutableListOf<Unit>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            NavigationState.worksScrollToTop.collect { scrolls += it }
+        }
+        val navigator = FakeTabNavigator(depth = 2)
+        NavigationState.registerTrackTabNavigator(navigator)
+
+        NavigationState.reselectTrackTab()
+        assertEquals(1, navigator.depth)
+        assertTrue(scrolls.isEmpty())
+
+        NavigationState.reselectTrackTab()
+        assertEquals(1, navigator.depth)
+        assertEquals(1, scrolls.size)
+    }
+
+    @Test
+    fun `Works scroll requests are dropped while no list is collecting them`() = runTest {
+        NavigationState.reselectTrackTab()
+        val scrolls = mutableListOf<Unit>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            NavigationState.worksScrollToTop.collect { scrolls += it }
+        }
+        assertTrue(scrolls.isEmpty())
+    }
+
+    @Test
     fun `internal and notification navigation retain default scroll behavior`() {
         NavigationState.navigateToRead("https://archiveofourown.org/works/123")
         assertEquals(0f, NavigationState.pendingNavigation.value?.scrollProgress)
+    }
+
+    private class FakeTabNavigator(var depth: Int) : TabNavigatorContract {
+        override val isAtRoot get() = depth == 1
+        override fun popToRoot() { depth = 1 }
     }
 }

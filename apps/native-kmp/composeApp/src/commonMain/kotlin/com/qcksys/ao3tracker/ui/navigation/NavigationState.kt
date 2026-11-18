@@ -3,8 +3,12 @@ package com.qcksys.ao3tracker.ui.navigation
 import com.qcksys.ao3tracker.data.model.TagType
 import com.qcksys.ao3tracker.data.model.Work
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
@@ -29,6 +33,9 @@ object NavigationState {
 
     private val _pendingDownloads = MutableStateFlow(false)
     val pendingDownloads: StateFlow<Boolean> = _pendingDownloads.asStateFlow()
+
+    private val _worksScrollToTop = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val worksScrollToTop: SharedFlow<Unit> = _worksScrollToTop.asSharedFlow()
 
     // Track tab navigator reference - should be cleared when tab is disposed
     private var trackTabNavigator: TabNavigatorContract? = null
@@ -83,6 +90,12 @@ object NavigationState {
         trackTabNavigator?.popToRoot()
     }
 
+    /** Works tab tapped while selected: return to the list first, then scroll it to the top on the next tap. */
+    fun reselectTrackTab() {
+        val navigator = trackTabNavigator
+        if (navigator != null && !navigator.isAtRoot) navigator.popToRoot() else _worksScrollToTop.tryEmit(Unit)
+    }
+
     fun triggerReadTabHome() {
         _navigateReadToHome.value = true
     }
@@ -108,6 +121,7 @@ object NavigationState {
  * Interface for tab navigator operations to decouple from Voyager Navigator.
  */
 interface TabNavigatorContract {
+    val isAtRoot: Boolean
     fun popToRoot()
 }
 

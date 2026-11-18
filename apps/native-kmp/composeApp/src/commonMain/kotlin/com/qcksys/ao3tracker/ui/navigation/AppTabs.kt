@@ -83,6 +83,8 @@ object TrackTab : Tab {
  * Adapter to wrap Voyager Navigator in TabNavigatorContract.
  */
 private class NavigatorAdapter(private val navigator: Navigator) : TabNavigatorContract {
+    override val isAtRoot: Boolean get() = !navigator.canPop
+
     override fun popToRoot() {
         navigator.popUntilRoot()
     }

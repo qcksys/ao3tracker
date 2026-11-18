@@ -21,8 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.ArrowDownward
@@ -69,6 +69,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -79,6 +80,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
@@ -140,8 +142,16 @@ fun TrackScreen() {
 
     var isSubscriptionMenuVisible by remember { mutableStateOf(false) }
 
-    // Scroll state for the works list
-    val listState = rememberLazyListState()
+    // Scroll state for the works list, restored from the screen model when the list returns to composition.
+    val listState = remember {
+        val position = screenModel.listPosition.restoreIn(visibleWorks.map { it.id })
+        LazyListState(position.index, position.offset)
+    }
+    DisposableEffect(listState) {
+        onDispose {
+            if (listState.layoutInfo.totalItemsCount > 0) screenModel.listPosition = listState.worksListPosition()
+        }
+    }
     val coroutineScope = rememberCoroutineScope()
     val showScrollToTop by remember {
         derivedStateOf { listState.firstVisibleItemIndex > 2 }
@@ -168,9 +178,16 @@ fun TrackScreen() {
         }
     }
 
-    // Scroll to top when sort order changes
-    LaunchedEffect(sortState) {
-        listState.scrollToItem(0)
+    // Scroll to top when sort order changes, but not when the list returns to composition
+    LaunchedEffect(listState) {
+        screenModel.sortState.drop(1).collect { listState.scrollToItem(0) }
+    }
+
+    // Works tab tapped again while this list is showing
+    LaunchedEffect(listState) {
+        NavigationState.worksScrollToTop.collect {
+            if (listState.layoutInfo.totalItemsCount > 0) listState.animateScrollToItem(0)
+        }
     }
 
     // Handle pending tag filter from navigation

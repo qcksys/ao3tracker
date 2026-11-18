@@ -130,6 +130,61 @@ class IncognitoReadingTest {
     }
 
     @Test
+    fun `leaving the Read tab reopens the live chapter at its last reported position`() = runTest {
+        fixture { f ->
+            f.model.navigateToReadingPosition(ReadNavigation(url(), 0.25f))
+            f.model.updateCurrentUrl(f.model.currentUrl.value)
+            f.post(ScrollProgressEvent(url = "${url()}?scroll=60#chapters", scrollPercentage = 60, chapterId = "11"))
+            advanceUntilIdle()
+
+            f.model.leaveReader()
+
+            val restored = f.model.currentUrl.value
+            assertTrue(restored.startsWith("${url()}?scrollTo=60&"), restored)
+            assertTrue(restored.endsWith("#chapters"))
+
+            // The reloaded page lands just below 60%, so repeated tab switches must not drift backwards.
+            f.model.updateCurrentUrl(restored)
+            f.post(ScrollProgressEvent(url = "${url()}?scroll=59#chapters", scrollPercentage = 59, chapterId = "11"))
+            advanceUntilIdle()
+            f.model.leaveReader()
+            assertEquals(restored, f.model.currentUrl.value)
+
+            f.model.updateCurrentUrl(restored)
+            f.post(ScrollProgressEvent(url = "${url()}?scroll=29#chapters", scrollPercentage = 29, chapterId = "11"))
+            advanceUntilIdle()
+            f.model.leaveReader()
+            assertTrue(f.model.currentUrl.value.startsWith("${url()}?scrollTo=29&"), f.model.currentUrl.value)
+        }
+    }
+
+    @Test
+    fun `leaving the Read tab keeps a page that has not reported its own position`() = runTest {
+        fixture { f ->
+            f.model.navigateToReadingPosition(ReadNavigation(url(), 0.25f))
+            f.post(scroll(60))
+            advanceUntilIdle()
+            val linked = "${url(22)}#chapters"
+            f.model.updateCurrentUrl(linked)
+            f.model.leaveReader()
+            assertEquals(linked, f.model.currentUrl.value)
+
+            f.post(scroll(60))
+            advanceUntilIdle()
+            f.model.navigateToReadingPosition(ReadNavigation(url(), 0.25f))
+            val requested = f.model.currentUrl.value
+            f.model.leaveReader()
+            assertEquals(requested, f.model.currentUrl.value)
+
+            f.post(scroll(60))
+            advanceUntilIdle()
+            f.model.navigateToHome()
+            f.model.leaveReader()
+            assertTrue(f.model.isOnHomePage())
+        }
+    }
+
+    @Test
     fun `saved search updates apply current filters in incognito and refresh the page state`() = runTest {
         fixture { f ->
             val searches = SavedSearchRepository(f.accounts)
