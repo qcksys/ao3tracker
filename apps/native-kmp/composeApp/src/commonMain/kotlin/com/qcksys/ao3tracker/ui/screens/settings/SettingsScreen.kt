@@ -101,6 +101,7 @@ import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.screens.track.DownloadsScreen
+import com.qcksys.ao3tracker.ui.screens.track.OfflineExportScreen
 import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
@@ -460,6 +461,8 @@ fun SettingsScreen() {
             }
 
             OfflineStorageSettings(appSettings, onManageDownloads = { navigator.push(DownloadsScreen()) })
+
+            OfflineTransferSettings(onExport = { navigator.push(OfflineExportScreen()) })
 
             BrowsingSettings(appSettings, onOpenHiddenWorks = { navigator.push(HiddenWorksScreen()) })
 

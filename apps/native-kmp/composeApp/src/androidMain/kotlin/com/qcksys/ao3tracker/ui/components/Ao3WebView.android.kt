@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.qcksys.ao3tracker.webview.Ao3TrackingScript
 import com.qcksys.ao3tracker.webview.ScrollRestoreScriptGenerated
+import com.qcksys.ao3tracker.webview.isCloudflareChallengeFrame
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import com.qcksys.ao3tracker.webview.guardAo3Script
 import kotlinx.coroutines.flow.SharedFlow
@@ -193,8 +194,9 @@ actual fun Ao3WebView(
                         view: WebView?,
                         request: WebResourceRequest?
                     ): Boolean {
-                        // Only allow navigation within AO3; override (block) everything else
+                        // Only allow navigation within AO3, and the frame of Cloudflare's check; override (block) everything else
                         val target = request?.url?.toString() ?: return true
+                        if (isCloudflareChallengeFrame(target, request.isForMainFrame)) return false
                         if (!isTrustedAo3Url(target)) return true
                         return request.isForMainFrame && request.method == "GET" && onNavigateState(target)
                     }

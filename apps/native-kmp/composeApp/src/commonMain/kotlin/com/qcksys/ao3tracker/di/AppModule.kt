@@ -43,6 +43,7 @@ import com.qcksys.ao3tracker.data.offline.Ao3RequestGate
 import com.qcksys.ao3tracker.data.offline.offlineNetworkState
 import com.qcksys.ao3tracker.ui.components.supportsOfflineReading
 import com.qcksys.ao3tracker.data.offline.OfflineFileScope
+import com.qcksys.ao3tracker.data.offline.getOfflineDocuments
 import com.qcksys.ao3tracker.data.offline.getOfflineFiles
 import com.qcksys.ao3tracker.data.offline.offlineSha256
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
@@ -94,7 +95,8 @@ val appModule = module {
     single { Ao3RequestGate() }
     single {
         OfflineCoordinator(get(), get(), get(), get(), offlineNetworkState(), supportsOfflineReading(),
-            requestSync = get<SyncTriggers>()::notifyReadingConnection, backups = ApiOfflineBackupSource(get(), get(), get()))
+            requestSync = get<SyncTriggers>()::notifyReadingConnection, backups = ApiOfflineBackupSource(get(), get(), get()),
+            documents = getOfflineDocuments())
     }
 
     single { Ao3Repository(get()) }

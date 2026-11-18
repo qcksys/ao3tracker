@@ -6,6 +6,7 @@ import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import com.qcksys.ao3tracker.data.backup.initializeGoogleDrive
 import com.qcksys.ao3tracker.data.push.initializePushTokenStorage
 import com.qcksys.ao3tracker.data.settings.initializeSettingsStorage
+import com.qcksys.ao3tracker.data.offline.initializeOfflineDocuments
 import com.qcksys.ao3tracker.data.offline.initializeOfflineFiles
 import com.qcksys.ao3tracker.data.offline.initializeOfflineNetwork
 import com.qcksys.ao3tracker.push.Ao3FirebaseMessagingService
@@ -24,6 +25,7 @@ open class Ao3TrackerApplication : Application() {
         initializeSettingsStorage(this)
         initializeGoogleDrive(this)
         initializeOfflineFiles(this)
+        initializeOfflineDocuments(this)
         initializeOfflineNetwork(this)
         Ao3FirebaseMessagingService.createNotificationChannel(this)
 
