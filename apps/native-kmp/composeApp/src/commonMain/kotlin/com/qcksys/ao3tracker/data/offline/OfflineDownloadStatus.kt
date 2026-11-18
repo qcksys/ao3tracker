@@ -4,9 +4,11 @@ import kotlin.time.Instant
 
 internal data class OfflineDownloadNotification(val title: String, val text: String)
 
-internal fun offlineWorkStatusText(download: OfflineWorkStatus?): String = when {
+/** [ao3Check] is true while downloads wait for the reader to pass AO3's Cloudflare check in Read. */
+internal fun offlineWorkStatusText(download: OfflineWorkStatus?, ao3Check: Boolean = false): String = when {
     download == null -> "Not saved on this device"
     download.job?.state == "running" -> "Downloading · continues in the background"
+    download.job?.state == "queued" && ao3Check -> "Paused · AO3 wants to check you're not a robot. Open on AO3 to continue."
     download.job?.state == "queued" -> "Queued · waiting for a connection or retry"
     download.job?.state == "failed" -> download.job.error ?: "Download paused. Open the work in Read, then retry."
     else -> "${download.savedChapterIds.size} of ${download.publishedChapters} published chapters saved"

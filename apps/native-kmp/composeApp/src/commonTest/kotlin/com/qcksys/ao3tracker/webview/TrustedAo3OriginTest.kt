@@ -17,4 +17,15 @@ class TrustedAo3OriginTest {
         assertFalse(isTrustedAo3Origin("https", "evil.test", 443))
         assertFalse(isTrustedAo3Origin("http", "archiveofourown.org", 80))
     }
+
+    @Test
+    fun `only frames may load Cloudflare's check`() {
+        val check = "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/if/ov2/av0/rcv/abc"
+        assertTrue(isCloudflareChallengeFrame(check, mainFrame = false))
+        assertFalse(isCloudflareChallengeFrame(check, mainFrame = true))
+        listOf("http://challenges.cloudflare.com/x", "https://challenges.cloudflare.com.evil.test/x", "https://evil.test/challenges.cloudflare.com",
+            "https://challenges.cloudflare.com@evil.test/x", null).forEach {
+            assertFalse(isCloudflareChallengeFrame(it, mainFrame = false), it.toString())
+        }
+    }
 }
