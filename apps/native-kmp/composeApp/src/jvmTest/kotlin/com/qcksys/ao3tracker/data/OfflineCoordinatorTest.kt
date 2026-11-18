@@ -17,24 +17,71 @@ import kotlin.test.*
 
 class OfflineCoordinatorTest {
     @Test
-    fun `first whole work save resumes when reading scripts update the displayed URL`() = runBlocking {
+    fun `a first download confirms the AO3 account in the background without opening the work`() = runBlocking {
         fixture(initialIdentity = null) { coordinator, _ ->
-            val wholeUrl = "https://archiveofourown.org/works/123?view_full_work=true"
             coordinator.setForeground(true)
             coordinator.saveWork(123)
-            withTimeout(5000) { coordinator.message.first { it == "The work will be saved after AO3 confirms access." } }
-            val navigation = NavigationState.pendingNavigation.value
-            NavigationState.clearPendingNavigation()
-            assertEquals(wholeUrl, navigation?.url)
-            coordinator.liveNavigation("$wholeUrl&scrollTo=0&_t=123")
-            coordinator.observed(OfflinePageObservation("$wholeUrl&scroll=0", "user:fixture", true))
-            val capture = withTimeout(5000) { coordinator.capture.first { it != null }!! }
-            assertTrue(capture.isCurrent())
+            withTimeout(5000) { coordinator.message.first { it == "Checking your AO3 account before downloading." } }
+            assertNull(NavigationState.pendingNavigation.value)
+            assertTrue(withTimeout(5000) { coordinator.hasPendingDownloads.first { it } })
+            val check = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertEquals("identity", check.mode)
+            assertEquals("https://archiveofourown.org/works/123", check.url)
+            // AO3 sends a chaptered work to its first chapter; the check reads the account there without saving it.
+            coordinator.downloadNavigation(check.id, url)
+            assertFalse(coordinator.downloadObserved(check.id, OfflinePageObservation(url, "user:fixture", true)))
+            val discovery = withTimeout(5000) { coordinator.background.first { it != null && it.id != check.id }!! }
             assertEquals("user:fixture", coordinator.store.context.value?.identity)
-            coordinator.liveNavigation("$wholeUrl&scroll=10")
-            assertTrue(capture.isCurrent())
+            assertEquals("save-discover", discovery.mode)
+            assertEquals("https://archiveofourown.org/works/123", discovery.url)
+            assertTrue(coordinator.downloadObserved(discovery.id, OfflinePageObservation(discovery.url, "user:fixture", true)))
+        }
+    }
+
+    @Test
+    fun `an account check that AO3 does not answer reports it and leaves nothing queued`() = runBlocking {
+        fixture(initialIdentity = null) { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            val check = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertFalse(coordinator.downloadObserved(check.id, OfflinePageObservation(check.url, null, false)))
+            withTimeout(5000) { coordinator.message.first { it == "AO3 did not show which account is signed in. Try again later." } }
+            withTimeout(5000) { coordinator.hasPendingDownloads.first { !it } }
+            assertNull(coordinator.background.value)
+            // No AO3 account was selected from the unanswered check.
+            assertNull(coordinator.store.initialize())
+        }
+    }
+
+    @Test
+    fun `a work saved before the account check is queued when the reader opens AO3 first`() = runBlocking {
+        fixture(initialIdentity = null) { coordinator, _ ->
+            coordinator.saveWork(123)
+            withTimeout(5000) { coordinator.hasPendingDownloads.first { it } }
             coordinator.liveNavigation(url)
-            assertFalse(capture.isCurrent())
+            coordinator.observed(OfflinePageObservation(url, "guest", false))
+            val queued = withTimeout(5000) { coordinator.downloads.first { it.isNotEmpty() }.single() }
+            assertEquals("save-discover", queued.job?.mode)
+            assertEquals("guest", coordinator.store.context.value?.identity)
+        }
+    }
+
+    @Test
+    fun `a download that finds AO3 signed in to another account moves the queue to it`() = runBlocking {
+        // A backup download selects the guest account when none is confirmed, though AO3 may be signed in.
+        fixture(initialIdentity = "guest") { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123, update = true)
+            val guest = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertEquals("update-discover", guest.mode)
+            assertFalse(coordinator.downloadObserved(guest.id, OfflinePageObservation(guest.url, "user:fixture", true)))
+            val moved = withTimeout(5000) { coordinator.background.first { it != null && it.id != guest.id }!! }
+            assertFalse(guest.capture.isCurrent())
+            assertEquals("user:fixture", coordinator.store.context.value?.identity)
+            assertEquals("update-discover", moved.mode)
+            assertEquals("https://archiveofourown.org/works/123", moved.url)
+            assertTrue(coordinator.downloadObserved(moved.id, OfflinePageObservation(moved.url, "user:fixture", true)))
+            assertTrue(coordinator.debugEntries.value.any { it.message.contains("queued downloads moved") })
         }
     }
 
