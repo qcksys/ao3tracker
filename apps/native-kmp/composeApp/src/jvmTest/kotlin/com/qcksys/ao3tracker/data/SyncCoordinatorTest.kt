@@ -1,7 +1,10 @@
 package com.qcksys.ao3tracker.data
 
 import com.qcksys.ao3tracker.data.auth.SyncAuthentication
+import com.qcksys.ao3tracker.data.backup.LibraryImportMode
+import com.qcksys.ao3tracker.data.backup.LibraryImporter
 import com.qcksys.ao3tracker.data.database.AccountDataStore
+import com.qcksys.ao3tracker.data.model.ExportData
 import com.qcksys.ao3tracker.data.database.WorkEntity
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncGetResponse
@@ -26,6 +29,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -204,6 +208,36 @@ class SyncCoordinatorTest {
             assertEquals(second, f.coordinator.lastSyncResult.value)
             f.coordinator.clearLastSyncResult(second)
             assertNull(f.coordinator.lastSyncResult.value)
+        }
+    }
+
+    @Test
+    fun replaceImportWaitsForARunningSyncSoItsCursorResetSurvives() = runTest {
+        withCoordinator { f ->
+            f.accounts.forAccount("production:a", { true }) { f.accounts.saveSyncCursors(STAMP, 100) }
+            val started = CompletableDeferred<Unit>()
+            val release = CompletableDeferred<Unit>()
+            f.onFetch = {
+                started.complete(Unit)
+                release.await()
+                Result.success(response())
+            }
+            val sync = f.coordinator.requestSync()
+            started.await()
+            val importer = LibraryImporter(f.accounts) { f.coordinator.runBetweenSyncs(it) }
+            val import = async {
+                importer.import(ExportData(exportedAt = "0", works = emptyList()), LibraryImportMode.REPLACE, "production:a")
+            }
+            runCurrent()
+            assertFalse(import.isCompleted, "Replace waits for the running sync")
+
+            release.complete(Unit)
+            assertIs<SyncResult.Success>(sync.await())
+            import.await()
+
+            val active = assertNotNull(f.accounts.active.value)
+            assertNull(active.remoteCursor, "The next sync downloads the server's works again")
+            assertNull(active.localCursor)
         }
     }
 

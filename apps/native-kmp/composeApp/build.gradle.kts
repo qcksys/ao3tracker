@@ -269,6 +269,8 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.credentials)
             implementation(libs.credentials.play.services)
+            implementation(libs.play.services.auth)
+            implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.security.crypto)
             implementation(libs.firebase.messaging)
         }

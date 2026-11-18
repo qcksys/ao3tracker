@@ -293,6 +293,20 @@ minified Dev and release builds, and debug/release lint before and after. Use
 instrumentation tests after changes to Compose, Koin, or SDK initialization.
 iOS integration, archives, and simulator tests require macOS/Xcode.
 
+## Google Drive backup
+
+Android's Account settings offer **Sign in with Google** to back up the active library to the user's Google Drive in the Export Data JSON format. Backups go one way; users restore them manually, and nothing syncs between devices. The app uses Google Identity Services' `AuthorizationClient`, which matches the installed app to an Android OAuth client by package name and signing certificate, so no client ID is in the code. Before testing or releasing, configure Google Cloud project `qs-ao3tracker`:
+
+1. Enable the **Google Drive API**.
+2. On the OAuth consent screen (Google Auth Platform), add the `https://www.googleapis.com/auth/drive.file` and `https://www.googleapis.com/auth/drive.appdata` scopes. Both are non-sensitive. Until the app is published there, add testers as test users.
+3. Create an **Android** OAuth client for each package and signing certificate that should sign in:
+   - `com.qcksys.ao3tracker` with the SHA-1 of the debug keystore (local builds) and of the **Play app signing** certificate (Play Console → Test and release → App integrity). Add the upload certificate's SHA-1 too if you install upload-signed builds directly.
+   - `com.qcksys.ao3tracker.dev` with the Play app signing SHA-1 of the Dev app, and the debug SHA-1 if needed.
+
+   Print a keystore's SHA-1 with `keytool -list -v -keystore <keystore> -alias <alias>`. The debug keystore is `~/.android/debug.keystore` (alias `androiddebugkey`, password `android`).
+
+Without a matching client, Google's sign-in fails with a developer error and the Account card shows it. To publish the consent screen for all users, set its privacy policy URL to `https://ao3tracker.com/privacy`, whose Google Drive backup section describes the Drive access and Limited Use compliance. Backups need nothing else from the tracker API.
+
 ## Crash reporting
 
 The native app uses [PostHog KMP error tracking](https://posthog.com/docs/error-tracking/installation/kmp). Unhandled exceptions and the Developer settings test error use the selected API's `/ingest/native` proxy. Deploy the API before distributing a client update. Both EU projects must have exception autocapture enabled: `ao3tracker-dev` (291114) and `ao3tracker` (69100).

@@ -9,9 +9,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.SlideTransition
 import com.qcksys.ao3tracker.data.auth.AuthRepository
+import com.qcksys.ao3tracker.data.backup.DriveBackupCoordinator
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.push.PushRepository
 import com.qcksys.ao3tracker.data.settings.AppSettings
@@ -46,6 +49,10 @@ fun App() {
         LaunchedEffect(Unit) {
             authRepository.initialize()
         }
+
+        // Starts automatic Google Drive backups; uploads a pending backup when the app leaves the screen.
+        val driveBackup = koinInject<DriveBackupCoordinator>()
+        LifecycleEventEffect(Lifecycle.Event.ON_STOP) { driveBackup.flush() }
 
         // Register push token and auto-sync when authenticated
         val authState by authRepository.authState.collectAsState()

@@ -3,6 +3,7 @@ package com.qcksys.ao3tracker
 import android.app.Application
 import com.posthog.kmp.PostHogContext
 import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
+import com.qcksys.ao3tracker.data.backup.initializeGoogleDrive
 import com.qcksys.ao3tracker.data.push.initializePushTokenStorage
 import com.qcksys.ao3tracker.data.settings.initializeSettingsStorage
 import com.qcksys.ao3tracker.data.offline.initializeOfflineFiles
@@ -21,6 +22,7 @@ open class Ao3TrackerApplication : Application() {
 
         initializePushTokenStorage(this)
         initializeSettingsStorage(this)
+        initializeGoogleDrive(this)
         initializeOfflineFiles(this)
         initializeOfflineNetwork(this)
         Ao3FirebaseMessagingService.createNotificationChannel(this)

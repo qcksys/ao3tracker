@@ -19,6 +19,8 @@ expect class SettingsStorage() {
     fun setBrowsingPreferences(preferences: String)
     fun getOfflinePreferences(): String?
     fun setOfflinePreferences(preferences: String)
+    fun getDriveBackupPreferences(): String?
+    fun setDriveBackupPreferences(preferences: String)
 }
 
 expect fun getSettingsStorage(): SettingsStorage

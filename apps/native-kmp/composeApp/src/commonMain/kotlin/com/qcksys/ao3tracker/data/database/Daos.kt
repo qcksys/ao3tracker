@@ -87,6 +87,10 @@ interface WorkDao {
 
     @Query("SELECT COUNT(*) FROM works WHERE rowDeletedAt IS NULL")
     fun observeWorkCount(): Flow<Int>
+
+    /** Latest work or chapter write; every library edit advances a row's `rowUpdatedAt`. */
+    @Query("SELECT MAX(COALESCE((SELECT MAX(rowUpdatedAt) FROM works), 0), COALESCE((SELECT MAX(rowUpdatedAt) FROM chapters), 0))")
+    fun observeLibraryRevision(): Flow<Long>
 }
 
 @Dao
