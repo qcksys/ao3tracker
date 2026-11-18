@@ -42,11 +42,13 @@ internal fun OfflineWorkCard(workId: Long) {
     val downloads by coordinator.downloads.collectAsState()
     val backups by coordinator.backupDownloads.collectAsState()
     val backupsAvailable by coordinator.backupsAvailable.collectAsState()
+    val ao3Check by coordinator.ao3Check.collectAsState()
     var showDebug by remember(workId) { mutableStateOf(false) }
     if (showDebug) DownloadDebugDialog(coordinator, workId) { showDebug = false }
     OfflineWorkCardContent(
         workId = workId,
         download = downloads.firstOrNull { it.work.workId == workId },
+        ao3Check = ao3Check != null,
         onSave = { update -> coordinator.saveWork(workId, update) },
         onRetry = { coordinator.retry(workId) },
         onRemove = { coordinator.remove(workId) },
@@ -65,6 +67,7 @@ internal fun OfflineWorkCard(workId: Long) {
 internal fun OfflineWorkCardContent(
     workId: Long,
     download: OfflineWorkStatus?,
+    ao3Check: Boolean = false,
     onSave: (update: Boolean) -> Unit,
     onRetry: () -> Unit,
     onRemove: () -> Unit,
@@ -75,7 +78,7 @@ internal fun OfflineWorkCardContent(
     onDownloadBackup: () -> Unit = {}
 ) {
     var expanded by rememberSaveable(workId) { mutableStateOf(false) }
-    val status = offlineWorkStatusText(download)
+    val status = offlineWorkStatusText(download, ao3Check)
     Card(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth()

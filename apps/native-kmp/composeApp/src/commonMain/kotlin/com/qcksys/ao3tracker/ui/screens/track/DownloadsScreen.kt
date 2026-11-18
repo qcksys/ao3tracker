@@ -40,6 +40,7 @@ internal class DownloadsScreen : Screen {
         val downloads by coordinator.downloads.collectAsState()
         val background by coordinator.background.collectAsState()
         val message by coordinator.message.collectAsState()
+        val ao3Check by coordinator.ao3Check.collectAsState()
         val navigator = LocalNavigator.currentOrThrow
         Scaffold(topBar = { TopAppBar(title = { Text("Downloads") }, navigationIcon = {
             TextButton(onClick = { navigator.pop() }) { Text("Back") }
@@ -49,7 +50,7 @@ internal class DownloadsScreen : Screen {
                 item {
                     DownloadQueueSection(offlineDownloadQueue(downloads), background,
                         onOpenLive = { workId -> coordinator.retry(workId); NavigationState.navigateToLiveWork(workId) },
-                        onRetry = coordinator::retry)
+                        onRetry = coordinator::retry, ao3Check = ao3Check != null)
                 }
                 item { Text("Saved works", style = MaterialTheme.typography.titleMedium) }
                 if (downloads.isEmpty()) item { Text("No works saved for this AO3 account. Open a work in Read and choose Save whole work.") }
@@ -69,7 +70,8 @@ internal fun DownloadQueueSection(
     queue: List<OfflineWorkStatus>,
     active: OfflineDownloadRequest?,
     onOpenLive: (workId: Long) -> Unit,
-    onRetry: (workId: Long) -> Unit
+    onRetry: (workId: Long) -> Unit,
+    ao3Check: Boolean = false
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -80,7 +82,7 @@ internal fun DownloadQueueSection(
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(download.work.title, style = MaterialTheme.typography.bodyLarge)
                     val status = active?.takeIf { it.workId == workId }?.let { offlineDownloadNotification(it, download).text }
-                        ?: offlineWorkStatusText(download)
+                        ?: offlineWorkStatusText(download, ao3Check)
                     Text(status, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     when (download.job?.state) {
                         "queued" -> TextButton(onClick = { onOpenLive(workId) }) { Text("Open on AO3") }
