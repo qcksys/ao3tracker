@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.History
@@ -85,6 +86,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.auth.AuthRepository
+import com.qcksys.ao3tracker.data.backup.DriveBackupCoordinator
+import com.qcksys.ao3tracker.data.backup.DriveBackupFile
+import com.qcksys.ao3tracker.data.backup.LibraryImporter
+import com.qcksys.ao3tracker.data.backup.decodeLibraryExport
+import com.qcksys.ao3tracker.ui.components.rememberJsonFilePicker
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
@@ -105,6 +111,9 @@ import com.qcksys.ao3tracker.util.shareText
 import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -146,6 +155,85 @@ fun SettingsScreen() {
     val isSyncingOut by syncCoordinator.isSigningOut.collectAsState()
     var importOwner by remember(activeAccount?.owner) { mutableStateOf<String?>(null) }
     var isImportingGuest by remember { mutableStateOf(false) }
+    val driveBackup = koinInject<DriveBackupCoordinator>()
+    val libraryImporter = koinInject<LibraryImporter>()
+    val driveState by driveBackup.state.collectAsState()
+    var driveBackups by remember { mutableStateOf<List<DriveBackupFile>?>(null) }
+    var pendingImport by remember(activeAccount?.owner) { mutableStateOf<PendingLibraryImport?>(null) }
+    var isImportingFile by remember { mutableStateOf(false) }
+    val libraryName = when (activeAccount?.owner) {
+        AccountDataStore.GUEST -> "Guest library"
+        else -> (authState as? AuthState.Authenticated)?.user?.email ?: "this account's library"
+    }
+
+    // Drive failures appear in the backup section's status message.
+    fun runDrive(action: suspend () -> Unit) {
+        scope.launch {
+            try {
+                action()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    val pickJsonFile = rememberJsonFilePicker { picked ->
+        val owner = activeAccount?.owner ?: return@rememberJsonFilePicker
+        scope.launch {
+            try {
+                val data = withContext(Dispatchers.Default) { decodeLibraryExport(picked.getOrThrow()) }
+                pendingImport = PendingLibraryImport("This file", data, owner)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                snackbarHostState.showSnackbar("Could not read an AO3 Tracker export: ${error.message}")
+            }
+        }
+    }
+
+    driveBackups?.let { backups ->
+        DriveBackupListDialog(
+            backups = backups,
+            deviceId = driveState.deviceId,
+            owner = activeAccount?.owner,
+            onDismiss = { driveBackups = null },
+            onSelect = { file ->
+                driveBackups = null
+                val owner = activeAccount?.owner ?: return@DriveBackupListDialog
+                runDrive { pendingImport = PendingLibraryImport(file.name.removeSuffix(".json"), driveBackup.download(file), owner) }
+            }
+        )
+    }
+
+    pendingImport?.let { pending ->
+        LibraryImportModeDialog(
+            pending = pending,
+            libraryName = libraryName,
+            isTrackerAccount = pending.owner != AccountDataStore.GUEST,
+            onDismiss = { pendingImport = null },
+            onConfirm = { mode ->
+                pendingImport = null
+                isImportingFile = true
+                scope.launch {
+                    try {
+                        val result = libraryImporter.import(pending.data, mode, pending.owner)
+                        snackbarHostState.showSnackbar(
+                            if (result.isEmpty) "No new or newer works to import"
+                            else "Imported ${result.added} new works and updated ${result.updated}"
+                        )
+                    } catch (error: CancellationException) {
+                        ensureActive()
+                        snackbarHostState.showSnackbar("Import cancelled because the library changed")
+                    } catch (error: Exception) {
+                        snackbarHostState.showSnackbar("Import failed: ${error.message}")
+                    } finally {
+                        isImportingFile = false
+                    }
+                }
+            }
+        )
+    }
 
     if (showSyncDebug) {
         SyncDebugDialog(syncState = syncState, onDismiss = { showSyncDebug = false })
@@ -313,6 +401,38 @@ fun SettingsScreen() {
                             }
                             else -> {}
                         }
+                    }
+                },
+                driveBackupContent = {
+                    if (driveState.available) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                        GoogleDriveBackupSection(
+                            state = driveState,
+                            onSignIn = {
+                                runDrive {
+                                    driveBackup.signIn(driveState.location)
+                                    snackbarHostState.showSnackbar("Signed in with Google. Backing up to Google Drive.")
+                                }
+                            },
+                            onLocationChange = { location -> runDrive { driveBackup.setLocation(location) } },
+                            onBackUpNow = {
+                                runDrive {
+                                    driveBackup.backupNow()
+                                    snackbarHostState.showSnackbar("Backed up to Google Drive")
+                                }
+                            },
+                            onRestore = {
+                                runDrive {
+                                    val backups = driveBackup.listBackups()
+                                    if (backups.isEmpty()) {
+                                        snackbarHostState.showSnackbar("No backups found in ${driveState.location.label()}")
+                                    } else {
+                                        driveBackups = backups
+                                    }
+                                }
+                            },
+                            onSignOut = { runDrive { driveBackup.signOut() } }
+                        )
                     }
                 }
             )
@@ -559,6 +679,25 @@ fun SettingsScreen() {
                         )
                     }
 
+                    if (pickJsonFile != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = pickJsonFile,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isImportingFile
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (isImportingFile) "Importing..." else "Import Data from JSON",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Button(
@@ -742,7 +881,8 @@ private fun AccountSection(
     onSignOutSyncAndClear: () -> Unit,
     isSyncingOut: Boolean,
     onSignInWithSavedCredentials: () -> Unit,
-    onRegisterPasskey: () -> Unit
+    onRegisterPasskey: () -> Unit,
+    driveBackupContent: @Composable () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -807,6 +947,8 @@ private fun AccountSection(
                     )
                 }
             }
+
+            driveBackupContent()
         }
     }
 }
@@ -1353,7 +1495,7 @@ private fun NotificationSettingRow(
  * Formats an ISO 8601 timestamp to a human-readable local date and time.
  */
 @OptIn(kotlin.time.ExperimentalTime::class)
-private fun formatLastSyncTime(iso8601: String): String {
+internal fun formatLastSyncTime(iso8601: String): String {
     return try {
         val instant = Instant.parse(iso8601)
         val localDateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())

@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.tooling.preview.Preview
 import com.qcksys.ao3tracker.data.auth.getAndroidCredentialHelper
+import com.qcksys.ao3tracker.data.backup.androidGoogleDriveAuthorizer
 import com.qcksys.ao3tracker.data.auth.initializeCredentialHelper
 import com.qcksys.ao3tracker.data.auth.initializeTokenStorage
 import com.qcksys.ao3tracker.data.database.initializeDatabase
@@ -30,6 +31,12 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         Napier.d("Notification permission ${if (isGranted) "granted" else "denied"}")
+    }
+
+    private val googleDriveAuthorization = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        androidGoogleDriveAuthorizer()?.onResult(result)
     }
 
 
@@ -53,6 +60,8 @@ class MainActivity : ComponentActivity() {
 
         // Initialize share helper with context
         initializeShareHelper(applicationContext)
+
+        androidGoogleDriveAuthorizer()?.attach(googleDriveAuthorization)
 
         // Request notification permission (Android 13+)
         requestNotificationPermissionIfNeeded()
@@ -109,6 +118,11 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         super.onPause()
         getAndroidCredentialHelper()?.setActivity(null)
+    }
+
+    override fun onDestroy() {
+        androidGoogleDriveAuthorizer()?.detach(googleDriveAuthorization)
+        super.onDestroy()
     }
 }
 
