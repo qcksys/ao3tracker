@@ -28,11 +28,13 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.navigator.LocalNavigator
 import com.qcksys.ao3tracker.data.offline.OfflineBackupDownload
 import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.data.offline.OfflineWorkStatus
 import com.qcksys.ao3tracker.data.offline.offlineWorkStatusText
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.screens.track.OfflineExportScreen
 import org.koin.compose.koinInject
 
 @Composable
@@ -43,6 +45,7 @@ internal fun OfflineWorkCard(workId: Long) {
     val backups by coordinator.backupDownloads.collectAsState()
     val backupsAvailable by coordinator.backupsAvailable.collectAsState()
     val ao3Check by coordinator.ao3Check.collectAsState()
+    val navigator = LocalNavigator.current
     var showDebug by remember(workId) { mutableStateOf(false) }
     if (showDebug) DownloadDebugDialog(coordinator, workId) { showDebug = false }
     OfflineWorkCardContent(
@@ -59,7 +62,8 @@ internal fun OfflineWorkCard(workId: Long) {
         },
         canDownloadBackup = backupsAvailable,
         backup = backups[workId],
-        onDownloadBackup = { coordinator.downloadBackup(workId) }
+        onDownloadBackup = { coordinator.downloadBackup(workId) },
+        onExport = navigator?.let { { it.push(OfflineExportScreen(listOf(workId))) } }
     )
 }
 
@@ -75,7 +79,8 @@ internal fun OfflineWorkCardContent(
     onOpenLive: () -> Unit,
     canDownloadBackup: Boolean = false,
     backup: OfflineBackupDownload? = null,
-    onDownloadBackup: () -> Unit = {}
+    onDownloadBackup: () -> Unit = {},
+    onExport: (() -> Unit)? = null
 ) {
     var expanded by rememberSaveable(workId) { mutableStateOf(false) }
     val status = offlineWorkStatusText(download, ao3Check)
@@ -129,6 +134,9 @@ internal fun OfflineWorkCardContent(
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (download?.job?.state == "failed") TextButton(onClick = onRetry) { Text("Retry download") }
+                if (onExport != null && download?.savedChapterIds?.isNotEmpty() == true) {
+                    TextButton(onClick = onExport) { Text("Export saved work") }
+                }
                 if (download != null) TextButton(onClick = onRemove) { Text("Remove download") }
             }
         }

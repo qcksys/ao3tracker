@@ -67,4 +67,23 @@ class OfflineWorkCardTest {
         rule.onNodeWithText("Download from backup").assertIsEnabled()
         rule.onNodeWithText("Saved 2 chapters from the latest backup.").assertExists()
     }
+
+    @Test
+    fun worksWithSavedChaptersCanBeExported() {
+        var exports = 0
+        val chapter = OfflineChapter("10", 1, "Chapter 1", "https://archiveofourown.org/works/1/chapters/10")
+        var download by mutableStateOf(OfflineWorkStatus(OfflineWorkEntity("context", 1, "Saved", "[]", true, 1), listOf(chapter), emptySet(), null, 0))
+        rule.setContent {
+            MaterialTheme {
+                OfflineWorkCardContent(1, download, onSave = {}, onRetry = {}, onRemove = {}, onShowDebug = {}, onOpenLive = {},
+                    onExport = { exports++ })
+            }
+        }
+
+        rule.onNodeWithText("Offline reading").performClick()
+        rule.onNodeWithText("Export saved work").assertDoesNotExist()
+        download = download.copy(savedChapterIds = setOf("10"))
+        rule.onNodeWithText("Export saved work").performClick()
+        assertEquals(1, exports)
+    }
 }
