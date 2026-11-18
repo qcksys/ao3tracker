@@ -1,10 +1,8 @@
 package com.qcksys.ao3tracker.ui.components
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
@@ -14,19 +12,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // Some file providers label .json files as plain text or binary.
-private val JSON_MIME_TYPES = arrayOf("application/json", "text/plain", "application/octet-stream")
+private val JSON_MIME_TYPES = listOf("application/json", "text/plain", "application/octet-stream")
 
 @Composable
 actual fun rememberJsonFilePicker(onPicked: (Result<String>) -> Unit): (() -> Unit)? {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val currentOnPicked by rememberUpdatedState(onPicked)
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    // The shared launcher reports a missing file picker (some TVs) instead of crashing.
+    val open = rememberOpenDocumentLauncher { document ->
+        if (document == null) return@rememberOpenDocumentLauncher
         scope.launch {
             val text = try {
                 withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
+                    context.contentResolver.openInputStream(Uri.parse(document))?.use { it.readBytes().decodeToString() }
                         ?: error("Could not open the file")
                 }
             } catch (error: CancellationException) {
@@ -38,5 +37,5 @@ actual fun rememberJsonFilePicker(onPicked: (Result<String>) -> Unit): (() -> Un
             currentOnPicked(Result.success(text))
         }
     }
-    return remember(launcher) { { launcher.launch(JSON_MIME_TYPES) } }
+    return { open(JSON_MIME_TYPES) }
 }
