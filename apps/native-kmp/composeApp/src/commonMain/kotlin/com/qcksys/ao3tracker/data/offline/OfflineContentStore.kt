@@ -126,7 +126,9 @@ internal class OfflineContentStore(
             }
         }
 
-        suspend fun publish(bundle: OfflineBundle, foreground: Boolean, pin: Boolean = false, jobId: String? = null, automatic: Boolean = false, deleteRead: Boolean = false) = withContext(Dispatchers.IO) {
+        /** With [keepLongerList], a saved work keeps its title and chapter list when that lists at least as many chapters. */
+        suspend fun publish(bundle: OfflineBundle, foreground: Boolean, pin: Boolean = false, jobId: String? = null, automatic: Boolean = false,
+            deleteRead: Boolean = false, keepLongerList: Boolean = false) = withContext(Dispatchers.IO) {
             mutex.withLock {
                 checkCurrent(context, isAllowed)
                 check(!finished)
@@ -166,8 +168,15 @@ internal class OfflineContentStore(
                                 bundle.page.chapters.firstOrNull { it.id == bundle.page.chapterId }?.number)) {
                             dao.deleteChapter(context.id, chapterRecord.key)
                         } else dao.saveChapter(chapterRecord)
-                        dao.saveWork(OfflineWorkEntity(context.id, bundle.page.workId.toLong(), bundle.page.title,
-                            if (job?.mode in setOf("save", "update") && oldWork != null) oldWork.chaptersJson else offlineJson.encodeToString(bundle.page.chapters),
+                        val kept = oldWork?.takeIf {
+                            keepLongerList && offlineJson.decodeFromString<List<OfflineChapter>>(it.chaptersJson).size >= bundle.page.chapters.size
+                        }
+                        val chapters = when {
+                            kept != null -> kept.chaptersJson
+                            job?.mode in setOf("save", "update") && oldWork != null -> oldWork.chaptersJson
+                            else -> offlineJson.encodeToString(bundle.page.chapters)
+                        }
+                        dao.saveWork(OfflineWorkEntity(context.id, bundle.page.workId.toLong(), kept?.title ?: bundle.page.title, chapters,
                             pin || oldWork?.pinned == true, time))
                     }
                     if (foreground && bundle.page.canSelectSkin) {
@@ -266,6 +275,35 @@ internal class OfflineContentStore(
                     maxOf(chapters.size, accounts.database.workDao().getWorkById(work.workId)?.currentChapters ?: 0), saved)
             }
         }
+    }
+
+    /**
+     * The saved chapters of [workIds] (every saved work when null) for an export, in chapter order. Each chapter is
+     * exported with the skin it is read with: the active site skin, or its own when that is unavailable.
+     */
+    suspend fun exportSnapshot(context: OfflineContext, workIds: Set<Long>? = null): OfflineExportSnapshot = mutex.withLock {
+        val works = forContext(context) { dao ->
+            val skins = dao.skins(context.id).associateBy { it.hash }
+            val active = dao.selectedContext()?.activeSkin
+            val snapshots = dao.chapters(context.id).filter { it.representation == "chapter" }.groupBy { it.workId }
+            dao.works(context.id).filter { workIds == null || it.workId in workIds }.mapNotNull { work ->
+                val order = offlineJson.decodeFromString<List<OfflineChapter>>(work.chaptersJson).map { it.id }
+                val chapters = snapshots[work.workId].orEmpty()
+                    .sortedBy { order.indexOf(it.chapterId.toString()).takeIf { index -> index >= 0 } ?: Int.MAX_VALUE }
+                    .map { entry ->
+                        OfflineExportChapter(entry.chapterId, entry.fileHash, decodeResources(entry.resourcesJson),
+                            listOfNotNull(active, entry.skinHash).distinct().mapNotNull { skins[it] }
+                                .map { OfflineArchiveSkin(it.hash, it.fileHash, decodeResources(it.resourcesJson)) }, entry.savedAt)
+                    }
+                chapters.takeIf { it.isNotEmpty() }?.let { OfflineExportWork(work.workId, work.title, it) }
+            }
+        }
+        val keys = works.flatMap { it.chapters }.flatMap { chapter ->
+            listOf(chapter.file) + chapter.resources.map { it.hash } + chapter.skins.flatMap { skin -> listOf(skin.file) + skin.resources.map { it.hash } }
+        }.toSet()
+        val lease = Uuid.random().toString()
+        leases.update { it + (lease to Lease(context.files, keys)) }
+        OfflineExportSnapshot(works, { key, limit -> files.read(context.files, key, limit) }, { leases.update { it - lease } })
     }
 
     suspend fun enqueueWork(context: OfflineContext, workId: Long, update: Boolean = false) = mutex.withLock {

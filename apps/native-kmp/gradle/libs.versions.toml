@@ -28,6 +28,8 @@ coil = "3.6.3"
 ktor = "3.6.0"
 credentials = "1.6.0"
 security-crypto = "1.1.0"
+# HTML to XHTML conversion for EPUB exports
+jsoup = "1.24.1"
 # Logging
 napier = "2.7.1"
 # Crash reporting
@@ -108,6 +110,9 @@ credentials-play-services = { module = "androidx.credentials:credentials-play-se
 
 # Android Security
 security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
+
+# HTML parsing
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 
 # Firebase
 firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebase-messaging" }

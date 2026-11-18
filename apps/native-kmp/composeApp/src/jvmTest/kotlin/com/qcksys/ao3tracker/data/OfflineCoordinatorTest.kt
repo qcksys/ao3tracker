@@ -548,7 +548,37 @@ class OfflineCoordinatorTest {
         listOf(OfflineBackupChapter("456", 1, "One", backupPage("First"), emptyList()),
             OfflineBackupChapter("457", 2, "Two", backupPage("Second"), emptyList())))
 
-    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", backups: OfflineBackupSource? = null, ao3CheckWaitMillis: Long = AO3_CHECK_WAIT_MILLIS, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
+    @Test
+    fun `saved works export to a file and import back without touching the library`() = runBlocking {
+        fixture(documents = getOfflineDocuments()) { coordinator, _ ->
+            val context = assertNotNull(coordinator.store.context.value)
+            coordinator.store.beginCapture(context).apply { publish(bundle(), foreground = false, pin = true); cancel() }
+            val file = Files.createTempFile("offline-export-", ".zip")
+            try {
+                coordinator.exportWorks(setOf(123), OfflineExportFormat.Archive, file.toString())
+                assertEquals("Exported 1 chapter from 1 work.", withTimeout(5000) { coordinator.transfer.first { it.message != null } }.message)
+                coordinator.store.removeWork(context, 123)
+                assertTrue(coordinator.store.statuses(context).isEmpty())
+
+                coordinator.importWorks(file.toString())
+                assertEquals("Imported 1 chapter from 1 work.",
+                    withTimeout(5000) { coordinator.transfer.first { it.message?.startsWith("Imported") == true } }.message)
+                // Downloads refresh before the result is published.
+                val status = coordinator.downloads.value.single()
+                assertTrue(status.work.pinned)
+                assertEquals(setOf("456"), status.savedChapterIds)
+
+                Files.writeString(file, "Not an export")
+                coordinator.importWorks(file.toString())
+                assertEquals("This file is not an export of downloaded works.",
+                    withTimeout(5000) { coordinator.transfer.first { it.message?.startsWith("This file") == true } }.message)
+            } finally {
+                Files.deleteIfExists(file)
+            }
+        }
+    }
+
+    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", backups: OfflineBackupSource? = null, ao3CheckWaitMillis: Long = AO3_CHECK_WAIT_MILLIS, documents: OfflineDocuments? = null, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")
         val accounts = createTestAccounts(directory, databaseContext)
         // Match the app's main-thread confinement for coordinator calls and jobs.
@@ -557,7 +587,7 @@ class OfflineCoordinatorTest {
             val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
             initialIdentity?.let { store.observeIdentity(it) }
             val network = MutableStateFlow(OfflineNetwork(true, true))
-            val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync, backups, ao3CheckWaitMillis)
+            val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync, backups, ao3CheckWaitMillis, documents)
             accounts.block(coordinator, network)
             assertTrue(accounts.database.chapterDao().getAllChaptersIncludingDeletedOnce().isEmpty())
             assertTrue(accounts.database.workDao().getAllWorksIncludingDeletedOnce().isEmpty())
