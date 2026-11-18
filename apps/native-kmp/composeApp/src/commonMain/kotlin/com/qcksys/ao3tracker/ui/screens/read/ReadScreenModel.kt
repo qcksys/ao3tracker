@@ -224,8 +224,11 @@ class ReadScreenModel(
             while (readerHistory.lastIndex > historyIndex) readerHistory.removeAt(readerHistory.lastIndex)
             updateHistoryControls()
             offline?.leaveLivePage()
-        } else fallback?.chapter?.document?.close()
-        offline?.notify("AO3 could not load this page. Your saved chapters remain available.")
+            offline?.notify("AO3 could not load this page. Your saved chapter is open.")
+        } else {
+            fallback?.chapter?.document?.close()
+            if (status != null) offline?.notify("AO3 could not load this page. Your saved chapters remain available.")
+        }
     }
 
     internal fun leaveReader() {

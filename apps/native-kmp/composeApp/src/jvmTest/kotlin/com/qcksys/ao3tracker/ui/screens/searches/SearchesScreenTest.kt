@@ -191,6 +191,11 @@ class SearchesScreenTest {
         rule.onNodeWithText("Rename search").assertDoesNotExist()
 
         rule.onNodeWithContentDescription("Delete Updated search").performClick()
+        rule.onNodeWithText("Remove “Updated search” from your saved searches?").assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        assertTrue(deleted.isEmpty())
+        rule.onNodeWithContentDescription("Delete Updated search").performClick()
+        rule.onNodeWithText("Delete").performClick()
         assertEquals(listOf(search.id), deleted)
         assertEquals(listOf(search.url), opened)
         rule.onNodeWithText("Updated search").assertDoesNotExist()

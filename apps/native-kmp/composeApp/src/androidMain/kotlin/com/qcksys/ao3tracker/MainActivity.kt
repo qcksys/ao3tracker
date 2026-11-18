@@ -1,15 +1,11 @@
 package com.qcksys.ao3tracker
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.tooling.preview.Preview
 import com.qcksys.ao3tracker.data.auth.getAndroidCredentialHelper
@@ -25,13 +21,6 @@ import com.qcksys.ao3tracker.util.initializeShareHelper
 import io.github.aakira.napier.Napier
 
 class MainActivity : ComponentActivity() {
-
-    // Notification permission request launcher (Android 13+)
-    private val notificationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        Napier.d("Notification permission ${if (isGranted) "granted" else "denied"}")
-    }
 
     private val googleDriveAuthorization = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -63,9 +52,6 @@ class MainActivity : ComponentActivity() {
 
         androidGoogleDriveAuthorizer()?.attach(googleDriveAuthorization)
 
-        // Request notification permission (Android 13+)
-        requestNotificationPermissionIfNeeded()
-
         handleNavigationIntent(intent)
 
         setContent {
@@ -77,18 +63,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleNavigationIntent(intent)
-    }
-
-    /**
-     * Requests notification permission on Android 13+ if not already granted.
-     */
-    private fun requestNotificationPermissionIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val permission = Manifest.permission.POST_NOTIFICATIONS
-            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(permission)
-            }
-        }
     }
 
     private fun handleNavigationIntent(intent: Intent?) {

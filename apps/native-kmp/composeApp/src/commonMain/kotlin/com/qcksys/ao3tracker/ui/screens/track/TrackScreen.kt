@@ -88,6 +88,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -105,6 +109,7 @@ import com.qcksys.ao3tracker.data.offline.OfflineCoordinator
 import com.qcksys.ao3tracker.data.offline.offlineDownloadsSummary
 import com.qcksys.ao3tracker.data.offline.savedChapterNumbers
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import com.qcksys.ao3tracker.ui.navigation.isShortWindowWithKeyboard
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.components.WorkMetadata
 import com.qcksys.ao3tracker.ui.components.formatWorkTimestamp
@@ -127,6 +132,8 @@ fun TrackScreen() {
     val visibleWorks = if (offlineOnly && offline.enabled) works.filter { it.id in availableIds } else works
     val totalWorksCount by screenModel.totalWorksCount.collectAsState()
     val filterState by screenModel.filterState.collectAsState()
+    val hasActiveFilters = filterState.hasActiveFilters || (offline.enabled && offlineOnly)
+    val compactSearch = isShortWindowWithKeyboard()
     val isFilterSheetVisible by screenModel.isFilterSheetVisible.collectAsState()
     val sheetState = rememberModalBottomSheetState()
 
@@ -202,7 +209,7 @@ fun TrackScreen() {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
+            if (!compactSearch) TopAppBar(
                 title = { Text("Works", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
                     // Sync button
@@ -364,13 +371,13 @@ fun TrackScreen() {
                 .padding(paddingValues)
         ) {
             // Status row: sync status + works count
-            val countText = if (filterState.hasActiveFilters) {
-                "${works.size} of $totalWorksCount works"
+            val countText = if (hasActiveFilters) {
+                "${visibleWorks.size} of $totalWorksCount works"
             } else {
                 "$totalWorksCount works"
             }
 
-            Row(
+            if (!compactSearch) Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
@@ -429,7 +436,7 @@ fun TrackScreen() {
                 Text(
                     text = countText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (filterState.hasActiveFilters)
+                    color = if (hasActiveFilters)
                         MaterialTheme.colorScheme.primary
                     else
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -437,7 +444,7 @@ fun TrackScreen() {
             }
 
             // Sync error indicator
-            syncState.error?.let { error ->
+            if (!compactSearch) syncState.error?.let { error ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -476,7 +483,7 @@ fun TrackScreen() {
             )
 
             // Active filters indicator
-            if (filterState.hasActiveFilters) {
+            if (hasActiveFilters && !compactSearch) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -489,13 +496,16 @@ fun TrackScreen() {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    TextButton(onClick = { screenModel.clearAllFilters() }) {
+                    TextButton(onClick = {
+                        offlineOnly = false
+                        screenModel.clearAllFilters()
+                    }) {
                         Text("Clear all")
                     }
                 }
             }
 
-            if (offline.enabled) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween,
+            if (offline.enabled && !compactSearch) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically) {
                 FilterChip(selected = offlineOnly, onClick = { offlineOnly = !offlineOnly }, label = { Text("Available offline", maxLines = 1) })
                 Row(Modifier.weight(1f, fill = false).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -512,7 +522,7 @@ fun TrackScreen() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (filterState.hasActiveFilters || offlineOnly) {
+                        text = if (hasActiveFilters) {
                             "No works match your filters"
                         } else {
                             "No tracked works yet.\nVisit AO3 in the Read tab to start tracking!"
@@ -1098,7 +1108,7 @@ private fun TagFilterSection(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TriStateFilterChip(
+internal fun TriStateFilterChip(
     mode: TagFilterMode,
     onClick: () -> Unit,
     label: String,
@@ -1126,7 +1136,19 @@ private fun TriStateFilterChip(
         contentColor = labelColor,
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, borderColor),
-        modifier = Modifier.combinedClickable(
+        modifier = Modifier.semantics {
+            stateDescription = when (mode) {
+                TagFilterMode.DEFAULT -> "Neutral"
+                TagFilterMode.INCLUDE -> "Included"
+                TagFilterMode.EXCLUDE -> "Excluded"
+            }
+            toggleableState = when (mode) {
+                TagFilterMode.DEFAULT -> ToggleableState.Off
+                TagFilterMode.INCLUDE -> ToggleableState.On
+                TagFilterMode.EXCLUDE -> ToggleableState.Indeterminate
+            }
+        }.combinedClickable(
+            role = Role.Checkbox,
             onClick = onClick,
             onLongClick = onLongClick
         )
@@ -1144,11 +1166,13 @@ private fun TriStateFilterChip(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
             }
+            if (mode != TagFilterMode.DEFAULT) {
+                Icon(if (mode == TagFilterMode.INCLUDE) Icons.Default.Check else Icons.Default.Clear,
+                    contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+            }
             Text(
-                text = when (mode) {
-                    TagFilterMode.EXCLUDE -> "✗ $label"
-                    else -> label
-                },
+                text = label,
                 color = labelColor,
                 style = MaterialTheme.typography.labelLarge
             )

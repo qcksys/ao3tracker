@@ -140,6 +140,7 @@ internal fun SearchesScreenContent(
     checkStatus: String? = null
 ) {
     var renaming by remember { mutableStateOf<SavedSearchEntity?>(null) }
+    var deleteId by remember { mutableStateOf<String?>(null) }
     var scanning by remember { mutableStateOf<SavedSearchEntity?>(null) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -287,7 +288,7 @@ internal fun SearchesScreenContent(
                                         contentDescription = "Rename ${search.name}"
                                     )
                                 }
-                                IconButton(onClick = { onDelete(search.id) }) {
+                                IconButton(onClick = { deleteId = search.id }) {
                                     Icon(
                                         imageVector = Icons.Default.Delete,
                                         contentDescription = "Delete ${search.name}"
@@ -299,6 +300,18 @@ internal fun SearchesScreenContent(
                 }
             }
         }
+    }
+
+    searches.firstOrNull { it.id == deleteId }?.let { search ->
+        AlertDialog(
+            onDismissRequest = { deleteId = null },
+            title = { Text("Delete saved search?") },
+            text = { Text("Remove “${search.name}” from your saved searches?") },
+            confirmButton = {
+                TextButton(onClick = { deleteId = null; onDelete(search.id) }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleteId = null }) { Text("Cancel") } }
+        )
     }
 
     scanning?.let { search ->
