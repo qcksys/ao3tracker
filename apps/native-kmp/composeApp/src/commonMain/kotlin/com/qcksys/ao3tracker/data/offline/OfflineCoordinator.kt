@@ -3,11 +3,12 @@ package com.qcksys.ao3tracker.data.offline
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.OfflineJobEntity
 import com.qcksys.ao3tracker.data.settings.AppSettings
-import com.qcksys.ao3tracker.ui.navigation.NavigationState
+import io.ktor.http.URLBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -28,14 +30,31 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.time.Clock
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
+/**
+ * A page the download service loads. [observe] receives the loaded page's AO3 account and returns whether to capture it;
+ * the `identity` mode only confirms the account before a first download. [challenged] reports Cloudflare's check.
+ */
 internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false,
-    val mode: String = "save-discover", val done: Int = 0, val total: Int = 1)
+    val mode: String = "save-discover", val done: Int = 0, val total: Int = 1, val challenged: () -> Unit = {},
+    val observe: (OfflinePageObservation?) -> Boolean = { true })
+
+/** A background download found AO3 signed in to [identity] rather than the download queue's account. */
+private class OfflineIdentityChanged(val identity: String) : Exception("AO3 is signed in to a different account.")
+
+/** Cloudflare's check in front of AO3 did not clear by itself; the reader has to pass it in Read. */
+private class OfflineAo3Check : Exception("AO3 wants to check that you're not a robot.")
+
+/** How long a background download waits for Cloudflare's check to clear by itself, as the work checker does. */
+internal const val AO3_CHECK_WAIT_MILLIS = 45_000L
 internal data class DownloadDebugEntry(val timestamp: String, val message: String)
 /** A work's latest backup download: in progress, or finished with [message]. */
 internal data class OfflineBackupDownload(val running: Boolean, val message: String? = null)
+/** The latest export or import of downloaded works: in progress, described by [progress], or finished with [message]. */
+internal data class OfflineTransferStatus(val progress: String? = null, val message: String? = null) {
+    val running: Boolean get() = progress != null
+}
 
 internal const val QUEUE_GRACE_MILLIS = 5_000L
 
@@ -48,7 +67,9 @@ class OfflineCoordinator internal constructor(
     val enabled: Boolean,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     private val requestSync: () -> Unit = {},
-    private val backups: OfflineBackupSource? = null
+    private val backups: OfflineBackupSource? = null,
+    private val ao3CheckWaitMillis: Long = AO3_CHECK_WAIT_MILLIS,
+    private val documents: OfflineDocuments? = null
 ) {
     private var storedStates: List<OfflineWorkStatus> = emptyList()
     private val workStates = MutableStateFlow<List<OfflineWorkStatus>>(emptyList())
@@ -79,6 +100,8 @@ class OfflineCoordinator internal constructor(
     internal val backupDownloads = backupState.asStateFlow()
     internal val backupsAvailable: StateFlow<Boolean> =
         backups?.available?.map { enabled && it }?.stateIn(scope, SharingStarted.Eagerly, false) ?: MutableStateFlow(false)
+    private val transferState = MutableStateFlow(OfflineTransferStatus())
+    internal val transfer = transferState.asStateFlow()
     private var automaticPage: OfflinePage? = null
     private val liveNavigation = MutableStateFlow(0L)
     private val captureId = MutableStateFlow<String?>(null)
@@ -87,7 +110,11 @@ class OfflineCoordinator internal constructor(
     private var foregroundTask: Job? = null
     private var downloadTask: Job? = null
     private val downloadId = MutableStateFlow<String?>(null)
-    private var pendingSave: Pair<Long, Boolean>? = null
+    // Works to save, by whether to update them, once AO3 confirms which account is signed in.
+    private val pendingSaves = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
+    // The work whose download met a Cloudflare check that did not clear; the queue waits until AO3 loads in Read.
+    private val ao3CheckState = MutableStateFlow<Long?>(null)
+    internal val ao3Check = ao3CheckState.asStateFlow()
     private var workRevisions: Map<Long, Pair<Int?, String?>> = emptyMap()
     // Revisions already queued this session, so an update that cannot reach the reported count is not repeated.
     private val queuedUpdates = mutableMapOf<Long, Pair<Int?, String?>?>()
@@ -127,7 +154,8 @@ class OfflineCoordinator internal constructor(
                             storedStates = emptyList()
                             workStates.value = emptyList()
                             shownRequest.value = null
-                            pendingSave = null
+                            pendingSaves.value = emptyMap()
+                            ao3CheckState.value = null
                             automaticPage = null
                             debugState.value = emptyList()
                             queuedUpdates.clear()
@@ -178,7 +206,16 @@ class OfflineCoordinator internal constructor(
             scope.launch {
                 for (signal in wake) {
                     while (canDownload()) {
-                        val context = store.context.value ?: break
+                        val context = store.context.value
+                        if (context == null) {
+                            if (pendingSaves.value.isEmpty()) break
+                            val task = scope.launch { confirmIdentity() }
+                            downloadTask = task
+                            task.join()
+                            if (downloadTask === task) downloadTask = null
+                            if (store.context.value == null) break
+                            continue
+                        }
                         val job = try { store.nextJob(context, prefetchAllowed()) } catch (_: CancellationException) { null } catch (_: Exception) {
                             statusMessage.value = "The download queue could not be loaded. Try reopening the app."
                             null
@@ -283,16 +320,17 @@ class OfflineCoordinator internal constructor(
                     automaticPage = null
                     debugState.value = emptyList()
                 }
-                event.identity?.let { store.observeIdentity(it) { liveNavigation.value == version } }
+                val context = event.identity?.let { store.observeIdentity(it) { liveNavigation.value == version } }
                 if (liveNavigation.value != version) return@launch
                 observation.value = event
+                context?.let { queuePendingSaves(it) }
+                // An AO3 page loading in Read means Cloudflare's check has been passed in the shared session.
+                if (event.identity != null && ao3CheckState.value != null) {
+                    ao3CheckState.value = null
+                    debug("AO3 loaded in Read; downloads resume.")
+                }
                 refresh()
-                val pending = pendingSave
-                if (pending != null && event.readable && event.identity != null &&
-                    runCatching { offlineLocation(event.url).workId.toLong() == pending.first }.getOrDefault(false)) {
-                    pendingSave = null
-                    captureCurrent(pending.first, pending.second)
-                } else if (event.readable && event.identity != null && automaticAllowed() && foreground.value && captureId.value == null) {
+                if (event.readable && event.identity != null && automaticAllowed() && foreground.value && captureId.value == null) {
                     captureCurrent(offlineLocation(event.url).workId.toLong(), false, automatic = true)
                 }
                 kick()
@@ -310,9 +348,11 @@ class OfflineCoordinator internal constructor(
         } else launchAction {
             val context = store.context.value?.takeIf(store::isCurrent)
             if (context == null) {
-                pendingSave = workId to update
-                statusMessage.value = "The work will be saved after AO3 confirms access."
-                NavigationState.navigateToRead("https://archiveofourown.org/works/$workId?view_full_work=true")
+                // The download service confirms the AO3 account from the work's page, without opening it in Read.
+                pendingSaves.update { it + (workId to (update || it[workId] == true)) }
+                statusMessage.value = "Checking your AO3 account before downloading."
+                refreshQueueAvailability()
+                kick()
                 return@launchAction
             }
             downloadTask?.cancel()
@@ -362,13 +402,11 @@ class OfflineCoordinator internal constructor(
         check(backup.workId == workId && store.isCurrent(context))
         store.replaceQueuedDownloads(context, workId)
         if (backgroundRequest.value?.workId == workId) { downloadId.value = null; downloadTask?.cancel() }
-        val revision = backup.ao3UpdatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
         val snapshots = store.statuses(context).firstOrNull { it.work.workId == workId }?.snapshots.orEmpty().associateBy { it.key }
         var saved = 0
         offlineBackupPages(backup, context.identity).forEachIndexed { index, page ->
             val current = snapshots[chapterKey(page.url, page.chapterId)]
-            val currentRevision = current?.downloadUpdatedAt?.let { runCatching { Instant.parse(it) }.getOrNull() }
-            if (current != null && (revision == null || currentRevision != null && currentRevision >= revision)) return@forEachIndexed
+            if (current != null && keepsSavedRevision(current.downloadUpdatedAt, backup.ao3UpdatedAt)) return@forEachIndexed
             val capture = store.beginCapture(context)
             try {
                 capture.publish(OfflineBundle(page, offlineSkinHash(page.siteStyles), emptyList(), backup.chapters[index].missingResources),
@@ -383,6 +421,47 @@ class OfflineCoordinator internal constructor(
             0 -> "Your saved chapters already match the latest backup."
             1 -> "Saved 1 chapter from the latest backup."
             else -> "Saved $saved chapters from the latest backup."
+        }
+    }
+
+    /** Writes the saved chapters of [workIds] to [document] in [format]. */
+    internal fun exportWorks(workIds: Set<Long>, format: OfflineExportFormat, document: String) =
+        transferWorks("Exporting…", "The export could not be written. Try again, or choose another location.") { files ->
+            val context = store.context.value?.takeIf(store::isCurrent) ?: store.initialize()
+                ?: return@transferWorks "There are no downloaded works to export."
+            val summary = store.exportSnapshot(context, workIds).use { files.export(document, format, it, Clock.System.now()) }
+            debug("Exported ${summary.chapters} chapters; ${summary.skipped} damaged chapters were left out.")
+            offlineExportMessage(summary)
+        }
+
+    /** Saves the chapters of the app archive [document] in the selected AO3 account's downloads, or the guest's. */
+    internal fun importWorks(document: String) =
+        transferWorks("Importing…", "The import stopped before it finished. Free up device space and try again. Chapters already imported were kept.") { files ->
+            val context = store.context.value?.takeIf(store::isCurrent) ?: store.initialize() ?: store.observeIdentity("guest")
+            val result = withContext(Dispatchers.IO) { files.import(document) { store.importArchive(context, it) } }
+            debug("Imported ${result.saved} chapters; kept ${result.kept}; skipped ${result.skipped} damaged chapters.")
+            offlineImportMessage(result)
+        }
+
+    private fun transferWorks(progress: String, failure: String, action: suspend (OfflineDocuments) -> String) {
+        val files = documents ?: return
+        if (!enabled || transferState.value.running) return
+        transferState.value = OfflineTransferStatus(progress = progress)
+        scope.launch {
+            var message: String? = null
+            try {
+                message = action(files)
+            } catch (error: OfflineArchiveInvalid) {
+                message = error.message
+            } catch (error: CancellationException) {
+                message = "Stopped because the account changed."
+                throw error
+            } catch (_: Exception) {
+                message = failure
+            } finally {
+                withContext(NonCancellable) { runCatching { refresh() } }
+                transferState.value = OfflineTransferStatus(message = message)
+            }
         }
     }
 
@@ -446,13 +525,15 @@ class OfflineCoordinator internal constructor(
         foregroundTask = null
     }
 
-    private fun canDownload(): Boolean = enabled && (foreground.value || serviceActive.value) && network.value.connected && captureId.value == null
+    private fun canDownload(): Boolean = enabled && (foreground.value || serviceActive.value) && network.value.connected && captureId.value == null &&
+        ao3CheckState.value == null
     private fun automaticAllowed(): Boolean = settings.offlinePreferences.value.automatic && !settings.incognitoModeEnabled.value
     private fun prefetchAllowed(): Boolean = automaticAllowed() && (!settings.offlinePreferences.value.wifiOnly || network.value.wifi)
     private fun kick() { wake.trySend(Unit) }
 
     private suspend fun runDownload(context: OfflineContext, job: OfflineJobEntity) {
         var staged: OfflineContentStore.Capture? = null
+        var checkTimer: Job? = null
         val id = Uuid.random().toString()
         val automatic = job.mode == "prefetch"
         val tracking = settings.captureTrackingSession()
@@ -480,7 +561,24 @@ class OfflineCoordinator internal constructor(
                     }, onProgress = ::debug)
                 val done = offlineJson.decodeFromString<List<String>>(job.completedJson).size
                 val total = done + offlineJson.decodeFromString<List<String>>(job.remainingJson).size
-                val download = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total)
+                val download = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total,
+                    challenged = {
+                        // A real browser often passes the check by itself and reloads the page.
+                        if (checkTimer?.isActive != true) checkTimer = scope.launch {
+                            delay(ao3CheckWaitMillis)
+                            result.completeExceptionally(OfflineAo3Check())
+                        }
+                    }
+                ) { observation ->
+                    val identity = observation?.identity
+                    when {
+                        result.isCompleted -> false
+                        // The check's own page shows no AO3 account.
+                        identity == null && checkTimer?.isActive == true -> false
+                        identity == null || identity == context.identity || !allowed() -> { checkTimer?.cancel(); true }
+                        else -> { result.completeExceptionally(OfflineIdentityChanged(identity)); false }
+                    }
+                }
                 backgroundRequest.value = download
                 showProgress(download)
                 refresh()
@@ -495,6 +593,20 @@ class OfflineCoordinator internal constructor(
                 if (store.isCurrent(context)) store.setJobState(context, job.id, "queued")
             }
             throw error
+        } catch (error: OfflineIdentityChanged) {
+            // The download WebView shares the reader's AO3 session, so the queue follows the account AO3 shows.
+            withContext(NonCancellable) {
+                if (!store.isCurrent(context)) return@withContext
+                store.switchQueueIdentity(context, error.identity)
+                identityChanged()
+                debug("AO3 is signed in to a different account; queued downloads moved to it.")
+            }
+        } catch (_: OfflineAo3Check) {
+            // The chapter stays queued without using a retry.
+            withContext(NonCancellable) {
+                if (store.isCurrent(context)) store.setJobState(context, job.id, "queued")
+                pauseForAo3Check(job.workId)
+            }
         } catch (error: Exception) {
             debug("Download failed: ${error.message ?: error::class.simpleName}")
             if (store.isCurrent(context)) {
@@ -504,6 +616,7 @@ class OfflineCoordinator internal constructor(
                 else store.failJob(context, job.id, message, gate.cooldown.value)
             }
         } finally {
+            checkTimer?.cancel()
             if (downloadId.value == id) downloadId.value = null
             if (backgroundRequest.value?.id == id) backgroundRequest.value = null
             releaseProgress(id)
@@ -515,9 +628,114 @@ class OfflineCoordinator internal constructor(
         }
     }
 
+    /**
+     * Confirms which AO3 account is signed in by loading the first pending work's page in the download service, then
+     * queues the pending works under that account.
+     */
+    private suspend fun confirmIdentity() {
+        val workId = pendingSaves.value.keys.firstOrNull() ?: return
+        val id = Uuid.random().toString()
+        val url = "https://archiveofourown.org/works/$workId"
+        val identity = CompletableDeferred<String>()
+        var checkTimer: Job? = null
+        try {
+            gate.background {
+                if (!canDownload() || store.context.value != null) return@background
+                downloadId.value = id
+                debug("Checking which AO3 account is signed in.")
+                val failed: (String, String?) -> Unit = { message, retryAfter ->
+                    if (retryAfter != null) gate.pause(retryAfter)
+                    identity.completeExceptionally(IllegalStateException(message))
+                }
+                val request = OfflineCaptureRequest(url, null, { downloadId.value == id && canDownload() },
+                    { _, _ -> error("Account checks do not save resources.") }, { error("Account checks do not save chapters.") },
+                    failed, ::debug)
+                backgroundRequest.value = OfflineDownloadRequest(id, workId, url, request, mode = "identity",
+                    challenged = {
+                        if (checkTimer?.isActive != true) checkTimer = scope.launch {
+                            delay(ao3CheckWaitMillis)
+                            identity.completeExceptionally(OfflineAo3Check())
+                        }
+                    }
+                ) { observation ->
+                    val account = observation?.identity
+                    when {
+                        identity.isCompleted -> Unit
+                        account != null -> { checkTimer?.cancel(); identity.complete(account) }
+                        // Cloudflare's check page shows no AO3 account while it is still running.
+                        checkTimer?.isActive == true -> Unit
+                        else -> failed("AO3 did not show which account is signed in. Try again later.", null)
+                    }
+                    false
+                }
+                withTimeout(120_000) { identity.await() }
+            }
+            if (!identity.isCompleted) return
+            val context = store.observeIdentity(identity.await())
+            debug("AO3 account confirmed.")
+            queuePendingSaves(context)
+            refresh()
+        } catch (error: CancellationException) {
+            if (error is TimeoutCancellationException) giveUpPendingSaves("AO3 did not respond. Try again later.") else throw error
+        } catch (_: OfflineAo3Check) {
+            // The pending works stay pending until the check is passed in Read.
+            pauseForAo3Check(workId)
+        } catch (error: Exception) {
+            giveUpPendingSaves(error.message ?: "AO3 did not show which account is signed in. Try again later.")
+        } finally {
+            checkTimer?.cancel()
+            if (downloadId.value == id) downloadId.value = null
+            if (backgroundRequest.value?.id == id) backgroundRequest.value = null
+        }
+    }
+
+    private suspend fun queuePendingSaves(context: OfflineContext) {
+        val saves = pendingSaves.getAndUpdate { emptyMap() }
+        if (saves.isEmpty()) return
+        for ((workId, update) in saves) store.enqueueWork(context, workId, update)
+        debug(if (saves.size == 1) "Queued whole-work download." else "Queued ${saves.size} whole-work downloads.")
+        kick()
+    }
+
+    /** Holds the queue until the reader passes Cloudflare's check in Read, which [observed] reports. */
+    private suspend fun pauseForAo3Check(workId: Long) {
+        ao3CheckState.value = workId
+        debug("Cloudflare's check did not clear; downloads wait until AO3 loads in Read.")
+        statusMessage.value = "AO3 wants to check you're not a robot. Open the work on AO3 to continue downloading."
+        refreshQueueAvailability()
+    }
+
+    /** The download service loaded Cloudflare's check instead of the requested page. */
+    internal fun downloadChallenged(id: String) {
+        val request = backgroundRequest.value?.takeIf { it.id == id } ?: return
+        debug("AO3 showed Cloudflare's check; waiting for it to clear.")
+        request.challenged()
+    }
+
+    private suspend fun giveUpPendingSaves(message: String) {
+        pendingSaves.value = emptyMap()
+        debug("Account check failed: $message")
+        statusMessage.value = message
+        refreshQueueAvailability()
+    }
+
+    /** Clears what the previous AO3 account's queue showed after the selected account changed. */
+    private suspend fun identityChanged() {
+        storedStates = emptyList()
+        workStates.value = emptyList()
+        automaticPage = null
+        debugState.value = emptyList()
+        refresh()
+        kick()
+    }
+
+    /** The download service's report of the AO3 account on the page it loaded; true when the page should be captured. */
+    internal fun downloadObserved(id: String, observation: OfflinePageObservation?): Boolean =
+        backgroundRequest.value?.takeIf { it.id == id }?.observe?.invoke(observation) ?: false
+
     internal fun downloadNavigation(id: String, url: String) {
         val current = backgroundRequest.value?.takeIf { it.id == id } ?: return
-        if (url == current.url) return
+        if (url == current.url || cloudflareRetry(url, current.url)) return
         val location = runCatching { offlineLocation(url) }.getOrNull()
         val expected = offlineLocation(current.url)
         if (location?.workId == expected.workId && expected.chapterId == null && location.representation == expected.representation) {
@@ -617,9 +835,16 @@ class OfflineCoordinator internal constructor(
 
     private suspend fun refreshQueueAvailability() {
         val context = store.context.value
-        queueActive.value = context != null && store.isCurrent(context) &&
-            (store.nextJob(context, prefetchAllowed()) != null || store.nextRetryAt(context, prefetchAllowed()) != null)
+        queueActive.value = ao3CheckState.value == null && (context == null && pendingSaves.value.isNotEmpty() || context != null &&
+            store.isCurrent(context) && (store.nextJob(context, prefetchAllowed()) != null || store.nextRetryAt(context, prefetchAllowed()) != null))
     }
+
+    /** Cloudflare's check reloads the page with its own `__cf_chl_` parameters before returning to the page itself. */
+    private fun cloudflareRetry(url: String, page: String): Boolean = runCatching {
+        val retry = URLBuilder(url)
+        val names = retry.parameters.names().filter { it.startsWith("__cf_chl_") }
+        names.isNotEmpty() && sameOfflinePage(retry.apply { names.forEach(parameters::remove) }.buildString(), page)
+    }.getOrDefault(false)
 
     private fun launchAction(action: suspend () -> Unit) = scope.launch {
         try { action() } catch (_: CancellationException) { } catch (_: Exception) {

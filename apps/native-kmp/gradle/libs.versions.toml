@@ -27,7 +27,10 @@ voyager = "1.1.0-beta03" # Retain the existing line; newer Kotlin/CMP-aligned re
 coil = "3.6.3"
 ktor = "3.6.0"
 credentials = "1.6.0"
+play-services-auth = "22.0.0"
 security-crypto = "1.1.0"
+# HTML to XHTML conversion for EPUB exports
+jsoup = "1.24.1"
 # Logging
 napier = "2.7.1"
 # Crash reporting
@@ -106,8 +109,15 @@ ktor-client-java = { module = "io.ktor:ktor-client-java", version.ref = "ktor" }
 credentials = { module = "androidx.credentials:credentials", version.ref = "credentials" }
 credentials-play-services = { module = "androidx.credentials:credentials-play-services-auth", version.ref = "credentials" }
 
+# Google Drive backup authorization (Google Identity Services AuthorizationClient)
+play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "play-services-auth" }
+kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "kotlinx-coroutines" }
+
 # Android Security
 security-crypto = { module = "androidx.security:security-crypto", version.ref = "security-crypto" }
+
+# HTML parsing
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 
 # Firebase
 firebase-messaging = { module = "com.google.firebase:firebase-messaging", version.ref = "firebase-messaging" }

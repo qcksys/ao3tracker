@@ -209,9 +209,7 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
                             style = MaterialTheme.typography.titleMedium
                         )
                         if (workData.chapterList.isNotEmpty()) {
-                            val readChapters = workData.chapterList.count {
-                                (it.readProgress ?: 0f) > 0f
-                            }
+                            val readChapters = workData.chapterList.count { it.isComplete }
                             Text(
                                 text = "$readChapters/${workData.chapterList.size} read",
                                 style = MaterialTheme.typography.bodySmall,
@@ -326,8 +324,9 @@ private fun WorkDetailContent(screenModel: WorkDetailScreenModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WorkInfoCard(
+internal fun WorkInfoCard(
     work: Work,
     onMarkAsRead: () -> Unit,
     onMarkAsUnread: () -> Unit,
@@ -390,14 +389,15 @@ private fun WorkInfoCard(
             // Mark as Read / Unread buttons
             if (work.chapterList.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (!isComplete) {
                         Button(
                             onClick = onMarkAsRead,
-                            modifier = Modifier.weight(1f)
+                            modifier = if (hasProgress) Modifier else Modifier.fillMaxWidth()
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Done,

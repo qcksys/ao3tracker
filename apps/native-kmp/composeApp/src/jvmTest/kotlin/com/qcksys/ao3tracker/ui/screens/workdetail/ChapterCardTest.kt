@@ -3,6 +3,9 @@ package com.qcksys.ao3tracker.ui.screens.workdetail
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
@@ -13,6 +16,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import com.qcksys.ao3tracker.data.model.Chapter
+import com.qcksys.ao3tracker.data.model.Work
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -34,6 +38,28 @@ class ChapterCardTest {
         rowCreatedAt = now,
         rowUpdatedAt = now
     )
+
+    @Test
+    fun largeTextMovesBulkReadingActionsOntoSeparateRows() {
+        val work = Work(id = 1, title = "Sample", currentChapters = 1, chapterList = listOf(chapter),
+            rowCreatedAt = now, rowUpdatedAt = now)
+        rule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(1f, 2f)) {
+                MaterialTheme {
+                    Box(Modifier.width(390.dp)) { WorkInfoCard(work, {}, {}, {}, {}) }
+                }
+            }
+        }
+        val read = rule.onNodeWithText("Mark All Read").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val unread = rule.onNodeWithText("Mark All Unread").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue(unread.top >= read.bottom)
+        for (label in listOf("Mark All Read", "Mark All Unread")) {
+            val layouts = mutableListOf<TextLayoutResult>()
+            rule.onNodeWithText(label, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertEquals(1, layouts.single().lineCount)
+        }
+    }
 
     @Test
     fun publishedAndReadDatesFitOnOneLineOnNarrowCards() {

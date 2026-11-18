@@ -141,6 +141,36 @@ class OfflineContentStoreTest {
         } finally { accounts.close(); removeDirectory(directory) }
     }
 
+    @Test
+    fun `switching the queue to the AO3 account a download found moves unfinished downloads and keeps saved chapters`() = runTest {
+        val directory = Files.createTempDirectory("ao3-offline-switch-")
+        val accounts = createTestAccounts(directory)
+        try {
+            val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
+            val reader = store.observeIdentity("user:fixture")
+            val (saved, bytes) = bundle()
+            store.beginCapture(reader).apply { stage(saved.resources.single(), bytes); publish(saved, true, true) }
+            store.enqueueWork(reader, 123, update = true)
+            store.enqueueWork(reader, 124)
+
+            val guest = store.switchQueueIdentity(reader, "guest")
+            assertEquals("guest", guest.identity)
+            assertEquals(guest, store.context.value)
+            assertFalse(store.isCurrent(reader))
+            val moved = store.statuses(guest).associateBy { it.work.workId }
+            assertEquals(mapOf(123L to "update-discover", 124L to "save-discover"), moved.mapValues { it.value.job?.mode })
+            assertTrue(moved.values.all { it.savedChapterIds.isEmpty() && it.work.pinned })
+            assertNull(store.open(guest, url))
+
+            // The saved chapter stays with the account it was saved under; the work with nothing saved goes.
+            val restored = store.observeIdentity("user:fixture")
+            val kept = store.statuses(restored).single()
+            assertEquals(123L, kept.work.workId)
+            assertNull(kept.job)
+            assertEquals(setOf("456"), kept.savedChapterIds)
+        } finally { accounts.close(); removeDirectory(directory) }
+    }
+
     private fun bundle(colour: String = "red", chapterId: String = "456"): Pair<OfflineBundle, ByteArray> {
         val css = "body{color:$colour}"
         val bytes = css.encodeToByteArray()

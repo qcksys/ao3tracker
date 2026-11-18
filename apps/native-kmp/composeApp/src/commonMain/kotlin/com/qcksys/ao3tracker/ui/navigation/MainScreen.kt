@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -23,6 +24,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.tab.CurrentTab
@@ -79,6 +82,10 @@ class MainScreen : Screen {
 }
 
 @Composable
+internal fun isShortWindowWithKeyboard(): Boolean =
+    LocalWindowInfo.current.containerDpSize.height < 480.dp && WindowInsets.ime.getBottom(LocalDensity.current) > 0
+
+@Composable
 internal fun MainScreenScaffold(
     isWebViewLoading: Boolean,
     windowInsets: WindowInsets = WindowInsets.safeDrawing,
@@ -88,7 +95,9 @@ internal fun MainScreenScaffold(
         modifier = Modifier.imePadding(),
         contentWindowInsets = windowInsets,
         bottomBar = {
-            AppNavigationBar(isWebViewLoading, windowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            if (LocalTabNavigator.current.current.key != TrackTab.key || !isShortWindowWithKeyboard()) {
+                AppNavigationBar(isWebViewLoading, windowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            }
         }
     ) { paddingValues ->
         Box(Modifier.padding(paddingValues).consumeWindowInsets(paddingValues)) {
@@ -126,7 +135,7 @@ private fun RowScope.TabNavigationItem(tab: Tab, showLoading: Boolean) {
                 // If already on this tab, perform tab-specific action
                 when (tab) {
                     ReadTab -> NavigationState.triggerReadTabHome()
-                    TrackTab -> NavigationState.popTrackTabToRoot()
+                    TrackTab -> NavigationState.reselectTrackTab()
                 }
             } else {
                 tabNavigator.current = tab

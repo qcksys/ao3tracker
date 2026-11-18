@@ -2,14 +2,12 @@ package com.qcksys.ao3tracker.ui.screens.settings
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import com.qcksys.ao3tracker.data.model.ExportData
+import com.qcksys.ao3tracker.data.backup.encodeLibraryExport
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 class SettingsScreenModel(
     private val repository: Ao3Repository
@@ -20,11 +18,6 @@ class SettingsScreenModel(
 
     private val _exportState = MutableStateFlow<ExportState>(ExportState.Idle)
     val exportState: StateFlow<ExportState> = _exportState.asStateFlow()
-
-    private val json = Json {
-        prettyPrint = true
-        encodeDefaults = true
-    }
 
     init {
         loadWorkCount()
@@ -41,7 +34,7 @@ class SettingsScreenModel(
             _exportState.value = ExportState.Loading
             try {
                 val exportData = repository.getExportData()
-                val jsonString = json.encodeToString(exportData)
+                val jsonString = encodeLibraryExport(exportData)
                 _exportState.value = ExportState.Success(jsonString)
                 onExportReady(jsonString)
             } catch (e: Exception) {

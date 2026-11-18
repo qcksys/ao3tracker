@@ -15,6 +15,11 @@ import { AO3_BASE_URL } from "~/const";
 export interface HtmlBackupChapter {
   /** Chapter preface, text and end notes in live markup, containing `titleSlot` */
   html: string;
+  /**
+   * HTML text of the chapter's own title from the download's chapter heading, which is never
+   * shortened like AO3's chapter menu; empty when the chapter is untitled
+   */
+  title: string;
   /** Image URLs removed from the chapter; the first also reports the work preface's, the last the afterword's */
   images: string[];
 }
@@ -24,9 +29,9 @@ export interface HtmlBackupContent {
   tags: string;
   /** `h2.title.heading` and `h3.byline.heading` */
   heading: string;
-  /** Work summary and notes modules */
+  /** Work summary and notes modules, linking to the afterword with `#work_endnotes` and `#children` */
   notes: string;
-  /** Work end notes and related works */
+  /** Work end notes, series and related works modules; empty when the work has none */
   afterword: string;
   chapters: HtmlBackupChapter[];
   /** Placeholder for the `h3.title` in each chapter's `html` */
@@ -39,8 +44,6 @@ export interface HtmlBackupContent {
 export interface BackupPageChapter {
   /** Position in the work, from 1 */
   number: number;
-  /** HTML text; empty when the chapter has no title */
-  title: string;
   url: string;
   html: string;
 }
@@ -167,6 +170,7 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
 
   // Index of the chapter being read; -1 until the first chapter header.
   let chapter = -1;
+  let inspiredWorks = 0;
   let downloadCss = "";
   const images: string[][] = [];
   const rowLabels: string[] = [];
@@ -192,10 +196,12 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
   };
   let jumpStart = false;
   let jumpLinked = false;
-  const endNotesLink: HTMLRewriterElementContentHandlers = {
+  // AO3 classes the work's end-notes link `jump` but leaves a chapter's unclassed.
+  const endNotesLink = (jump: boolean): HTMLRewriterElementContentHandlers => ({
     element(element) {
       element.tagName = "p";
-      element.setAttribute("class", "jump");
+      if (jump) element.setAttribute("class", "jump");
+      else element.removeAttribute("class");
       element.prepend("(");
       element.append(".)");
       jumpStart = true;
@@ -211,7 +217,7 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
         jumpStart = false;
       } else chunk.remove();
     },
-  };
+  });
   const endNotesLinkAnchor: HTMLRewriterElementContentHandlers = {
     element() {
       jumpLinked = true;
@@ -298,10 +304,7 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
           element.prepend('<ul class="commas">', { html: true });
           element.append("</ul>", { html: true });
         } else if (type === "stats") inside("stats")(element);
-        else if (type === "series") {
-          element.prepend('<span class="series"><span class="position">', { html: true });
-          element.append("</span></span>", { html: true });
-        }
+        else if (type === "series") inside("series")(element);
       },
       text(chunk) {
         // `ul.commas` adds its own separators.
@@ -336,8 +339,15 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
       },
     })
     .on("div#preface > div.meta > p", moduleLabel)
-    .on("div#preface > div.meta > div.endnote-link", endNotesLink)
+    .on("div#preface > div.meta > div.endnote-link", endNotesLink(true))
     .on("div#preface > div.meta > div.endnote-link > a", endNotesLinkAnchor)
+    // Translations and parent works, which AO3 lists first in the work's notes module.
+    .on("div#preface > div.meta > ul", {
+      element(element) {
+        around("associations")(element);
+        element.setAttribute("class", "associations");
+      },
+    })
 
     // Chapters: a preface group per chapter, its text, then its end notes.
     .on("div#chapters", { element: inside("chapters") })
@@ -347,27 +357,28 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
         element.before(marker("chapter"), { html: true });
         inside("chapter-preface")(element);
         element.setAttribute("class", "chapter preface group");
-        element.setAttribute("role", "complementary");
       },
     })
-    .on("div#chapters > div.meta.group > h2.heading", {
-      element: (element) => void element.replace(marker("title"), { html: true }),
-    })
+    .on("div#chapters > div.meta.group > h2.heading", { element: around("heading") })
     .on("div#chapters > div.meta.group > p.byline", {
       element(element) {
-        element.tagName = "h3";
-        element.setAttribute("class", "byline heading");
+        element.tagName = "h4";
+        element.setAttribute("class", "heading byline");
       },
     })
     .on("div#chapters > div.meta.group > p:not(.byline)", moduleLabel)
-    .on("div#chapters > div.meta.group > div.endnote-link", endNotesLink)
+    .on("div#chapters > div.meta.group > div.endnote-link", endNotesLink(false))
     .on("div#chapters > div.meta.group > div.endnote-link > a", endNotesLinkAnchor)
     .on("div#chapters > div.userstuff", {
       element(element) {
+        // A single-chapter work's text follows its landmark, as on AO3's work page.
+        if (chapter < 0) {
+          element.before('<h3 class="landmark heading" id="work">Work Text:</h3>', { html: true });
+          return;
+        }
         element.setAttribute("class", "userstuff module");
         element.setAttribute("role", "article");
-        const landmark = chapter < 0 ? "Work Text:" : "Chapter Text";
-        element.prepend(`<h3 class="landmark heading" id="work">${landmark}</h3>`, { html: true });
+        element.prepend('<h3 class="landmark heading" id="work">Chapter Text</h3>', { html: true });
       },
     })
     .on('div#chapters > div[id^="endnotes"]', {
@@ -375,22 +386,45 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
         const number = element.getAttribute("id")?.replace("endnotes", "") ?? "";
         element.setAttribute("id", `chapter_${number}_endnotes`);
         element.setAttribute("class", "end notes module");
-        element.before('<div class="chapter preface group" role="complementary">', { html: true });
+        element.before('<div class="chapter preface group">', { html: true });
         element.after("</div>", { html: true });
       },
     })
     .on('div#chapters > div[id^="endnotes"] > p', { element: notesHeading })
 
-    // Work end notes and related works.
-    .on("div#afterword", { element: inside("afterword") })
+    // Work end notes and works inspired by this one.
     .on("div#afterword > div.meta", { element: (element) => void element.removeAndKeepContent() })
     .on("div#afterword div#endnotes", {
       element(element) {
+        around("work-endnotes")(element);
         element.setAttribute("id", "work_endnotes");
         element.setAttribute("class", "end notes module");
       },
     })
-    .on("div#afterword div#endnotes > p", { element: notesHeading });
+    .on("div#afterword div#endnotes > p", { element: notesHeading })
+    .on("div#afterword > div.meta > dl", {
+      element(element) {
+        around("children")(element);
+        element.tagName = "div";
+        element.setAttribute("id", "children");
+        element.setAttribute("class", "children module");
+        element.append("</ul>", { html: true });
+      },
+    })
+    .on("div#afterword > div.meta > dl > dt", {
+      element(element) {
+        element.tagName = "h3";
+        element.setAttribute("class", "heading");
+        element.setInnerContent("Works inspired by this one:");
+        element.after("<ul>", { html: true });
+      },
+    })
+    .on("div#afterword > div.meta > dl > dd", {
+      element(element) {
+        element.tagName = "li";
+        inspiredWorks++;
+      },
+    });
 
   let output = await rewriter.transform(new Response(html)).text();
 
@@ -430,6 +464,15 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
     );
     return `<dl class="stats">${items.join("")}</dl>`;
   });
+  // Downloads list a work's series in one row; AO3 gives each its own `span.series`.
+  const series: string[] = [];
+  output = output.replace(section("series"), (_match, list: string) => {
+    const positions = list.match(/Part\s+\d+\s+of\s+<a\b[^>]*>[\s\S]*?<\/a>/g) ?? [list.trim()];
+    for (const position of positions) {
+      series.push(`<span class="series"><span class="position">${position}</span></span>`);
+    }
+    return series.join(", ");
+  });
 
   const body = between(output, "chapters");
   if (body === null) return null;
@@ -439,17 +482,59 @@ export async function readHtmlBackup(html: string): Promise<HtmlBackupContent | 
   if (chapters.some((part) => part === "")) return null;
 
   const preface = between(output, "preface") ?? "";
+  const associations = between(preface, "associations") ?? "";
+  let notes = modules(
+    ["tags", "title", "byline", "associations"].reduce(without, preface),
+    false,
+  ).trim();
+  // AO3's notes module lists associations under its heading and links to inspired works, so a
+  // work with only those still has one.
+  const related =
+    inspiredWorks > 0 ? '<a href="#children">other works inspired by this one</a>' : "";
+  if (associations || related) {
+    if (!notes.includes('<div class="notes module">')) {
+      notes += '<div class="notes module"><h3 class="heading">Notes:</h3></div>';
+    }
+    notes = notes.replace(
+      /<div class="notes module">\s*<h3 class="heading">Notes:<\/h3>/,
+      (start) => start + associations,
+    );
+  }
+  if (related) {
+    notes = notes.includes('<p class="jump">')
+      ? notes.replace(/(<p class="jump">[\s\S]*?)\.\)<\/p>/, (_match, jump: string) => {
+          return `${jump} and ${related}.)</p>`;
+        })
+      : notes.replace(/<\/div>$/, () => {
+          return `<p class="jump">(See the end of the work for ${related}.)</p></div>`;
+        });
+  }
+
+  const seriesModule = series.length
+    ? '<div id="series" class="series module"><h3 class="heading">Series this work belongs to:</h3>' +
+      `<ul>${series.map((item) => `<li>${item}</li>`).join("")}</ul></div>`
+    : "";
   return {
     tags: between(preface, "tags") ?? "",
     heading: [between(preface, "title"), between(preface, "byline")].filter(Boolean).join(""),
-    notes: modules(without(without(without(preface, "tags"), "title"), "byline"), false).trim(),
-    afterword: between(output, "afterword") ?? "",
-    chapters: chapters.map((part, index) => ({
-      html: part.replace(section("chapter-preface"), (_match, inner: string) =>
-        modules(inner, true),
-      ),
-      images: images[index] ?? [],
-    })),
+    notes,
+    afterword: [
+      between(output, "work-endnotes"),
+      seriesModule,
+      inspiredWorks > 0 ? between(output, "children") : null,
+    ]
+      .filter(Boolean)
+      .join(""),
+    chapters: chapters.map((part, index) => {
+      let title = "";
+      const html = part
+        .replace(section("heading"), (_match, heading: string) => {
+          title = htmlText(heading).replace(/^Chapter\s+\d+:?\s*/, "");
+          return marker("title");
+        })
+        .replace(section("chapter-preface"), (_match, inner: string) => modules(inner, true));
+      return { html, title, images: images[index] ?? [] };
+    }),
     titleSlot: marker("title"),
     downloadCss: downloadCss.trim(),
   };
@@ -472,10 +557,22 @@ export function backupChapterPage(
   const navigation =
     link(chapters[position - 1], "previous", "← Previous Chapter") +
     link(chapters[position + 1], "next", "Next Chapter →");
-  // Stored titles come from AO3's chapter menu, which numbers them ("1. Title").
-  const chapterTitle = chapter.title.replace(new RegExp(`^${chapter.number}\\.\\s*`), "");
+  const chapterTitle = content.chapters[chapter.number - 1]?.title ?? "";
   const title = `<h3 class="title"><a href="${chapter.url}">Chapter ${chapter.number}</a>${chapterTitle ? `: ${safeHtmlText(chapterTitle)}` : ""}</h3>`;
   const text = chapter.html.replace(content.titleSlot, () => title);
+  // On a chapter page, AO3 links the work's notes to the afterword on the last chapter's page.
+  const last = chapters.at(-1);
+  const afterwordUrl =
+    !single && last && last.number === content.chapters.length && last.number !== chapter.number
+      ? last.url
+      : "";
+  const notes =
+    chapter.number === 1
+      ? content.notes.replace(
+          /href="#(work_endnotes|children)"/g,
+          (_match, id: string) => `href="${afterwordUrl}#${id}"`,
+        )
+      : "";
   const afterword =
     chapter.number === content.chapters.length && content.afterword
       ? `<div class="afterword preface group">${content.afterword}</div>`
@@ -491,11 +588,14 @@ export function backupChapterPage(
       ? `<h3 class="landmark heading">Actions</h3><ul class="work navigation actions">${navigation}</ul>`
       : "") +
     `<h3 class="landmark heading">Work Header</h3><div class="wrapper">${content.tags}</div>` +
-    `<div id="workskin"><div class="preface group">${content.heading}${chapter.number === 1 ? content.notes : ""}</div>` +
-    `<div id="chapters" role="article">${single ? text : `<div class="chapter" id="chapter-${chapter.number}">${text}</div>`}</div>` +
-    `${afterword}</div></div>` +
+    `<div id="work-skin" class="wrapper"><div id="workskin"><div class="preface group">${content.heading}${notes}</div>` +
+    // AO3's work page marks a single chapter's text as the article; its chapter pages do not.
+    (single
+      ? `<div id="chapters" role="article">${text}</div>`
+      : `<div id="chapters"><div class="chapter" id="chapter-${chapter.number}">${text}</div></div>`) +
+    `${afterword}</div></div></div>` +
     '<div id="feedback" class="feedback"><h3 class="landmark heading">Actions</h3>' +
-    `<ul class="actions" role="navigation"><li><a href="#main">↑ Top</a></li>${navigation}</ul></div>` +
+    `<ul class="actions"><li><a href="#main">↑ Top</a></li>${navigation}</ul></div>` +
     "</div></div></div></body></html>"
   );
 }

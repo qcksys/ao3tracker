@@ -6,6 +6,13 @@ import com.qcksys.ao3tracker.data.auth.SyncAuthentication
 import com.qcksys.ao3tracker.data.auth.SessionTokenStorage
 import com.qcksys.ao3tracker.data.auth.AuthService
 import com.qcksys.ao3tracker.data.auth.getTokenStorage
+import com.qcksys.ao3tracker.data.backup.DriveBackupCoordinator
+import com.qcksys.ao3tracker.data.backup.DriveFiles
+import com.qcksys.ao3tracker.data.backup.GoogleDriveClient
+import com.qcksys.ao3tracker.data.backup.LibraryImporter
+import com.qcksys.ao3tracker.data.backup.googleDriveAuthorizer
+import com.qcksys.ao3tracker.data.model.AuthState
+import io.ktor.client.HttpClient
 import com.qcksys.ao3tracker.data.database.DB_FILE_NAME
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.MIGRATION_7_8
@@ -36,6 +43,7 @@ import com.qcksys.ao3tracker.data.offline.Ao3RequestGate
 import com.qcksys.ao3tracker.data.offline.offlineNetworkState
 import com.qcksys.ao3tracker.ui.components.supportsOfflineReading
 import com.qcksys.ao3tracker.data.offline.OfflineFileScope
+import com.qcksys.ao3tracker.data.offline.getOfflineDocuments
 import com.qcksys.ao3tracker.data.offline.getOfflineFiles
 import com.qcksys.ao3tracker.data.offline.offlineSha256
 import com.qcksys.ao3tracker.diagnostics.Diagnostics
@@ -87,7 +95,8 @@ val appModule = module {
     single { Ao3RequestGate() }
     single {
         OfflineCoordinator(get(), get(), get(), get(), offlineNetworkState(), supportsOfflineReading(),
-            requestSync = get<SyncTriggers>()::notifyReadingConnection, backups = ApiOfflineBackupSource(get(), get(), get()))
+            requestSync = get<SyncTriggers>()::notifyReadingConnection, backups = ApiOfflineBackupSource(get(), get(), get()),
+            documents = getOfflineDocuments())
     }
 
     single { Ao3Repository(get()) }
@@ -138,4 +147,22 @@ val appModule = module {
     // TrackScreenModel as singleton to preserve filter state
     single { TrackScreenModel(get(), get(), get(), get()) }
     single { SearchesScreenModel(get(), get(), get(), get(), ao3Gate = get()) }
+
+    // JSON import and Google Drive backup (Android only; other platforms have no authorizer)
+    single {
+        val sync = get<SyncCoordinator>()
+        LibraryImporter(get()) { import -> sync.runBetweenSyncs(import) }
+    }
+    single<DriveFiles> { GoogleDriveClient(HttpClient()) }
+    single {
+        val auth = get<AuthRepository>()
+        DriveBackupCoordinator(googleDriveAuthorizer(), get(), get(), get(), get(), libraryLabel = { owner ->
+            if (owner == AccountDataStore.GUEST) {
+                "Guest"
+            } else {
+                (auth.authState.value as? AuthState.Authenticated)?.user?.email?.takeIf { auth.currentOwner() == owner }
+                    ?: "Tracker account"
+            }
+        })
+    }
 }

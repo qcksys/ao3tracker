@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.History
@@ -85,6 +86,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.auth.AuthRepository
+import com.qcksys.ao3tracker.data.backup.DriveBackupCoordinator
+import com.qcksys.ao3tracker.data.backup.DriveBackupFile
+import com.qcksys.ao3tracker.data.backup.LibraryImporter
+import com.qcksys.ao3tracker.data.backup.decodeLibraryExport
+import com.qcksys.ao3tracker.ui.components.rememberJsonFilePicker
 import com.qcksys.ao3tracker.data.model.AuthState
 import com.qcksys.ao3tracker.data.model.SyncResult
 import com.qcksys.ao3tracker.data.repository.Ao3Repository
@@ -95,6 +101,7 @@ import com.qcksys.ao3tracker.ui.components.Ao3LinkSettings
 import com.qcksys.ao3tracker.ui.components.SyncDebugDialog
 import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import com.qcksys.ao3tracker.ui.screens.track.DownloadsScreen
+import com.qcksys.ao3tracker.ui.screens.track.OfflineExportScreen
 import com.qcksys.ao3tracker.data.sync.SyncCoordinator
 import com.qcksys.ao3tracker.data.push.NotificationItem
 import com.qcksys.ao3tracker.data.push.NotificationPreferences
@@ -104,6 +111,9 @@ import com.qcksys.ao3tracker.util.shareText
 import com.qcksys.ao3tracker.diagnostics.PostHogCrashReporter
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
@@ -145,6 +155,85 @@ fun SettingsScreen() {
     val isSyncingOut by syncCoordinator.isSigningOut.collectAsState()
     var importOwner by remember(activeAccount?.owner) { mutableStateOf<String?>(null) }
     var isImportingGuest by remember { mutableStateOf(false) }
+    val driveBackup = koinInject<DriveBackupCoordinator>()
+    val libraryImporter = koinInject<LibraryImporter>()
+    val driveState by driveBackup.state.collectAsState()
+    var driveBackups by remember { mutableStateOf<List<DriveBackupFile>?>(null) }
+    var pendingImport by remember(activeAccount?.owner) { mutableStateOf<PendingLibraryImport?>(null) }
+    var isImportingFile by remember { mutableStateOf(false) }
+    val libraryName = when (activeAccount?.owner) {
+        AccountDataStore.GUEST -> "Guest library"
+        else -> (authState as? AuthState.Authenticated)?.user?.email ?: "this account's library"
+    }
+
+    // Drive failures appear in the backup section's status message.
+    fun runDrive(action: suspend () -> Unit) {
+        scope.launch {
+            try {
+                action()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+            }
+        }
+    }
+
+    val pickJsonFile = rememberJsonFilePicker { picked ->
+        val owner = activeAccount?.owner ?: return@rememberJsonFilePicker
+        scope.launch {
+            try {
+                val data = withContext(Dispatchers.Default) { decodeLibraryExport(picked.getOrThrow()) }
+                pendingImport = PendingLibraryImport("This file", data, owner)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                snackbarHostState.showSnackbar("Could not read an AO3 Tracker export: ${error.message}")
+            }
+        }
+    }
+
+    driveBackups?.let { backups ->
+        DriveBackupListDialog(
+            backups = backups,
+            deviceId = driveState.deviceId,
+            owner = activeAccount?.owner,
+            onDismiss = { driveBackups = null },
+            onSelect = { file ->
+                driveBackups = null
+                val owner = activeAccount?.owner ?: return@DriveBackupListDialog
+                runDrive { pendingImport = PendingLibraryImport(file.name.removeSuffix(".json"), driveBackup.download(file), owner) }
+            }
+        )
+    }
+
+    pendingImport?.let { pending ->
+        LibraryImportModeDialog(
+            pending = pending,
+            libraryName = libraryName,
+            isTrackerAccount = pending.owner != AccountDataStore.GUEST,
+            onDismiss = { pendingImport = null },
+            onConfirm = { mode ->
+                pendingImport = null
+                isImportingFile = true
+                scope.launch {
+                    try {
+                        val result = libraryImporter.import(pending.data, mode, pending.owner)
+                        snackbarHostState.showSnackbar(
+                            if (result.isEmpty) "No new or newer works to import"
+                            else "Imported ${result.added} new works and updated ${result.updated}"
+                        )
+                    } catch (error: CancellationException) {
+                        ensureActive()
+                        snackbarHostState.showSnackbar("Import cancelled because the library changed")
+                    } catch (error: Exception) {
+                        snackbarHostState.showSnackbar("Import failed: ${error.message}")
+                    } finally {
+                        isImportingFile = false
+                    }
+                }
+            }
+        )
+    }
 
     if (showSyncDebug) {
         SyncDebugDialog(syncState = syncState, onDismiss = { showSyncDebug = false })
@@ -313,6 +402,38 @@ fun SettingsScreen() {
                             else -> {}
                         }
                     }
+                },
+                driveBackupContent = {
+                    if (driveState.available) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+                        GoogleDriveBackupSection(
+                            state = driveState,
+                            onSignIn = {
+                                runDrive {
+                                    driveBackup.signIn(driveState.location)
+                                    snackbarHostState.showSnackbar("Signed in with Google. Backing up to Google Drive.")
+                                }
+                            },
+                            onLocationChange = { location -> runDrive { driveBackup.setLocation(location) } },
+                            onBackUpNow = {
+                                runDrive {
+                                    driveBackup.backupNow()
+                                    snackbarHostState.showSnackbar("Backed up to Google Drive")
+                                }
+                            },
+                            onRestore = {
+                                runDrive {
+                                    val backups = driveBackup.listBackups()
+                                    if (backups.isEmpty()) {
+                                        snackbarHostState.showSnackbar("No backups found in ${driveState.location.label()}")
+                                    } else {
+                                        driveBackups = backups
+                                    }
+                                }
+                            },
+                            onSignOut = { runDrive { driveBackup.signOut() } }
+                        )
+                    }
                 }
             )
 
@@ -340,6 +461,8 @@ fun SettingsScreen() {
             }
 
             OfflineStorageSettings(appSettings, onManageDownloads = { navigator.push(DownloadsScreen()) })
+
+            OfflineTransferSettings(onExport = { navigator.push(OfflineExportScreen()) })
 
             BrowsingSettings(appSettings, onOpenHiddenWorks = { navigator.push(HiddenWorksScreen()) })
 
@@ -556,6 +679,25 @@ fun SettingsScreen() {
                         )
                     }
 
+                    if (pickJsonFile != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = pickJsonFile,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isImportingFile
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FileUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (isImportingFile) "Importing..." else "Import Data from JSON",
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Button(
@@ -739,7 +881,8 @@ private fun AccountSection(
     onSignOutSyncAndClear: () -> Unit,
     isSyncingOut: Boolean,
     onSignInWithSavedCredentials: () -> Unit,
-    onRegisterPasskey: () -> Unit
+    onRegisterPasskey: () -> Unit,
+    driveBackupContent: @Composable () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -804,6 +947,8 @@ private fun AccountSection(
                     )
                 }
             }
+
+            driveBackupContent()
         }
     }
 }
@@ -1172,6 +1317,10 @@ private fun PushNotificationsSection(
     if (!isPushSupported) {
         return
     }
+    val requestPermission = rememberNotificationPermissionRequest {
+        if (!preferences.enabled) savePreferences(preferences.copy(enabled = true))
+    }
+    val alertsEnabled = preferences.enabled && requestPermission == null
 
     // Show notification history modal
     if (showHistoryModal) {
@@ -1186,11 +1335,11 @@ private fun PushNotificationsSection(
         summary = when {
             isSaving -> "Saving notification settings..."
             isRegistering -> "Registering notifications..."
-            !preferences.enabled -> "Off on this device"
+            !alertsEnabled -> "Off on this device"
             !isAuthenticated -> "Sign in to receive alerts"
             else -> "On this device · Alert types and history"
         },
-        icon = if (preferences.enabled) Icons.Default.Notifications else Icons.Default.NotificationsOff
+        icon = if (alertsEnabled) Icons.Default.Notifications else Icons.Default.NotificationsOff
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -1203,19 +1352,20 @@ private fun PushNotificationsSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            NotificationSettingRow("Enable notifications", preferences.enabled, !isSaving && !isRegistering) {
-                savePreferences(preferences.copy(enabled = it))
+            NotificationSettingRow("Enable notifications", alertsEnabled, !isSaving && !isRegistering) {
+                if (it && requestPermission != null) requestPermission()
+                else savePreferences(preferences.copy(enabled = it))
             }
-            NotificationSettingRow("New chapters", preferences.newChapters, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("New chapters", preferences.newChapters, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(newChapters = it))
             }
-            NotificationSettingRow("Completed works", preferences.workCompleted, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("Completed works", preferences.workCompleted, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(workCompleted = it))
             }
-            NotificationSettingRow("Restricted works", preferences.workRestricted, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("Restricted works", preferences.workRestricted, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(workRestricted = it))
             }
-            NotificationSettingRow("Deleted works", preferences.workDeleted, preferences.enabled && !isSaving && !isRegistering) {
+            NotificationSettingRow("Deleted works", preferences.workDeleted, alertsEnabled && !isSaving && !isRegistering) {
                 savePreferences(preferences.copy(workDeleted = it))
             }
             if (isSaving) {
@@ -1235,7 +1385,7 @@ private fun PushNotificationsSection(
                 )
                 Text(
                     text = when {
-                        !preferences.enabled -> "Disabled on this device"
+                        !alertsEnabled -> "Disabled on this device"
                         hasToken -> "Push token available"
                         else -> "No push token available"
                     },
@@ -1268,7 +1418,7 @@ private fun PushNotificationsSection(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = isAuthenticated && preferences.enabled && !isRegistering && !isSaving
+                enabled = isAuthenticated && alertsEnabled && !isRegistering && !isSaving
             ) {
                 if (isRegistering) {
                     CircularProgressIndicator(
@@ -1350,7 +1500,7 @@ private fun NotificationSettingRow(
  * Formats an ISO 8601 timestamp to a human-readable local date and time.
  */
 @OptIn(kotlin.time.ExperimentalTime::class)
-private fun formatLastSyncTime(iso8601: String): String {
+internal fun formatLastSyncTime(iso8601: String): String {
     return try {
         val instant = Instant.parse(iso8601)
         val localDateTime = instant.toLocalDateTime(TimeZone.currentSystemDefault())

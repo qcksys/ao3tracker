@@ -65,6 +65,8 @@ actual class SettingsStorage {
     actual fun getBrowsingPreferences(): String? = userDefaults.stringForKey("browsing_preferences")
     actual fun getOfflinePreferences(): String? = userDefaults.stringForKey("offline_preferences")
     actual fun setOfflinePreferences(preferences: String) { userDefaults.setObject(preferences, "offline_preferences") }
+    actual fun getDriveBackupPreferences(): String? = userDefaults.stringForKey("drive_backup_preferences")
+    actual fun setDriveBackupPreferences(preferences: String) { userDefaults.setObject(preferences, "drive_backup_preferences") }
 
     actual fun setBrowsingPreferences(preferences: String) {
         userDefaults.setObject(preferences, "browsing_preferences")

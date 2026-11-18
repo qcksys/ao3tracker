@@ -24,7 +24,13 @@ vi.mock("~/db/queries/work", () => ({ findWorkChapters: vi.fn(), getWorkState: v
 
 // Synthetic text in the markup of real AO3 HTML downloads (otwarchive's downloads/show.html.erb).
 // Downloads made before AO3 moved to https link to http://archiveofourown.org.
-const preface = `
+const workNotes = `
+    <p>Notes</p>
+    <blockquote class="userstuff"><p>Work notes</p></blockquote>
+    <div class="endnote-link">
+      See the end of the work for <a href="#endnotes">more notes</a>
+    </div>`;
+const preface = (notes = workNotes) => `
 <div id="preface">
   <h2 class="toc-heading">Preface</h2>
   <p class="message"><b>Backup Work</b><br />Posted originally on the <a href="http://archiveofourown.org/">Archive of Our Own</a> at <a href="http://archiveofourown.org/works/42">http://archiveofourown.org/works/42</a>.</p>
@@ -35,7 +41,7 @@ const preface = `
       <dt>Language:</dt>
       <dd>English</dd>
       <dt>Series:</dt>
-      <dd>Part 2 of <a href="http://archiveofourown.org/series/9">Saga</a></dd>
+      <dd>Part 2 of <a href="http://archiveofourown.org/series/9">Saga</a>, Part 1 of <a href="http://archiveofourown.org/series/10">Side Stories</a></dd>
       <dt>Stats:</dt>
       <dd>
         Published: 2025-09-03
@@ -48,27 +54,35 @@ const preface = `
     <div class="byline">by <a rel="author" href="http://archiveofourown.org/users/author/pseuds/author">author</a></div>
     <p>Summary</p>
     <blockquote class="userstuff"><p>Work summary <img src="/images/summary.png"></p></blockquote>
-    <p>Notes</p>
-    <blockquote class="userstuff"><p>Work notes</p></blockquote>
-    <div class="endnote-link">
-      See the end of the work for <a href="#endnotes">more notes</a>
-    </div>
+${notes}
+    <ul>
+      <li>
+        Translation into <span lang="fr">Français</span> available: <a href="https://archiveofourown.org/works/43">Œuvre</a> by <a rel="author" href="https://archiveofourown.org/users/translator/pseuds/translator">translator</a>
+      </li>
+    </ul>
   </div>
 </div>`;
-const endNotes = `
+// Translations are approved related works too, so a download can list none under the heading.
+const afterword = (endNotes: string, inspired: string) => `
 <div id="afterword">
   <h2 class="toc-heading">Afterword</h2>
-  <div class="meta"><div id="endnotes"><p>End Notes</p><blockquote class="userstuff"><p>Thanks</p></blockquote></div></div>
+  <div class="meta">${endNotes}
+    <dl>
+      <dt>Works inspired by this one</dt>
+      ${inspired}
+    </dl>
+  </div>
   <p class="message">Please <a href="http://archiveofourown.org/works/42/comments/new">drop by the Archive and comment</a> to let the creator know if you enjoyed their work!</p>
 </div>`;
-const noEndNotes = `
-<div id="afterword">
-  <h2 class="toc-heading">Afterword</h2>
-  <p class="message">Please <a href="https://archiveofourown.org/works/42/comments/new">drop by the Archive and comment</a> to let the creator know if you enjoyed their work!</p>
-</div>`;
+const endNotes =
+  '<div id="endnotes"><p>End Notes</p><blockquote class="userstuff"><p>Thanks</p></blockquote></div>';
+const inspired = `<dd>
+        <a href="https://archiveofourown.org/works/44">Podfic</a> by <a rel="author" href="https://archiveofourown.org/users/reader/pseuds/reader">reader</a>
+      </dd>`;
 const document = (
   chapters: string,
-  afterword = endNotes,
+  after = afterword(endNotes, inspired),
+  notes = workNotes,
 ) => `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
 <head>
@@ -78,16 +92,17 @@ const document = (
   <style type="text/css">#chapters { font-family: serif; }</style>
 </head>
 <body>
-${preface}
+${preface(notes)}
 <div id="chapters" class="userstuff">${chapters}</div>
-${afterword}
+${after}
 </body>
 </html>`;
 const multiChapter = document(`
   <div class="meta group">
     <h2 class="heading">
-      Chapter 1: Beginning
+      Chapter 1: Beginning $&amp; &lt;b&gt;
     </h2>
+    <p class="byline">Chapter by <a rel="author" href="http://archiveofourown.org/users/guest/pseuds/guest">guest</a></p>
     <p>Chapter Summary</p>
     <blockquote class="userstuff"><p>Chapter summary</p></blockquote>
     <p>Chapter Notes</p>
@@ -113,13 +128,12 @@ const multiChapter = document(`
   <div class="userstuff"><p>Second <iframe src="https://example.com"></iframe></p></div>
   <!--/chapter content-->
 `);
-const singleChapter = document(
-  `
+const singleChapterText = `
   <h2 class="toc-heading">Backup Work</h2>
   <div class="userstuff"><p>Only chapter</p></div>
-`,
-  noEndNotes,
-);
+`;
+// Without work notes or end notes, the download has no Notes label for the translations to follow.
+const singleChapter = document(singleChapterText, afterword("", inspired), "");
 
 async function read(html: string): Promise<HtmlBackupContent> {
   const content = await readHtmlBackup(html);
@@ -138,7 +152,8 @@ describe("readHtmlBackup", () => {
     );
     expect(tags).toContain('<dd class="language">English</dd>');
     expect(tags).toContain(
-      '<dd class="series"><span class="series"><span class="position">Part 2 of <a href="https://archiveofourown.org/series/9">Saga</a></span></span></dd>',
+      '<dd class="series"><span class="series"><span class="position">Part 2 of <a href="https://archiveofourown.org/series/9">Saga</a></span></span>, ' +
+        '<span class="series"><span class="position">Part 1 of <a href="https://archiveofourown.org/series/10">Side Stories</a></span></span></dd>',
     );
     expect(tags).toContain(
       '<dd class="stats"><dl class="stats"><dt class="published">Published:</dt><dd class="published">2025-09-03</dd>' +
@@ -151,9 +166,12 @@ describe("readHtmlBackup", () => {
     expect(notes).toMatch(
       /^<div class="summary module">\s*<h3 class="heading">Summary:<\/h3>\s*<blockquote class="userstuff"><p>Work summary <img alt="Image unavailable offline"><\/p><\/blockquote>\s*<\/div>/,
     );
-    expect(notes).toMatch(/<div class="notes module">\s*<h3 class="heading">Notes:<\/h3>/);
-    expect(notes).toContain(
-      '<p class="jump">(See the end of the work for <a href="#work_endnotes">more notes</a>.)</p>',
+    // AO3 lists associations before the notes and links to the end notes and inspired works.
+    expect(notes).toMatch(
+      /<div class="notes module">\s*<h3 class="heading">Notes:<\/h3><ul class="associations">\s*<li>\s*Translation into <span lang="fr">Français<\/span> available: <a href="https:\/\/archiveofourown\.org\/works\/43">Œuvre<\/a> by <a rel="author" href="https:\/\/archiveofourown\.org\/users\/translator\/pseuds\/translator">translator<\/a>\s*<\/li>\s*<\/ul>\s*<blockquote class="userstuff"><p>Work notes<\/p><\/blockquote>\s*<p class="jump">/,
+    );
+    expect(notes).toMatch(
+      /<p class="jump">\(See the end of the work for <a href="#work_endnotes">more notes<\/a> and <a href="#children">other works inspired by this one<\/a>\.\)<\/p>\s*<\/div>$/,
     );
     expect(tags + heading + notes).not.toMatch(/toc-heading|Posted originally|http:|<!--/);
   });
@@ -165,18 +183,25 @@ describe("readHtmlBackup", () => {
 
     expect(first.html).toMatch(
       new RegExp(
-        `^<div class="chapter preface group" role="complementary">\\s*${content.titleSlot}\\s*` +
+        `^<div class="chapter preface group">\\s*${content.titleSlot}\\s*` +
+          '<h4 class="heading byline">Chapter by <a rel="author" href="https://archiveofourown.org/users/guest/pseuds/guest">guest</a></h4>\\s*' +
           '<div id="summary" class="summary module"><h3 class="heading">Summary:</h3>',
       ),
     );
+    // The download's heading keeps titles that AO3's chapter menu shortens.
+    expect(content.chapters.map((chapter) => chapter.title)).toEqual([
+      "Beginning $&amp; &lt;b&gt;",
+      "",
+    ]);
+    // Unlike the work's, a chapter's end-notes link is not a `jump`, which skins space apart.
     expect(first.html).toMatch(
-      /<div id="notes" class="notes module"><h3 class="heading">Notes:<\/h3>\s*<blockquote class="userstuff"><p>Notes<\/p><\/blockquote>\s*<p class="jump">\(See the end of the chapter for <a href="#chapter_1_endnotes">more notes<\/a>/,
+      /<div id="notes" class="notes module"><h3 class="heading">Notes:<\/h3>\s*<blockquote class="userstuff"><p>Notes<\/p><\/blockquote>\s*<p>\(See the end of the chapter for <a href="#chapter_1_endnotes">more notes<\/a>\.\)<\/p>/,
     );
     expect(first.html).toContain(
       '<div class="userstuff module" role="article"><h3 class="landmark heading" id="work">Chapter Text</h3>',
     );
     expect(first.html).toContain(
-      '<div class="chapter preface group" role="complementary"><div class="end notes module" id="chapter_1_endnotes"><h3 class="heading">Notes:</h3><blockquote class="userstuff"><p>Bye</p></blockquote></div></div>',
+      '<div class="chapter preface group"><div class="end notes module" id="chapter_1_endnotes"><h3 class="heading">Notes:</h3><blockquote class="userstuff"><p>Bye</p></blockquote></div></div>',
     );
     expect(first.html).toContain('<a href="https://archiveofourown.org/works/7">relative</a>');
     expect(first.html).toContain("<a>bad</a>");
@@ -189,29 +214,48 @@ describe("readHtmlBackup", () => {
     ]);
 
     expect(second.html).toMatch(
-      new RegExp(
-        `^<div class="chapter preface group" role="complementary">\\s*${content.titleSlot}\\s*</div>`,
-      ),
+      new RegExp(`^<div class="chapter preface group">\\s*${content.titleSlot}\\s*</div>`),
     );
     expect(second.html).toContain("<p>Second </p>");
     expect(second.images).toEqual([]);
 
-    expect(content.afterword).toContain(
-      '<div id="work_endnotes" class="end notes module"><h3 class="heading">Notes:</h3><blockquote class="userstuff"><p>Thanks</p></blockquote></div>',
+    expect(content.afterword).toMatch(
+      new RegExp(
+        '^<div id="work_endnotes" class="end notes module"><h3 class="heading">Notes:</h3><blockquote class="userstuff"><p>Thanks</p></blockquote></div>' +
+          '<div id="series" class="series module"><h3 class="heading">Series this work belongs to:</h3><ul>' +
+          '<li><span class="series"><span class="position">Part 2 of <a href="https://archiveofourown.org/series/9">Saga</a></span></span></li>' +
+          '<li><span class="series"><span class="position">Part 1 of <a href="https://archiveofourown.org/series/10">Side Stories</a></span></span></li></ul></div>' +
+          '<div id="children" class="children module">\\s*<h3 class="heading">Works inspired by this one:</h3><ul>\\s*' +
+          '<li>\\s*<a href="https://archiveofourown.org/works/44">Podfic</a> by <a rel="author" href="https://archiveofourown.org/users/reader/pseuds/reader">reader</a>\\s*</li>\\s*</ul></div>$',
+      ),
     );
     expect(content.afterword).not.toMatch(/toc-heading|drop by the Archive/);
   });
 
   it("keeps a single-chapter work's text as one chapter without a chapter header", async () => {
     const content = await read(singleChapter);
-    expect(content.afterword).toBe("");
     expect(content.chapters).toEqual([
       {
-        html: '<div class="userstuff module" role="article"><h3 class="landmark heading" id="work">Work Text:</h3><p>Only chapter</p></div>',
+        html: '<h3 class="landmark heading" id="work">Work Text:</h3><div class="userstuff"><p>Only chapter</p></div>',
+        title: "",
         // The preface is shown with the first chapter, so its images are reported there.
         images: ["https://archiveofourown.org/images/summary.png"],
       },
     ]);
+    // AO3 gives a work with only associations and inspired works a notes module of its own.
+    expect(content.notes).toMatch(
+      /<\/div><div class="notes module"><h3 class="heading">Notes:<\/h3><ul class="associations">[\s\S]*<\/ul><p class="jump">\(See the end of the work for <a href="#children">other works inspired by this one<\/a>\.\)<\/p><\/div>$/,
+    );
+    expect(content.afterword).toMatch(
+      /^<div id="series" class="series module">[\s\S]*<\/div><div id="children" class="children module">/,
+    );
+  });
+
+  it("leaves out the inspired works section when the download lists only translations", async () => {
+    const content = await read(document(singleChapterText, afterword("", ""), ""));
+    expect(content.afterword).not.toContain("children");
+    expect(content.notes).not.toMatch(/jump|inspired/);
+    expect(content.notes).toContain('<ul class="associations">');
   });
 
   it("rejects files that are not AO3 work downloads", async () => {
@@ -221,11 +265,10 @@ describe("readHtmlBackup", () => {
 });
 
 describe("backupChapterPage", () => {
-  const pages = async (html: string, titles: string[]) => {
+  const pages = async (html: string) => {
     const content = await read(html);
     const chapters: BackupPageChapter[] = content.chapters.map((chapter, index) => ({
       number: index + 1,
-      title: titles[index] ?? "",
       url: `https://archiveofourown.org/works/42/chapters/${101 + index}`,
       html: chapter.html,
     }));
@@ -235,8 +278,7 @@ describe("backupChapterPage", () => {
   };
 
   it("builds a complete AO3 chapter page with chapter navigation", async () => {
-    // Stored titles keep the number prefix of AO3's chapter menu.
-    const [first, second] = await pages(multiChapter, ["1. Beginning $& <b>", "2."]);
+    const [first, second] = await pages(multiChapter);
     expect(first).toMatch(/^<html lang="en"><head><meta charset="utf-8">/);
     expect(first).toContain("<title>Backup &amp; Work - Chapter 1</title>");
     expect(first).toContain(
@@ -247,20 +289,24 @@ describe("backupChapterPage", () => {
     );
     expect(first).toContain('<div class="wrapper"><dl class="work meta group">');
     expect(first).toContain(
-      '<div id="workskin"><div class="preface group"><h2 class="title heading">Backup Work</h2>',
+      '<div id="work-skin" class="wrapper"><div id="workskin"><div class="preface group"><h2 class="title heading">Backup Work</h2>',
     );
     expect(first).toContain('<div class="summary module">');
+    // AO3's chapter pages link the work's notes to the afterword on the last chapter's page.
     expect(first).toContain(
-      '<div id="chapters" role="article"><div class="chapter" id="chapter-1"><div class="chapter preface group" role="complementary">',
+      '(See the end of the work for <a href="https://archiveofourown.org/works/42/chapters/102#work_endnotes">more notes</a> and <a href="https://archiveofourown.org/works/42/chapters/102#children">other works inspired by this one</a>.)',
     );
     expect(first).toContain(
-      '<h3 class="title"><a href="https://archiveofourown.org/works/42/chapters/101">Chapter 1</a>: Beginning $& &lt;b&gt;</h3>',
+      '<div id="chapters"><div class="chapter" id="chapter-1"><div class="chapter preface group">',
+    );
+    expect(first).toContain(
+      '<h3 class="title"><a href="https://archiveofourown.org/works/42/chapters/101">Chapter 1</a>: Beginning $&amp; &lt;b&gt;</h3>',
     );
     // The shared progress tracker completes a chapter when this button is visible.
     expect(first).toContain(
-      '<div id="feedback" class="feedback"><h3 class="landmark heading">Actions</h3><ul class="actions" role="navigation"><li><a href="#main">↑ Top</a></li><li class="chapter next">',
+      '<div id="feedback" class="feedback"><h3 class="landmark heading">Actions</h3><ul class="actions"><li><a href="#main">↑ Top</a></li><li class="chapter next">',
     );
-    expect(first).not.toMatch(/afterword|<!--/);
+    expect(first).not.toMatch(/afterword|<!--|role="(complementary|navigation)"/);
 
     expect(second).toContain(
       '<li class="chapter previous"><a href="https://archiveofourown.org/works/42/chapters/101">← Previous Chapter</a></li></ul>',
@@ -273,16 +319,23 @@ describe("backupChapterPage", () => {
     expect(second).toContain(
       '<h3 class="title"><a href="https://archiveofourown.org/works/42/chapters/102">Chapter 2</a></h3>',
     );
-    expect(second).toContain('<div class="afterword preface group"><div id="work_endnotes"');
+    expect(second).toContain(
+      '<div class="afterword preface group"><div id="work_endnotes" class="end notes module">',
+    );
+    // The inspired works, afterword, #workskin, #work-skin and work all close before the feedback.
+    expect(second).toContain('</ul></div></div></div></div></div><div id="feedback"');
   });
 
   it("leaves navigation and chapter wrappers out of a single-chapter work", async () => {
-    const [page] = await pages(singleChapter, []);
+    const [page] = await pages(singleChapter);
     expect(page).toContain("<title>Backup &amp; Work</title>");
     expect(page).not.toMatch(/navigation actions|chapter preface|Next Chapter/);
     expect(page).toContain(
-      '<div id="chapters" role="article"><div class="userstuff module" role="article"><h3 class="landmark heading" id="work">Work Text:</h3>',
+      '<div id="chapters" role="article"><h3 class="landmark heading" id="work">Work Text:</h3><div class="userstuff"><p>Only chapter</p></div></div>' +
+        '<div class="afterword preface group"><div id="series" class="series module">',
     );
+    // The afterword is on the same page.
+    expect(page).toContain('<a href="#children">other works inspired by this one</a>');
   });
 });
 
@@ -318,8 +371,9 @@ describe("GET /backup/:workId/offline", () => {
       currentChapters: 2,
       totalChapters: null,
     });
+    // AO3's chapter menu, which stored titles come from, shortens long titles.
     vi.mocked(findWorkChapters).mockResolvedValue([
-      { id: 101, number: 1, title: "Beginning" },
+      { id: 101, number: 1, title: "1. Beginning $&amp;..." },
       { id: 102, number: 2, title: null },
     ]);
   });
@@ -344,11 +398,12 @@ describe("GET /backup/:workId/offline", () => {
       afterword: "",
     });
     expect(body.chapters.map(({ id, number, title }) => ({ id, number, title }))).toEqual([
-      { id: "101", number: 1, title: "Beginning" },
+      { id: "101", number: 1, title: "1. Beginning $&amp;..." },
       { id: "102", number: 2, title: "" },
     ]);
+    // The page heading uses the download's full title.
     expect(body.chapters[0].html).toContain(
-      '<a href="https://archiveofourown.org/works/42/chapters/101">Chapter 1</a>: Beginning</h3>',
+      '<a href="https://archiveofourown.org/works/42/chapters/101">Chapter 1</a>: Beginning $&amp; &lt;b&gt;</h3>',
     );
     expect(body.chapters[0].html).toContain(
       '<li class="chapter next"><a href="https://archiveofourown.org/works/42/chapters/102">Next Chapter →</a></li>',

@@ -7,6 +7,15 @@ private val trustedAo3Url = Regex(
 
 fun isTrustedAo3Url(url: String?): Boolean = url != null && trustedAo3Url.containsMatchIn(url)
 
+private val cloudflareChallengeUrl = Regex("^https://challenges\\.cloudflare\\.com(?::443)?(?:[/?#]|$)", RegexOption.IGNORE_CASE)
+
+/**
+ * Whether a frame navigation belongs to the Cloudflare check AO3 can show before a page, which runs in a
+ * `challenges.cloudflare.com` frame. Main-frame navigation stays limited to AO3.
+ */
+fun isCloudflareChallengeFrame(url: String?, mainFrame: Boolean): Boolean =
+    !mainFrame && url != null && cloudflareChallengeUrl.containsMatchIn(url)
+
 fun isTrustedAo3Origin(protocol: String, host: String, port: Long): Boolean =
     protocol.equals("https", ignoreCase = true) &&
         (host.equals("archiveofourown.org", ignoreCase = true) || host.equals("www.archiveofourown.org", ignoreCase = true)) &&

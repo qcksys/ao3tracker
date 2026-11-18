@@ -95,6 +95,8 @@ actual class SettingsStorage {
     actual fun getBrowsingPreferences(): String? = prefs.getString("browsing_preferences", null)
     actual fun getOfflinePreferences(): String? = prefs.getString("offline_preferences", null)
     actual fun setOfflinePreferences(preferences: String) { prefs.edit().putString("offline_preferences", preferences).apply() }
+    actual fun getDriveBackupPreferences(): String? = prefs.getString("drive_backup_preferences", null)
+    actual fun setDriveBackupPreferences(preferences: String) { prefs.edit().putString("drive_backup_preferences", preferences).apply() }
 
     actual fun setBrowsingPreferences(preferences: String) {
         prefs.edit().putString("browsing_preferences", preferences).apply()

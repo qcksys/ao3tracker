@@ -17,24 +17,130 @@ import kotlin.test.*
 
 class OfflineCoordinatorTest {
     @Test
-    fun `first whole work save resumes when reading scripts update the displayed URL`() = runBlocking {
+    fun `a first download confirms the AO3 account in the background without opening the work`() = runBlocking {
         fixture(initialIdentity = null) { coordinator, _ ->
-            val wholeUrl = "https://archiveofourown.org/works/123?view_full_work=true"
             coordinator.setForeground(true)
             coordinator.saveWork(123)
-            withTimeout(5000) { coordinator.message.first { it == "The work will be saved after AO3 confirms access." } }
-            val navigation = NavigationState.pendingNavigation.value
-            NavigationState.clearPendingNavigation()
-            assertEquals(wholeUrl, navigation?.url)
-            coordinator.liveNavigation("$wholeUrl&scrollTo=0&_t=123")
-            coordinator.observed(OfflinePageObservation("$wholeUrl&scroll=0", "user:fixture", true))
-            val capture = withTimeout(5000) { coordinator.capture.first { it != null }!! }
-            assertTrue(capture.isCurrent())
+            withTimeout(5000) { coordinator.message.first { it == "Checking your AO3 account before downloading." } }
+            assertNull(NavigationState.pendingNavigation.value)
+            assertTrue(withTimeout(5000) { coordinator.hasPendingDownloads.first { it } })
+            val check = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertEquals("identity", check.mode)
+            assertEquals("https://archiveofourown.org/works/123", check.url)
+            // AO3 sends a chaptered work to its first chapter; the check reads the account there without saving it.
+            coordinator.downloadNavigation(check.id, url)
+            assertFalse(coordinator.downloadObserved(check.id, OfflinePageObservation(url, "user:fixture", true)))
+            val discovery = withTimeout(5000) { coordinator.background.first { it != null && it.id != check.id }!! }
             assertEquals("user:fixture", coordinator.store.context.value?.identity)
-            coordinator.liveNavigation("$wholeUrl&scroll=10")
-            assertTrue(capture.isCurrent())
+            assertEquals("save-discover", discovery.mode)
+            assertEquals("https://archiveofourown.org/works/123", discovery.url)
+            assertTrue(coordinator.downloadObserved(discovery.id, OfflinePageObservation(discovery.url, "user:fixture", true)))
+        }
+    }
+
+    @Test
+    fun `an account check that AO3 does not answer reports it and leaves nothing queued`() = runBlocking {
+        fixture(initialIdentity = null) { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            val check = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertFalse(coordinator.downloadObserved(check.id, OfflinePageObservation(check.url, null, false)))
+            withTimeout(5000) { coordinator.message.first { it == "AO3 did not show which account is signed in. Try again later." } }
+            withTimeout(5000) { coordinator.hasPendingDownloads.first { !it } }
+            assertNull(coordinator.background.value)
+            // No AO3 account was selected from the unanswered check.
+            assertNull(coordinator.store.initialize())
+        }
+    }
+
+    @Test
+    fun `a work saved before the account check is queued when the reader opens AO3 first`() = runBlocking {
+        fixture(initialIdentity = null) { coordinator, _ ->
+            coordinator.saveWork(123)
+            withTimeout(5000) { coordinator.hasPendingDownloads.first { it } }
             coordinator.liveNavigation(url)
-            assertFalse(capture.isCurrent())
+            coordinator.observed(OfflinePageObservation(url, "guest", false))
+            val queued = withTimeout(5000) { coordinator.downloads.first { it.isNotEmpty() }.single() }
+            assertEquals("save-discover", queued.job?.mode)
+            assertEquals("guest", coordinator.store.context.value?.identity)
+        }
+    }
+
+    @Test
+    fun `a Cloudflare check that clears by itself lets the download continue`() = runBlocking {
+        fixture { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            val discovery = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            coordinator.downloadChallenged(discovery.id)
+            assertFalse(coordinator.downloadObserved(discovery.id, OfflinePageObservation(discovery.url, null, false)))
+            // The check reloads through its own parameters before returning to the page.
+            coordinator.downloadNavigation(discovery.id, "${discovery.url}?__cf_chl_rt_tk=token")
+            assertEquals(discovery.url, coordinator.background.value?.url)
+            assertTrue(coordinator.downloadObserved(discovery.id, OfflinePageObservation(discovery.url, "user:fixture", true)))
+            assertNull(coordinator.ao3Check.value)
+            assertTrue(discovery.capture.isCurrent())
+        }
+    }
+
+    @Test
+    fun `a Cloudflare check that does not clear pauses the queue without a retry until AO3 loads in Read`() = runBlocking {
+        fixture(ao3CheckWaitMillis = 50) { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            val discovery = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            coordinator.downloadChallenged(discovery.id)
+            withTimeout(5000) { coordinator.ao3Check.first { it == 123L } }
+            withTimeout(5000) { coordinator.message.first { it?.contains("not a robot") == true } }
+            withTimeout(5000) { coordinator.hasPendingDownloads.first { !it } }
+            assertNull(coordinator.background.value)
+            val paused = withTimeout(10_000) { coordinator.downloads.first { it.singleOrNull()?.job?.state == "queued" }.single() }
+            assertEquals(0, paused.job?.attempts)
+            assertEquals("Paused · AO3 wants to check you're not a robot. Open on AO3 to continue.", offlineWorkStatusText(paused, ao3Check = true))
+
+            coordinator.liveNavigation(url)
+            coordinator.observed(OfflinePageObservation(url, "user:fixture", true))
+            withTimeout(5000) { coordinator.ao3Check.first { it == null } }
+            val resumed = withTimeout(5000) { coordinator.background.first { it != null && it.id != discovery.id }!! }
+            assertEquals(discovery.url, resumed.url)
+        }
+    }
+
+    @Test
+    fun `a first download whose account check meets Cloudflare's check continues after Read loads AO3`() = runBlocking {
+        fixture(initialIdentity = null, ao3CheckWaitMillis = 50) { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123)
+            val check = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            coordinator.downloadChallenged(check.id)
+            assertFalse(coordinator.downloadObserved(check.id, OfflinePageObservation(check.url, null, false)))
+            withTimeout(5000) { coordinator.ao3Check.first { it == 123L } }
+            withTimeout(5000) { coordinator.hasPendingDownloads.first { !it } }
+
+            coordinator.liveNavigation(url)
+            coordinator.observed(OfflinePageObservation(url, "guest", false))
+            val discovery = withTimeout(5000) { coordinator.background.first { it?.mode == "save-discover" }!! }
+            assertEquals("guest", coordinator.store.context.value?.identity)
+            assertEquals("https://archiveofourown.org/works/123", discovery.url)
+        }
+    }
+
+    @Test
+    fun `a download that finds AO3 signed in to another account moves the queue to it`() = runBlocking {
+        // A backup download selects the guest account when none is confirmed, though AO3 may be signed in.
+        fixture(initialIdentity = "guest") { coordinator, _ ->
+            coordinator.setForeground(true)
+            coordinator.saveWork(123, update = true)
+            val guest = withTimeout(5000) { coordinator.background.first { it != null }!! }
+            assertEquals("update-discover", guest.mode)
+            assertFalse(coordinator.downloadObserved(guest.id, OfflinePageObservation(guest.url, "user:fixture", true)))
+            val moved = withTimeout(5000) { coordinator.background.first { it != null && it.id != guest.id }!! }
+            assertFalse(guest.capture.isCurrent())
+            assertEquals("user:fixture", coordinator.store.context.value?.identity)
+            assertEquals("update-discover", moved.mode)
+            assertEquals("https://archiveofourown.org/works/123", moved.url)
+            assertTrue(coordinator.downloadObserved(moved.id, OfflinePageObservation(moved.url, "user:fixture", true)))
+            assertTrue(coordinator.debugEntries.value.any { it.message.contains("queued downloads moved") })
         }
     }
 
@@ -442,7 +548,37 @@ class OfflineCoordinatorTest {
         listOf(OfflineBackupChapter("456", 1, "One", backupPage("First"), emptyList()),
             OfflineBackupChapter("457", 2, "Two", backupPage("Second"), emptyList())))
 
-    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", backups: OfflineBackupSource? = null, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
+    @Test
+    fun `saved works export to a file and import back without touching the library`() = runBlocking {
+        fixture(documents = getOfflineDocuments()) { coordinator, _ ->
+            val context = assertNotNull(coordinator.store.context.value)
+            coordinator.store.beginCapture(context).apply { publish(bundle(), foreground = false, pin = true); cancel() }
+            val file = Files.createTempFile("offline-export-", ".zip")
+            try {
+                coordinator.exportWorks(setOf(123), OfflineExportFormat.Archive, file.toString())
+                assertEquals("Exported 1 chapter from 1 work.", withTimeout(5000) { coordinator.transfer.first { it.message != null } }.message)
+                coordinator.store.removeWork(context, 123)
+                assertTrue(coordinator.store.statuses(context).isEmpty())
+
+                coordinator.importWorks(file.toString())
+                assertEquals("Imported 1 chapter from 1 work.",
+                    withTimeout(5000) { coordinator.transfer.first { it.message?.startsWith("Imported") == true } }.message)
+                // Downloads refresh before the result is published.
+                val status = coordinator.downloads.value.single()
+                assertTrue(status.work.pinned)
+                assertEquals(setOf("456"), status.savedChapterIds)
+
+                Files.writeString(file, "Not an export")
+                coordinator.importWorks(file.toString())
+                assertEquals("This file is not an export of downloaded works.",
+                    withTimeout(5000) { coordinator.transfer.first { it.message?.startsWith("This file") == true } }.message)
+            } finally {
+                Files.deleteIfExists(file)
+            }
+        }
+    }
+
+    private suspend fun fixture(settings: AppSettings = AppSettings(null), requestSync: () -> Unit = {}, databaseContext: CoroutineContext = Dispatchers.IO, initialIdentity: String? = "user:fixture", backups: OfflineBackupSource? = null, ao3CheckWaitMillis: Long = AO3_CHECK_WAIT_MILLIS, documents: OfflineDocuments? = null, block: suspend AccountDataStore.(OfflineCoordinator, MutableStateFlow<OfflineNetwork>) -> Unit) {
         val directory = Files.createTempDirectory("offline-coordinator-")
         val accounts = createTestAccounts(directory, databaseContext)
         // Match the app's main-thread confinement for coordinator calls and jobs.
@@ -451,7 +587,7 @@ class OfflineCoordinatorTest {
             val store = OfflineContentStore(accounts, DiskOfflineFiles(directory.resolve("files").toFile()))
             initialIdentity?.let { store.observeIdentity(it) }
             val network = MutableStateFlow(OfflineNetwork(true, true))
-            val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync, backups)
+            val coordinator = OfflineCoordinator(store, accounts, settings, Ao3RequestGate(), network, true, scope, requestSync, backups, ao3CheckWaitMillis, documents)
             accounts.block(coordinator, network)
             assertTrue(accounts.database.chapterDao().getAllChaptersIncludingDeletedOnce().isEmpty())
             assertTrue(accounts.database.workDao().getAllWorksIncludingDeletedOnce().isEmpty())

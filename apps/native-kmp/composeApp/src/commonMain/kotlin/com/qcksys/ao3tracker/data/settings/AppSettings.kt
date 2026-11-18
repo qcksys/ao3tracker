@@ -65,6 +65,15 @@ class AppSettings(
         settingsStorage?.setOfflinePreferences(offlinePreferencesJson.encodeToString(preferences))
         _offlinePreferences.value = preferences
     }
+    private val _driveBackupPreferences = MutableStateFlow(settingsStorage?.getDriveBackupPreferences()?.let {
+        runCatching { JsonConfig.json.decodeFromString<DriveBackupPreferences>(it) }.getOrNull()
+    } ?: DriveBackupPreferences())
+    val driveBackupPreferences = _driveBackupPreferences.asStateFlow()
+
+    fun setDriveBackupPreferences(preferences: DriveBackupPreferences) {
+        settingsStorage?.setDriveBackupPreferences(JsonConfig.json.encodeToString(preferences))
+        _driveBackupPreferences.value = preferences
+    }
     private val _diagnosticDataEnabled = MutableStateFlow(settingsStorage?.isDiagnosticDataEnabled() ?: true)
     val diagnosticDataEnabled: StateFlow<Boolean> = _diagnosticDataEnabled.asStateFlow()
     private val _diagnosticSession = MutableStateFlow(

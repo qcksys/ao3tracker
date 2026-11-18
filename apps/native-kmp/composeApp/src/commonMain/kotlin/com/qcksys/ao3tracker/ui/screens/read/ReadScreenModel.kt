@@ -48,6 +48,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import io.ktor.http.URLBuilder
+import kotlin.math.roundToInt
 
 class ReadScreenModel(
     private val repository: Ao3Repository,
@@ -93,6 +94,9 @@ class ReadScreenModel(
 
     private val _scrollProgress = MutableStateFlow(0f)
     val scrollProgress: StateFlow<Float> = _scrollProgress.asStateFlow()
+    // The live page that last reported scroll progress, so leaving the tab restores only that page's position.
+    private data class LiveScroll(val url: String, val progress: Float)
+    private var liveScroll: LiveScroll? = null
 
     // Snippets of JS to evaluate in the WebView (e.g. applying list-page badges).
     // extraBufferCapacity guarantees emit() never suspends; replay=0 because each
@@ -133,6 +137,7 @@ class ReadScreenModel(
                         liveReaderVersion.value++
                         _currentUrl.value = "https://archiveofourown.org"
                         _scrollProgress.value = 0f
+                        liveScroll = null
                         _isLoading.value = false
                         previousChapter = null
                         pendingWorkInfo = null
@@ -219,14 +224,25 @@ class ReadScreenModel(
             while (readerHistory.lastIndex > historyIndex) readerHistory.removeAt(readerHistory.lastIndex)
             updateHistoryControls()
             offline?.leaveLivePage()
-        } else fallback?.chapter?.document?.close()
-        offline?.notify("AO3 could not load this page. Your saved chapters remain available.")
+            offline?.notify("AO3 could not load this page. Your saved chapter is open.")
+        } else {
+            fallback?.chapter?.document?.close()
+            if (status != null) offline?.notify("AO3 could not load this page. Your saved chapters remain available.")
+        }
     }
 
     internal fun leaveReader() {
         offline?.leaveLivePage()
         needsSavedRestore = _savedChapter.value != null
         saveHistoryPosition()
+        // Leaving destroys the live WebView, so its replacement reloads this page at the last reported position.
+        val scroll = liveScroll
+        if (!needsSavedRestore && scroll != null && scrollPage(scroll.url) == scrollPage(_currentUrl.value)) {
+            // A restored page reports one point below its requested position because AO3 progress is floored.
+            val requested = URLBuilder(_currentUrl.value).parameters["scrollTo"]?.toIntOrNull()
+            val reported = (scroll.progress * 100).roundToInt()
+            if (requested == null || reported !in requested - 1..requested) setLiveUrlWithScroll(_currentUrl.value, scroll.progress)
+        }
     }
 
     internal suspend fun resumeReader() {
@@ -304,6 +320,11 @@ class ReadScreenModel(
         parameters.remove("_t")
     }.buildString()
 
+    private fun scrollPage(url: String): String = URLBuilder(historyUrl(url)).apply {
+        parameters.remove("scroll")
+        fragment = ""
+    }.buildString()
+
     private suspend fun openDestination(url: String, progress: Float?, forceLive: Boolean = false, historyTarget: Int? = null) {
         if (!isTrustedAo3Url(url)) return
         val coordinator = offline?.takeIf { it.enabled }
@@ -341,6 +362,7 @@ class ReadScreenModel(
         pendingWorkInfo = null
         pendingWorkTags = null
         _scrollProgress.value = progress ?: 0f
+        liveScroll = null
         if (saved != null) {
             coordinator?.leaveLivePage()
             _savedChapter.value = saved
@@ -476,6 +498,7 @@ class ReadScreenModel(
             }
             is WebViewMessage.ScrollProgress -> {
                 _scrollProgress.value = message.event.scrollPercentage / 100f
+                liveScroll = LiveScroll(message.event.url, _scrollProgress.value)
                 if (canTrack()) repository.updateScrollProgress(message.event, canTrack)
             }
             is WebViewMessage.ListWorks -> {
@@ -687,6 +710,7 @@ class ReadScreenModel(
         if (offline?.enabled == true) { openSavedOrLive(addChaptersFragment(url)); return }
         // Reset scroll progress when navigating to a new page
         _scrollProgress.value = 0f
+        liveScroll = null
         // Add #chapters fragment for work URLs to auto-scroll to content
         _currentUrl.value = addChaptersFragment(url)
     }
@@ -695,6 +719,7 @@ class ReadScreenModel(
         if (!isTrustedAo3Url(url)) return
         if (offline?.enabled == true) { openSavedOrLive(url); return }
         _scrollProgress.value = 0f
+        liveScroll = null
         _currentUrl.value = url
     }
 
@@ -702,6 +727,7 @@ class ReadScreenModel(
         closeSavedChapter()
         offline?.leaveLivePage()
         _scrollProgress.value = 0f
+        liveScroll = null
         _currentUrl.value = "https://archiveofourown.org"
     }
 
@@ -720,9 +746,10 @@ class ReadScreenModel(
     }
 
     private fun setLiveUrlWithScroll(url: String, scrollProgress: Float) {
+        liveScroll = null
         // Build URL with scrollTo param and timestamp to force reload
         val timestamp = Clock.System.now().toEpochMilliseconds()
-        val scrollPercent = (scrollProgress * 100).toInt()
+        val scrollPercent = (scrollProgress * 100).roundToInt()
 
         // Add query params first, then fragment (fragments must come last in URL)
         val base = historyUrl(url).substringBefore('#')

@@ -42,6 +42,9 @@ class SyncCoordinator(
         _lastSyncResult.compareAndSet(completion, null)
     }
 
+    /** Runs [block] between syncs, so a running sync cannot save cursors over changes [block] makes. */
+    suspend fun <T> runBetweenSyncs(block: suspend () -> T): T = mutex.withLock { block() }
+
     private fun submit(forceFull: Boolean, signOutAfterSync: Boolean, showResult: Boolean): Deferred<SyncResult> {
         val requestedAuth = auth.authState.value
         val requestedOwner = auth.currentOwner()
