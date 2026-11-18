@@ -12,6 +12,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.webkit.CookieManager
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -24,6 +25,8 @@ import androidx.core.content.ContextCompat
 import com.qcksys.ao3tracker.MainActivity
 import com.qcksys.ao3tracker.ui.components.Ao3PageWebView
 import com.qcksys.ao3tracker.ui.components.OfflineCaptureConnection
+import com.qcksys.ao3tracker.webview.OfflineObservationScriptGenerated
+import com.qcksys.ao3tracker.webview.guardAo3Script
 import com.qcksys.ao3tracker.webview.isTrustedAo3Url
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -95,13 +98,14 @@ class OfflineDownloadService : Service() {
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$packageName:offline-downloads").also { wakeLock = it }
         if (lock.isHeld) lock.release()
         lock.acquire(10 * 60 * 1000L)
-        view = Ao3PageWebView(this).apply {
+        val page = Ao3PageWebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             capture = OfflineCaptureConnection(this, scope)
             var startedCapture = false
+            var pageVersion = 0
             webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean =
                     !isTrustedAo3Url(request?.url?.toString())
@@ -109,15 +113,22 @@ class OfflineDownloadService : Service() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     capture?.cancel()
                     startedCapture = false
+                    pageVersion++
                     url?.let { owner.downloadNavigation(request.id, it) }
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
-                    if (startedCapture || !isTrustedAo3Url(url)) return
+                    if (startedCapture || view == null || url == null || !isTrustedAo3Url(url)) return
                     val current = owner.background.value?.takeIf { it.id == request.id && it.url == url } ?: return
                     startedCapture = true
-                    current.capture.onProgress("Chapter loaded; capturing text, styles and resources.")
-                    capture?.start(current.capture, discoverChapter = true)
+                    val version = pageVersion
+                    // The page's AO3 account decides which account's saved works the download belongs to.
+                    view.evaluateJavascript(guardAo3Script("${OfflineObservationScriptGenerated.script}; return Ao3OfflineObservation.observe(document, location.href);")) { body ->
+                        if (pageVersion != version || owner.background.value !== current) return@evaluateJavascript
+                        if (!owner.downloadObserved(current.id, parseOfflineObservation(body, url))) return@evaluateJavascript
+                        current.capture.onProgress("Chapter loaded; capturing text, styles and resources.")
+                        capture?.start(current.capture, discoverChapter = true)
+                    }
                 }
 
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
@@ -138,7 +149,12 @@ class OfflineDownloadService : Service() {
                     return true
                 }
             }
-            loadUrl(request.url)
+        }
+        view = page
+        // AO3 asks before showing Mature, Explicit and Not Rated works. Downloads proceed as its Proceed link does, by
+        // setting AO3's view_adult session cookie, which the reader's AO3 WebView shares.
+        CookieManager.getInstance().setCookie(AO3_ORIGIN, "view_adult=true; Path=/; Secure") {
+            if (view === page && requestId == request.id) page.loadUrl(request.url)
         }
     }
 
@@ -189,6 +205,7 @@ class OfflineDownloadService : Service() {
         internal const val ACTION_OPEN_DOWNLOADS = "com.qcksys.ao3tracker.OPEN_DOWNLOADS"
         private const val CHANNEL = "ao3_offline_downloads"
         private const val NOTIFICATION = 2043
+        private const val AO3_ORIGIN = "https://archiveofourown.org"
         private var requestedCoordinator: OfflineCoordinator? = null
 
         internal fun start(context: Context, coordinator: OfflineCoordinator) {

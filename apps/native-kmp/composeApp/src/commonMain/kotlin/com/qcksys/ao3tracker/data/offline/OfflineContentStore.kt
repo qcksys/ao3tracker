@@ -270,13 +270,41 @@ internal class OfflineContentStore(
 
     suspend fun enqueueWork(context: OfflineContext, workId: Long, update: Boolean = false) = mutex.withLock {
         require(workId > 0)
-        forContext(context) { dao ->
-            val old = dao.work(context.id, workId)
-            dao.saveWork(old?.copy(pinned = true) ?: OfflineWorkEntity(context.id, workId, "Work $workId", "[]", true, now()))
-            dao.deleteWorkJobs(context.id, workId)
-            dao.saveJob(OfflineJobEntity(Uuid.random().toString(), context.id, workId, if (update) "update-discover" else "save-discover",
-                offlineJson.encodeToString(listOf("https://archiveofourown.org/works/$workId")), "[]", "queued", 0, 0, null, now()))
+        forContext(context) { dao -> queueWork(dao, context.id, workId, update) }
+    }
+
+    private suspend fun queueWork(dao: OfflineDao, contextId: String, workId: Long, update: Boolean) {
+        val old = dao.work(contextId, workId)
+        dao.saveWork(old?.copy(pinned = true) ?: OfflineWorkEntity(contextId, workId, "Work $workId", "[]", true, now()))
+        dao.deleteWorkJobs(contextId, workId)
+        dao.saveJob(OfflineJobEntity(Uuid.random().toString(), contextId, workId, if (update) "update-discover" else "save-discover",
+            offlineJson.encodeToString(listOf("https://archiveofourown.org/works/$workId")), "[]", "queued", 0, 0, null, now()))
+    }
+
+    /**
+     * Selects the AO3 account [identity] that a background download found signed in, and moves [from]'s unfinished
+     * explicit downloads to it. Chapters saved under [from] stay with that account; prefetches are dropped.
+     */
+    suspend fun switchQueueIdentity(from: OfflineContext, identity: String): OfflineContext = mutex.withLock {
+        require(identity == "guest" || identity.startsWith("user:") && identity.length in 6..196)
+        checkCurrent(from)
+        val generation = accounts.generation
+        accounts.forAccount(from.owner, { accounts.generation == generation }) {
+            val dao = accounts.database.offlineDao()
+            val target = dao.contextForIdentity(identity) ?: OfflineContextEntity(Uuid.random().toString(), identity, false, null)
+            val moved = dao.jobs(from.id).filter { it.mode != "prefetch" && it.state != "complete" }
+                .associate { it.workId to it.mode.startsWith("update") }
+            dao.deletePrefetchJobs(from.id)
+            for (workId in moved.keys) {
+                dao.deleteWorkJobs(from.id, workId)
+                if (dao.chapters(from.id).none { it.workId == workId }) dao.deleteWork(from.id, workId)
+            }
+            dao.deselectContexts()
+            dao.saveContext(target.copy(selected = true))
+            for ((workId, update) in moved) queueWork(dao, target.id, workId, update)
+            selected.value = OfflineContext(from.owner, generation, target.id, identity, ++epoch, accounts.offlineReset.value)
         }
+        requireNotNull(selected.value)
     }
 
     /** Drops the work's queued downloads and pins its saved copy before a backup download replaces them. */

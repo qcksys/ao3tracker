@@ -3,7 +3,6 @@ package com.qcksys.ao3tracker.data.offline
 import com.qcksys.ao3tracker.data.database.AccountDataStore
 import com.qcksys.ao3tracker.data.database.OfflineJobEntity
 import com.qcksys.ao3tracker.data.settings.AppSettings
-import com.qcksys.ao3tracker.ui.navigation.NavigationState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -31,8 +31,15 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
+/**
+ * A page the download service loads. [observe] receives the loaded page's AO3 account and returns whether to capture it;
+ * the `identity` mode only confirms the account before a first download.
+ */
 internal data class OfflineDownloadRequest(val id: String, val workId: Long, val url: String, val capture: OfflineCaptureRequest, val automatic: Boolean = false,
-    val mode: String = "save-discover", val done: Int = 0, val total: Int = 1)
+    val mode: String = "save-discover", val done: Int = 0, val total: Int = 1, val observe: (OfflinePageObservation?) -> Boolean = { true })
+
+/** A background download found AO3 signed in to [identity] rather than the download queue's account. */
+private class OfflineIdentityChanged(val identity: String) : Exception("AO3 is signed in to a different account.")
 internal data class DownloadDebugEntry(val timestamp: String, val message: String)
 /** A work's latest backup download: in progress, or finished with [message]. */
 internal data class OfflineBackupDownload(val running: Boolean, val message: String? = null)
@@ -87,7 +94,8 @@ class OfflineCoordinator internal constructor(
     private var foregroundTask: Job? = null
     private var downloadTask: Job? = null
     private val downloadId = MutableStateFlow<String?>(null)
-    private var pendingSave: Pair<Long, Boolean>? = null
+    // Works to save, by whether to update them, once AO3 confirms which account is signed in.
+    private val pendingSaves = MutableStateFlow<Map<Long, Boolean>>(emptyMap())
     private var workRevisions: Map<Long, Pair<Int?, String?>> = emptyMap()
     // Revisions already queued this session, so an update that cannot reach the reported count is not repeated.
     private val queuedUpdates = mutableMapOf<Long, Pair<Int?, String?>?>()
@@ -127,7 +135,7 @@ class OfflineCoordinator internal constructor(
                             storedStates = emptyList()
                             workStates.value = emptyList()
                             shownRequest.value = null
-                            pendingSave = null
+                            pendingSaves.value = emptyMap()
                             automaticPage = null
                             debugState.value = emptyList()
                             queuedUpdates.clear()
@@ -178,7 +186,16 @@ class OfflineCoordinator internal constructor(
             scope.launch {
                 for (signal in wake) {
                     while (canDownload()) {
-                        val context = store.context.value ?: break
+                        val context = store.context.value
+                        if (context == null) {
+                            if (pendingSaves.value.isEmpty()) break
+                            val task = scope.launch { confirmIdentity() }
+                            downloadTask = task
+                            task.join()
+                            if (downloadTask === task) downloadTask = null
+                            if (store.context.value == null) break
+                            continue
+                        }
                         val job = try { store.nextJob(context, prefetchAllowed()) } catch (_: CancellationException) { null } catch (_: Exception) {
                             statusMessage.value = "The download queue could not be loaded. Try reopening the app."
                             null
@@ -283,16 +300,12 @@ class OfflineCoordinator internal constructor(
                     automaticPage = null
                     debugState.value = emptyList()
                 }
-                event.identity?.let { store.observeIdentity(it) { liveNavigation.value == version } }
+                val context = event.identity?.let { store.observeIdentity(it) { liveNavigation.value == version } }
                 if (liveNavigation.value != version) return@launch
                 observation.value = event
+                context?.let { queuePendingSaves(it) }
                 refresh()
-                val pending = pendingSave
-                if (pending != null && event.readable && event.identity != null &&
-                    runCatching { offlineLocation(event.url).workId.toLong() == pending.first }.getOrDefault(false)) {
-                    pendingSave = null
-                    captureCurrent(pending.first, pending.second)
-                } else if (event.readable && event.identity != null && automaticAllowed() && foreground.value && captureId.value == null) {
+                if (event.readable && event.identity != null && automaticAllowed() && foreground.value && captureId.value == null) {
                     captureCurrent(offlineLocation(event.url).workId.toLong(), false, automatic = true)
                 }
                 kick()
@@ -310,9 +323,11 @@ class OfflineCoordinator internal constructor(
         } else launchAction {
             val context = store.context.value?.takeIf(store::isCurrent)
             if (context == null) {
-                pendingSave = workId to update
-                statusMessage.value = "The work will be saved after AO3 confirms access."
-                NavigationState.navigateToRead("https://archiveofourown.org/works/$workId?view_full_work=true")
+                // The download service confirms the AO3 account from the work's page, without opening it in Read.
+                pendingSaves.update { it + (workId to (update || it[workId] == true)) }
+                statusMessage.value = "Checking your AO3 account before downloading."
+                refreshQueueAvailability()
+                kick()
                 return@launchAction
             }
             downloadTask?.cancel()
@@ -480,7 +495,11 @@ class OfflineCoordinator internal constructor(
                     }, onProgress = ::debug)
                 val done = offlineJson.decodeFromString<List<String>>(job.completedJson).size
                 val total = done + offlineJson.decodeFromString<List<String>>(job.remainingJson).size
-                val download = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total)
+                val download = OfflineDownloadRequest(id, job.workId, url, request, automatic, job.mode, done, total) { observation ->
+                    val identity = observation?.identity
+                    if (identity == null || identity == context.identity || !allowed()) true
+                    else { result.completeExceptionally(OfflineIdentityChanged(identity)); false }
+                }
                 backgroundRequest.value = download
                 showProgress(download)
                 refresh()
@@ -495,6 +514,14 @@ class OfflineCoordinator internal constructor(
                 if (store.isCurrent(context)) store.setJobState(context, job.id, "queued")
             }
             throw error
+        } catch (error: OfflineIdentityChanged) {
+            // The download WebView shares the reader's AO3 session, so the queue follows the account AO3 shows.
+            withContext(NonCancellable) {
+                if (!store.isCurrent(context)) return@withContext
+                store.switchQueueIdentity(context, error.identity)
+                identityChanged()
+                debug("AO3 is signed in to a different account; queued downloads moved to it.")
+            }
         } catch (error: Exception) {
             debug("Download failed: ${error.message ?: error::class.simpleName}")
             if (store.isCurrent(context)) {
@@ -514,6 +541,78 @@ class OfflineCoordinator internal constructor(
             }
         }
     }
+
+    /**
+     * Confirms which AO3 account is signed in by loading the first pending work's page in the download service, then
+     * queues the pending works under that account.
+     */
+    private suspend fun confirmIdentity() {
+        val workId = pendingSaves.value.keys.firstOrNull() ?: return
+        val id = Uuid.random().toString()
+        val url = "https://archiveofourown.org/works/$workId"
+        val identity = CompletableDeferred<String>()
+        try {
+            gate.background {
+                if (!canDownload() || store.context.value != null) return@background
+                downloadId.value = id
+                debug("Checking which AO3 account is signed in.")
+                val failed: (String, String?) -> Unit = { message, retryAfter ->
+                    if (retryAfter != null) gate.pause(retryAfter)
+                    identity.completeExceptionally(IllegalStateException(message))
+                }
+                val check = OfflineCaptureRequest(url, null, { downloadId.value == id && canDownload() },
+                    { _, _ -> error("Account checks do not save resources.") }, { error("Account checks do not save chapters.") },
+                    failed, ::debug)
+                backgroundRequest.value = OfflineDownloadRequest(id, workId, url, check, mode = "identity") { observation ->
+                    observation?.identity?.let(identity::complete)
+                        ?: failed("AO3 did not show which account is signed in. Try again later.", null)
+                    false
+                }
+                withTimeout(120_000) { identity.await() }
+            }
+            if (!identity.isCompleted) return
+            val context = store.observeIdentity(identity.await())
+            debug("AO3 account confirmed.")
+            queuePendingSaves(context)
+            refresh()
+        } catch (error: CancellationException) {
+            if (error is TimeoutCancellationException) giveUpPendingSaves("AO3 did not respond. Try again later.") else throw error
+        } catch (error: Exception) {
+            giveUpPendingSaves(error.message ?: "AO3 did not show which account is signed in. Try again later.")
+        } finally {
+            if (downloadId.value == id) downloadId.value = null
+            if (backgroundRequest.value?.id == id) backgroundRequest.value = null
+        }
+    }
+
+    private suspend fun queuePendingSaves(context: OfflineContext) {
+        val saves = pendingSaves.getAndUpdate { emptyMap() }
+        if (saves.isEmpty()) return
+        for ((workId, update) in saves) store.enqueueWork(context, workId, update)
+        debug(if (saves.size == 1) "Queued whole-work download." else "Queued ${saves.size} whole-work downloads.")
+        kick()
+    }
+
+    private suspend fun giveUpPendingSaves(message: String) {
+        pendingSaves.value = emptyMap()
+        debug("Account check failed: $message")
+        statusMessage.value = message
+        refreshQueueAvailability()
+    }
+
+    /** Clears what the previous AO3 account's queue showed after the selected account changed. */
+    private suspend fun identityChanged() {
+        storedStates = emptyList()
+        workStates.value = emptyList()
+        automaticPage = null
+        debugState.value = emptyList()
+        refresh()
+        kick()
+    }
+
+    /** The download service's report of the AO3 account on the page it loaded; true when the page should be captured. */
+    internal fun downloadObserved(id: String, observation: OfflinePageObservation?): Boolean =
+        backgroundRequest.value?.takeIf { it.id == id }?.observe?.invoke(observation) ?: false
 
     internal fun downloadNavigation(id: String, url: String) {
         val current = backgroundRequest.value?.takeIf { it.id == id } ?: return
@@ -617,7 +716,7 @@ class OfflineCoordinator internal constructor(
 
     private suspend fun refreshQueueAvailability() {
         val context = store.context.value
-        queueActive.value = context != null && store.isCurrent(context) &&
+        queueActive.value = context == null && pendingSaves.value.isNotEmpty() || context != null && store.isCurrent(context) &&
             (store.nextJob(context, prefetchAllowed()) != null || store.nextRetryAt(context, prefetchAllowed()) != null)
     }
 
