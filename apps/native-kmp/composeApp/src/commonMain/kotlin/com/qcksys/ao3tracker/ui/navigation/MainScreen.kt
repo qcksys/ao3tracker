@@ -126,7 +126,7 @@ private fun RowScope.TabNavigationItem(tab: Tab, showLoading: Boolean) {
                 // If already on this tab, perform tab-specific action
                 when (tab) {
                     ReadTab -> NavigationState.triggerReadTabHome()
-                    TrackTab -> NavigationState.popTrackTabToRoot()
+                    TrackTab -> NavigationState.reselectTrackTab()
                 }
             } else {
                 tabNavigator.current = tab

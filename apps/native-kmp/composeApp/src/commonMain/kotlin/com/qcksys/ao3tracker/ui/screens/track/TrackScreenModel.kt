@@ -77,6 +77,9 @@ class TrackScreenModel(
     private val _expandedFilterSections = MutableStateFlow<Set<FilterSection>>(emptySet())
     val expandedFilterSections: StateFlow<Set<FilterSection>> = _expandedFilterSections.asStateFlow()
 
+    // Kept here because the list leaves composition when Work Details, Read, or another tab opens.
+    internal var listPosition = WorksListPosition.Top
+
     // Sync state
     val syncState: StateFlow<SyncState> = syncCoordinator.syncState
     val lastSyncResult = syncCoordinator.lastSyncResult
