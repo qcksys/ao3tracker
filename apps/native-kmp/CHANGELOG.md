@@ -1,5 +1,41 @@
 # @qcksys/ao3tracker-native-kmp
 
+## 0.7.0
+
+### Minor Changes
+
+- 1a739ad: Show chapters saved with Download from backup the way AO3 shows them, including in dark mode.
+
+  The API now rebuilds each backup chapter in AO3's chapter layout, with the work's tags, summary, notes, chapter titles, end notes and previous/next chapter links, so your AO3 site skin styles it like the live page. Until the app has saved your site skin from AO3, backup chapters use AO3's default skin, switching to AO3's dark Reversi skin when your device is in dark mode. The backup response adds `skins`; the older `styles`, `preface` and `afterword` fields remain for earlier app releases.
+
+  Download from backup no longer asks a signed-in reader to sign in when the app was opened without a connection. Copies saved from a backup before this change keep their old layout until you remove the download and download it from the backup again.
+
+- b3d7a0c: Download works for offline reading without opening them first.
+
+  Save whole work now starts downloading straight away, even the first time: the app checks which AO3 account you're signed in to in the background instead of opening the work in Read. Works rated Mature, Explicit or Not Rated download without stopping at AO3's adult content warning, which the app accepts for you as AO3's Proceed link would; AO3 then also skips that warning in Read for the rest of your AO3 session. If AO3 turns out to be signed in to a different account than your queued downloads, they continue under that account instead of failing.
+
+- e5e59d8: Export and import downloaded works.
+
+  Settings → Export & import saves downloaded works to a file of your choice: an archive you can import on this or another device, or EPUB books for e-book apps. Export every saved work, choose works from a list, or export one work from its offline reading section. Importing adds the chapters to the current AO3 account's downloads and keeps chapters already saved at the same or a newer revision. EPUB books cannot be imported.
+
+- 3c57ddb: Back up your library to Google Drive on Android, and import exported JSON files.
+
+  Settings → Account adds Sign in with Google. While signed in, the app backs up the current library to your Google Drive about a minute after tracking changes, in the same JSON format as Export Data. You choose whether the backup is a file you can see in My Drive or is kept in Drive's hidden app folder. Backups go one way: each device and library keeps its own file, nothing syncs between devices, and Restore brings a backup back on any device when you ask. Library & data adds Import Data from JSON for exported files. Restoring and importing let you merge with newer progress winning, add only missing works, or replace the library's works.
+
+### Patch Changes
+
+- 669e994: Keep downloads going when AO3 asks to check that you're not a robot.
+
+  When AO3 shows its Cloudflare check, background downloads now wait for it to pass by itself. If it doesn't, they pause instead of failing, and the app tells you in Read, Downloads and a notification. Tap Open on AO3, complete the check, and the downloads continue without using up their retries.
+
+- 6911949: Confirm saved-search deletion, count completed chapters consistently, and clear offline availability with the other library filters. Make filter states accessible and keep search results and reading actions usable with a landscape keyboard or large text.
+
+  On Android, offer Retry and Downloads when a reader connection fails, and ask for notification permission when you enable alerts in Settings.
+
+- 6e69c82: Return to where you left the Read and Works tabs.
+
+  Tapping Read from another tab reopens the page you were reading at your last position; tapping Read again opens the AO3 home page. The Works list keeps its scroll position when you open a work or its details, and tapping Works on the list scrolls it to the top.
+
 ## 0.6.0
 
 ### Minor Changes

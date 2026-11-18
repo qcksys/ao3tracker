@@ -1,5 +1,25 @@
 # @qcksys/ao3tracker-api
 
+## 0.4.0
+
+### Minor Changes
+
+- 1a739ad: Show chapters saved with Download from backup the way AO3 shows them, including in dark mode.
+
+  The API now rebuilds each backup chapter in AO3's chapter layout, with the work's tags, summary, notes, chapter titles, end notes and previous/next chapter links, so your AO3 site skin styles it like the live page. Until the app has saved your site skin from AO3, backup chapters use AO3's default skin, switching to AO3's dark Reversi skin when your device is in dark mode. The backup response adds `skins`; the older `styles`, `preface` and `afterword` fields remain for earlier app releases.
+
+  Download from backup no longer asks a signed-in reader to sign in when the app was opened without a connection. Copies saved from a backup before this change keep their old layout until you remove the download and download it from the backup again.
+
+### Patch Changes
+
+- 7ecbc17: Show chapters downloaded from a backup with the same layout as AO3's chapter pages.
+
+  Backup chapters now show full chapter titles where AO3's chapter menu shortened them, list translations under the work's notes, and end the last chapter with the work's series and the works inspired by it. Chapter notes and single-chapter works are spaced as on AO3. Copies already saved from a backup keep their old layout until you download them from the backup again.
+
+- f065731: Describe the Android Google Drive backup in the privacy policy.
+
+  The policy now covers what the app reads from your Google account, what backups contain, that they go straight from your device to your Drive, how to revoke access and delete backups, and compliance with Google's Limited Use requirements.
+
 ## 0.3.0
 
 ### Minor Changes
