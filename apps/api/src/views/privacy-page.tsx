@@ -8,7 +8,7 @@ export const PrivacyPage: FC = () => (
         AO3 Tracker
       </a>
       <h1 class="mt-6 mb-2 text-4xl font-bold">Privacy policy</h1>
-      <p class="mb-8 text-zinc-400">Last updated: 2 October 2026</p>
+      <p class="mb-8 text-zinc-400">Last updated: 18 November 2026</p>
       <div class="space-y-8">
         <section>
           <h2 class="mb-3 text-2xl font-semibold">Scope and purpose</h2>
@@ -92,6 +92,49 @@ export const PrivacyPage: FC = () => (
             memory and discarded when you opt out or close the app. Crash reports collected before
             opting out may still be delivered; opting out does not delete reports already received
             by PostHog.
+          </p>
+        </section>
+        <section>
+          <h2 class="mb-3 text-2xl font-semibold">Google Drive backup (Android)</h2>
+          <p>
+            When you choose Sign in with Google, the Android app backs up your library to your own
+            Google Drive. With your permission, the app accesses only:
+          </p>
+          <ul class="mt-4 list-disc space-y-3 pl-6">
+            <li>
+              your Google account email address, shown in Settings so you know which account
+              receives backups;
+            </li>
+            <li>
+              the backup files the app creates, either as files in My Drive or in Drive's hidden app
+              data folder, as you choose. The app cannot see or change your other Drive files.
+            </li>
+          </ul>
+          <p class="mt-4">
+            Backups contain the same reading data as Export Data: works, chapters, tags, reading
+            progress and timestamps. Each backup's file name includes your device model and, for a
+            tracker account's library, that account's email address. The app uploads backups
+            directly from your device to Google Drive and downloads them only when you restore one.
+            They do not pass through AO3 Tracker's service, and QckSys does not receive your Drive
+            files, Google email address or Google access tokens. Google Play services issues
+            short-lived access tokens on your device, and the app keeps your Google email address in
+            this device's settings.
+          </p>
+          <p class="mt-4">
+            Sign out of Google in Settings to stop backups and revoke the app's Drive access, or
+            remove that access in your Google Account settings. Signing out does not delete backups
+            already in your Drive: delete the files in My Drive, or delete the hidden app data in
+            Drive's Manage apps settings.
+          </p>
+          <p class="mt-4">
+            AO3 Tracker's use and transfer of information received from Google APIs adheres to the{" "}
+            <a
+              class="text-purple-300 underline"
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements.
           </p>
         </section>
         <section>

@@ -11,6 +11,9 @@ describe("public privacy policy", () => {
     expect(page).toContain("AO3 Tracker Beta");
     expect(page).toContain("IP addresses");
     expect(page).toContain("mailto:tom@qcksys.com");
+    expect(page).toContain("Google Drive backup");
+    expect(page).toContain("https://developers.google.com/terms/api-services-user-data-policy");
+    expect(page).toContain("Limited Use requirements");
     expect(page).not.toContain("<script");
   });
 });
