@@ -237,6 +237,11 @@ kotlin {
         withHostTest { isIncludeAndroidResources = true }
         withDeviceTest {
             instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+            // The cold-start fixture runs only in its prepare/verify phases. AGP reports a skipped
+            // (assumption-failed or ignored) device test as a failure, so leave it out of other runs.
+            if (!providers.gradleProperty("android.testInstrumentationRunnerArguments.offlineColdStart").isPresent) {
+                instrumentationRunnerArguments["notClass"] = "com.qcksys.ao3tracker.ui.components.OfflineColdStartTest"
+            }
         }
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
