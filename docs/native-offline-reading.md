@@ -162,7 +162,7 @@ Milestone 1 resolves the highest-risk Android assumptions before investing in do
 
 The final audit covers whole-work representation, background refresh, new chapter coverage, account lifecycle, competing reading edits, and storage failure handling. The native and shared-core minor release note is [fresh-swans](../.changeset/fresh-swans.md). Store publication is separate from this implementation and has not been performed.
 
-The cold-start instrumentation fixture requires a signed-out test emulator. Run `OfflineColdStartTest` with instrumentation argument `offlineColdStart=prepare`, force-stop `com.qcksys.ao3tracker`, then run it again with `offlineColdStart=verify` in airplane mode. Preparation saves the identified test work 9000000001 and its 42% reading position in the app's guest partition; verification never reseeds it. Ordinary instrumentation runs skip this two-process fixture.
+The cold-start instrumentation fixture requires a signed-out test emulator. Run `OfflineColdStartTest` with instrumentation argument `offlineColdStart=prepare`, force-stop `com.qcksys.ao3tracker`, then run it again with `offlineColdStart=verify` in airplane mode. Preparation saves the identified test work 9000000001 and its 42% reading position in the app's guest partition; verification never reseeds it. Gradle leaves this two-process fixture out of `:composeApp:connectedAndroidDeviceTest` unless `-Pandroid.testInstrumentationRunnerArguments.offlineColdStart=<phase>` is passed, because AGP reports a skipped device test as a failure.
 
 ## Code changes and verification
 
