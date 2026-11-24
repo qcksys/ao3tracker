@@ -298,14 +298,14 @@ iOS integration, archives, and simulator tests require macOS/Xcode.
 Android's Account settings offer **Sign in with Google** to back up the active library to the user's Google Drive in the Export Data JSON format. Backups go one way; users restore them manually, and nothing syncs between devices. The app uses Google Identity Services' `AuthorizationClient`, which matches the installed app to an Android OAuth client by package name and signing certificate, so no client ID is in the code. Before testing or releasing, configure Google Cloud project `qs-ao3tracker`:
 
 1. Enable the **Google Drive API**.
-2. On the OAuth consent screen (Google Auth Platform), add the `https://www.googleapis.com/auth/drive.file` and `https://www.googleapis.com/auth/drive.appdata` scopes. Both are non-sensitive. Until the app is published there, add testers as test users.
-3. Create an **Android** OAuth client for each package and signing certificate that should sign in:
-   - `com.qcksys.ao3tracker` with the SHA-1 of the debug keystore (local builds) and of the **Play app signing** certificate (Play Console → Test and release → App integrity). Add the upload certificate's SHA-1 too if you install upload-signed builds directly.
-   - `com.qcksys.ao3tracker.dev` with the Play app signing SHA-1 of the Dev app, and the debug SHA-1 if needed.
+2. On the OAuth consent screen (Google Auth Platform), add the `https://www.googleapis.com/auth/drive.file` and `https://www.googleapis.com/auth/drive.appdata` scopes. Both are non-sensitive, so a published app needs no verification for them. Until the app is published there, add testers as test users.
+3. Create an **Android** OAuth client for each package and signing certificate that should sign in. Each client takes one package and one SHA-1:
+   - `com.qcksys.ao3tracker`: the debug keystore (local builds), the **Play app signing** certificate (Play Console → Test and release → App integrity), and the upload certificate (upload-signed builds installed directly).
+   - `com.qcksys.ao3tracker.dev`: the Dev app's Play app signing certificates, the upload certificate and the debug keystore. The Dev app's signing key was rotated to a quantum-ready key, so App integrity lists a current key (use its **Classical key** SHA-1) and the original under **Previous app signing keys**. Register both: Play signs with the current key, and the Dev app's Digital Asset Links snippet still lists the original.
 
    Print a keystore's SHA-1 with `keytool -list -v -keystore <keystore> -alias <alias>`. The debug keystore is `~/.android/debug.keystore` (alias `androiddebugkey`, password `android`).
 
-Without a matching client, Google's sign-in fails with a developer error and the Account card shows it. To publish the consent screen for all users, set its privacy policy URL to `https://ao3tracker.com/privacy`, whose Google Drive backup section describes the Drive access and Limited Use compliance. Backups need nothing else from the tracker API.
+As of 24 November 2026 all of this is configured in `qs-ao3tracker`, with seven Android clients covering the certificates above. The consent screen, **Unofficial AO3 Tracker**, is published to production with `https://ao3tracker.com` as its home page and `https://ao3tracker.com/privacy` as its privacy policy; that page's Google Drive backup section describes the Drive access and Limited Use compliance. Its branding is not verified, so Google does not show the app name and links on the consent screen; verifying it needs `ao3tracker.com` verified in Search Console for the owning Google account. When a signing certificate changes, add a client for its SHA-1. Without a matching client, Google's sign-in fails with a developer error and the Account card shows it. Backups need nothing else from the tracker API.
 
 ## Crash reporting
 
