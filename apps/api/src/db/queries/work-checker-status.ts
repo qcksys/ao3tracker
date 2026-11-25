@@ -1,5 +1,5 @@
 import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import {
   type TWorkCheckerStatusI,
@@ -28,13 +28,28 @@ export async function upsertWorkCheckerStatus(
  */
 export async function listWorkCheckerStatuses(
   db: TDatabase,
-): Promise<Pick<TWorkCheckerStatusS, "checkerId" | "status" | "reportedAt">[]> {
+): Promise<Pick<TWorkCheckerStatusS, "checkerId" | "status" | "reportedAt" | "downAlertSentAt">[]> {
   return db
     .select({
       checkerId: tWorkCheckerStatus.checkerId,
       status: tWorkCheckerStatus.status,
       reportedAt: tWorkCheckerStatus.reportedAt,
+      downAlertSentAt: tWorkCheckerStatus.downAlertSentAt,
     })
     .from(tWorkCheckerStatus)
     .orderBy(asc(tWorkCheckerStatus.checkerId));
+}
+
+/**
+ * Record that a down alert was sent for a checker, or clear it with null once it recovers
+ */
+export async function setWorkCheckerDownAlertSentAt(
+  db: TDatabase,
+  checkerId: string,
+  downAlertSentAt: Date | null,
+): Promise<void> {
+  await db
+    .update(tWorkCheckerStatus)
+    .set({ downAlertSentAt })
+    .where(eq(tWorkCheckerStatus.checkerId, checkerId));
 }

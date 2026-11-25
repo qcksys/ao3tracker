@@ -1,0 +1,1 @@
+ALTER TABLE `ao3track__work_checker_status` ADD `downAlertSentAt` datetime(3);
