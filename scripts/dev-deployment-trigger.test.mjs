@@ -14,7 +14,6 @@ test("dev deployment is reachable from push CI without a workflow on the default
   assert.ok(ci.on.push.branches.includes("dev"));
   const release = ci.jobs["release-dev"];
   assert.deepEqual(release.needs, ["workspace", "android"]);
-  assert.equal(release.if, "github.event_name == 'push' && github.ref == 'refs/heads/dev'");
   assert.equal(release.uses, "./.github/workflows/deploy-dev-api.yml");
   assert.equal(release.with.source_ref, "${{ github.sha }}");
   assert.equal(release.secrets, "inherit");

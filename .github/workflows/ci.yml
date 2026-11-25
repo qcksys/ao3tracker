@@ -14,7 +14,14 @@ permissions:
 jobs:
   changesets:
     needs: [workspace, android]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # The release jobs need a status function: without one, GitHub skips every job downstream of
+    # a skipped job, so a push without native changes (native skipped, android verified) would
+    # never release.
+    if: >-
+      !cancelled() &&
+      needs.workspace.result == 'success' &&
+      needs.android.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
       pull-requests: write
@@ -22,7 +29,10 @@ jobs:
 
   release-main:
     needs: changesets
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled() &&
+      needs.changesets.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
     # packages: publishing the work checker image after the API deploys.
     permissions:
       contents: read
@@ -36,7 +46,11 @@ jobs:
 
   release-dev:
     needs: [workspace, android]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    if: >-
+      !cancelled() &&
+      needs.workspace.result == 'success' &&
+      needs.android.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/dev'
     # packages: publishing the work checker image after the API deploys.
     permissions:
       contents: read
