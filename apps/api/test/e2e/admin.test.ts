@@ -2,7 +2,12 @@ import { subDays, subHours, subMinutes } from "date-fns";
 import { beforeEach, describe, expect, inject, it } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 import { getAdminStats } from "~/db/queries/admin-stats";
-import { listWorkCheckerStatuses, upsertWorkCheckerStatus } from "~/db/queries/work-checker-status";
+import { listAdminEmails } from "~/db/queries/auth-user";
+import {
+  listWorkCheckerStatuses,
+  setWorkCheckerDownAlertSentAt,
+  upsertWorkCheckerStatus,
+} from "~/db/queries/work-checker-status";
 import { tAuthSession } from "~/db/schema/auth.session";
 import { tAuthUser } from "~/db/schema/auth.user";
 import { tNotification } from "~/db/schema/notification";
@@ -168,5 +173,39 @@ describe("work checker status in MySQL", () => {
       { checkerId: "hub-dev", version: "bbbbbbb", reportedAt: now },
       { checkerId: "hub-prod", version: "aaaaaaa", reportedAt: now },
     ]);
+  });
+
+  it("keeps a down alert across new reports until the cron clears it", async () => {
+    const status = {
+      checkerId: "hub-dev",
+      version: "aaaaaaa",
+      startedAt: now.toISOString(),
+      lastPoll: null,
+      lastError: null,
+    };
+    const report = (reportedAt: Date) =>
+      upsertWorkCheckerStatus(db, { checkerId: "hub-dev", status, reportedAt });
+    const downAlertSentAt = async () => (await listWorkCheckerStatuses(db))[0]?.downAlertSentAt;
+
+    await report(subMinutes(now, 20));
+    expect(await downAlertSentAt()).toBeNull();
+
+    await setWorkCheckerDownAlertSentAt(db, "hub-dev", now);
+    await report(now);
+    expect(await downAlertSentAt()).toEqual(now);
+
+    await setWorkCheckerDownAlertSentAt(db, "hub-dev", null);
+    expect(await downAlertSentAt()).toBeNull();
+  });
+});
+
+describe("admin emails in MySQL", () => {
+  it("lists only admin accounts", async () => {
+    await db.insert(tAuthUser).values([
+      { id: "admin", name: "admin", email: "admin@example.test", role: "admin" },
+      { id: "user", name: "user", email: "user@example.test" },
+    ]);
+
+    expect(await listAdminEmails(db)).toEqual(["admin@example.test"]);
   });
 });

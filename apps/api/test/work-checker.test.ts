@@ -9,6 +9,7 @@ import {
   DISABLED_WORK_CHECKER_SETTINGS,
   workCheckerSettings,
 } from "~/lib/work-checker";
+import { alertDownWorkCheckers } from "~/lib/work-checker-alerts";
 import { checkerRouter } from "~/routes/checker";
 import { fetchMissingWorks, handleFetchResult } from "~/scheduled/fetch-missing-works";
 import { scheduled } from "~/scheduled/handler";
@@ -29,6 +30,7 @@ vi.mock("~/db/queries/work", () => ({
   getWorkCheckState: vi.fn(),
 }));
 vi.mock("~/lib/notification-service", () => ({ dispatchPendingNotifications: vi.fn() }));
+vi.mock("~/lib/work-checker-alerts", () => ({ alertDownWorkCheckers: vi.fn() }));
 vi.mock("~/scheduled/fetch-missing-works", () => ({
   fetchMissingWorks: vi.fn(),
   handleFetchResult: vi.fn(),
@@ -424,5 +426,16 @@ describe("scheduled AO3 fetching", () => {
 
     expect(refreshStaleWorks).toHaveBeenCalledOnce();
     expect(fetchMissingWorks).toHaveBeenCalledOnce();
+  });
+
+  it("checks the checkers' health with the current settings on every run", async () => {
+    await scheduled(event, env, ctx);
+    disableChecker();
+    await scheduled(event, env, ctx);
+
+    expect(vi.mocked(alertDownWorkCheckers).mock.calls.map(([, , current]) => current)).toEqual([
+      settings,
+      { ...settings, enabled: false },
+    ]);
   });
 });

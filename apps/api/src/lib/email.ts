@@ -6,7 +6,8 @@
  */
 export interface SendEmailArgs {
   binding: SendEmail;
-  to: string;
+  /** Up to 50 addresses in one message */
+  to: string | string[];
   fromAddress: string;
   fromName: string;
   subject: string;
