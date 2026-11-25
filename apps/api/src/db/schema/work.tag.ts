@@ -1,5 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { index, int, mysqlTable, varchar } from "drizzle-orm/mysql-core";
+import { bigint, index, pgTable, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 
@@ -17,16 +17,16 @@ export type TTagTypes = typeof tagTypes;
 export type TTagType = keyof TTagTypes;
 export type TTagTypeId = TTagTypes[TTagType];
 
-export const tWorkTag = mysqlTable(
+export const tWorkTag = pgTable(
   `${DB_TABLE_PREFIX}work_tag`,
   {
-    id: int({ unsigned: true }).autoincrement().primaryKey(),
+    id: bigint({ mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
     tag: varchar({ length: 255 }).notNull().unique(),
     href: varchar({ length: 255 }).notNull(),
-    typeId: int({ unsigned: true }).$type<TTagTypeId>().notNull(),
+    typeId: bigint({ mode: "number" }).$type<TTagTypeId>().notNull(),
   },
   (table) => {
-    return [index("idx_tags_typeId").on(table.typeId)];
+    return [index(`${DB_TABLE_PREFIX}idx_tags_typeId`).on(table.typeId)];
   },
 );
 /** Columns to exclude from upserts (auto-increment PK and unique key) */

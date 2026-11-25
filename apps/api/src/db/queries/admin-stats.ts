@@ -12,7 +12,7 @@ import {
   type SQL,
   sum,
 } from "drizzle-orm";
-import type { MySqlTable } from "drizzle-orm/mysql-core";
+import type { PgTable } from "drizzle-orm/pg-core";
 import type { TDatabase } from "~/db/db.client";
 import { tAuthUser } from "~/db/schema/auth.user";
 import { tNotification } from "~/db/schema/notification";
@@ -50,7 +50,7 @@ export interface AdminStats {
   backups: { count: number; totalBytes: number; lastBackupAt: Date | null };
 }
 
-async function countRows(db: TDatabase, table: MySqlTable, where?: SQL): Promise<number> {
+async function countRows(db: TDatabase, table: PgTable, where?: SQL): Promise<number> {
   const [row] = await db.select({ value: count() }).from(table).where(where);
   return row.value;
 }

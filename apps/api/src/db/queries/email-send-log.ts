@@ -1,6 +1,6 @@
-import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
 import { and, eq } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
+import { excludedSet } from "~/db/helpers/upsert";
 import {
   type EmailSendType,
   tEmailSendLog,
@@ -38,9 +38,8 @@ export async function recordEmailSent(
   await db
     .insert(tEmailSendLog)
     .values({ email, type, lastSentAt: sentAt })
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tEmailSendLog, {
-        exclude: [...tEmailSendLogPK, ...tEmailSendLogTimestampExclude],
-      }),
-    );
+    .onConflictDoUpdate({
+      target: [...tEmailSendLogPK],
+      set: excludedSet(tEmailSendLog, [...tEmailSendLogPK, ...tEmailSendLogTimestampExclude]),
+    });
 }

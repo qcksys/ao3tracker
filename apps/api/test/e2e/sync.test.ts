@@ -69,7 +69,19 @@ beforeEach(async () => {
   await seedSyncDatabase(db);
 });
 
-describe("seeded sync through the Worker and MySQL", () => {
+describe("seeded sync through the Worker and Postgres", () => {
+  it("keeps the newest reading when a sync request repeats a work and chapter", async () => {
+    const result = await postSync(reader, {
+      works: [work(1, newestAt), work(1, editedAt)],
+      chapters: [chapter(newestAt), chapter(editedAt)],
+    });
+    expect(result.works.map((row) => row.status)).toEqual(["accepted", "ignored"]);
+    expect(result.chapters.map((row) => row.status)).toEqual(["accepted", "ignored"]);
+    const sync = await getFullSync(reader);
+    expect(sync.works.find((row) => row.workId === 1)?.lastReadAt).toBe(newestAt);
+    expect(sync.chapters.find((row) => row.chapterId === 11)?.lastReadAt).toBe(newestAt);
+  });
+
   it("paginates a full library with metadata, private works and tombstones", async () => {
     const first = await getSync(reader, { limit: 2 });
     expect(first.works.map((row) => row.workId)).toEqual([1, 2]);

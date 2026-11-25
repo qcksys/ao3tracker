@@ -35,7 +35,7 @@ describe("native passkey origins", () => {
       } as CloudflareBindings;
       const instance = auth({
         env,
-        db: createDbConnection("mysql://test:test@localhost/passkey-test"),
+        db: createDbConnection("postgresql://test:test@localhost/passkey-test"),
       });
       const plugin = instance.options.plugins.find((entry) => entry.id === "passkey");
       expect(plugin?.options?.rpID).toBe(new URL(vars.BETTER_AUTH_URL).hostname);

@@ -15,7 +15,7 @@ export type TRouterEnvFw = {
 export const startupMw = createMiddleware<AppEnv>(async (c, next) => {
   const e = env(c) as unknown as CloudflareBindings;
 
-  const db = createDbConnection(e.DATABASE_URL);
+  const db = createDbConnection(e);
   const authInstance = auth({ env: e, db });
 
   c.set("env", e);

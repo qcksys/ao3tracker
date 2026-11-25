@@ -9,7 +9,7 @@ export const queue = async (
   env: CloudflareBindings,
   _ctx: ExecutionContext,
 ): Promise<void> => {
-  const db = createDbConnection(env.DATABASE_URL);
+  const db = createDbConnection(env);
 
   console.log({
     message: "Processing queue batch",

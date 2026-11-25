@@ -28,7 +28,7 @@ vp run deploy:prod            # Deploy to production
 # Database
 vp run db:generate            # Generate Drizzle migrations
 vp run db:migrate             # Run Drizzle migrations with visible, credential-redacted errors
-vp run db:push                # Push schema changes directly
+vp run db:push                # Apply checked-in migrations, including triggers
 
 # Linting
 vp run biome:check:unsafe     # Fix linting issues with unsafe fixes
@@ -40,7 +40,7 @@ vp run biome:ci               # CI linting check (used in GitHub Actions)
 ### Runtime & Deployment
 
 - Cloudflare Workers with Node.js compatibility mode
-- PlanetScale MySQL database via `@planetscale/database`
+- PlanetScale Postgres via Drizzle and `pg`
 - Environments: `local`, `dev`, `prod` (configured in `wrangler.json`)
 - Production deployments use the root reusable [API workflow](../../.github/workflows/deploy-api.yml), called with the exact commit SHA that passed CI. Successful push CI on current `dev` runs [Release dev](../../.github/workflows/deploy-dev-api.yml): deploy the development Worker, check `/ping`, then release the Android Dev app and Chrome Beta extension. See [development deployment setup](../../docs/store-releases.md#api-development) for secrets and activation.
 
@@ -50,9 +50,9 @@ The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a `DATA
 
 The workflow rejects a source SHA that is no longer current `main`, including reruns of failed deployment jobs. After deployment it checks the public `/ping` response. This smoke test checks routing and Worker startup; it does not identify the deployed revision or test authenticated database operations.
 
-After downloading the built API artifact and checking the source is still current, the protected deployment job runs `vp node apps/api/scripts/migrate.mjs` from the repository root. Drizzle applies pending migrations from that source commit and records them in `ao3track__migrations`. Development uses the same sequence with `DEV_DATABASE_URL`; it never falls back to production credentials. Migration failures stop API deployment and dependent store releases.
+After downloading the built API artifact and checking the source is still current, the protected deployment job runs `vp node apps/api/scripts/migrate.mjs` from the repository root. Drizzle applies pending migrations from that source commit and records them in the environment's migration ledger. Development uses the same sequence with `DEV_DATABASE_URL`; it never falls back to production credentials. Migration failures stop API deployment and dependent store releases.
 
-Review pending SQL before merging: migrations run before the new Worker is deployed and must remain compatible with the currently deployed code. DDL is not transactionally rolled back. If a migration fails or the database was changed outside Drizzle, inspect the live schema and reconcile its history only after confirming which changes are already applied; CI does not baseline history. Each migration lives in `src/db/migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`; there is no journal.
+Review pending SQL before merging. The release applies migrations before deploying the new Worker. Postgres migrations live in `src/db/postgres-migrations/<UTC timestamp>_<name>/` with `migration.sql` and `snapshot.json`. The historical MySQL migrations are retained under `src/db/migrations/`.
 
 ### Native diagnostics
 
@@ -66,13 +66,13 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 `/checker/*` ([routes/checker.ts](src/routes/checker.ts), logic in [lib/work-checker.ts](src/lib/work-checker.ts)) serves the self-hosted browser container in [apps/work-checker](../work-checker/AGENTS.md), which loads AO3 pages because most Worker requests to AO3 fail. The container initiates every request; the Worker never contacts it. The router mounts before the session and database middleware and authenticates a bearer token against the `WORK_CHECKER_TOKEN` secret; an unset secret rejects every request.
 
-- Settings are the `work_checker` row of `ao3track__app_setting` (one JSON value per key, read on every cron run and checker request), parsed with the shared `@qcksys/ao3tracker-core/work-checker` schema. Change them with SQL against the environment's database; no deployment is needed:
+- Settings are the `work_checker` row of `ao3track__app_setting` (one JSON value per key, read on every cron run and checker request), parsed with the shared `@qcksys/ao3tracker-core/work-checker` schema. Use the table prefix for the intended environment. This example targets main.
   ```sql
-  INSERT INTO ao3track__app_setting (`key`, value)
+  INSERT INTO ao3track__app_setting ("key", value)
   VALUES ('work_checker', '{"enabled":true,"pollIntervalSeconds":300,"maxWorksPerPoll":12,"delayBetweenRequestsMs":2000}')
-  ON DUPLICATE KEY UPDATE value = VALUES(value), rowDeletedAt = NULL;
+  ON CONFLICT ("key") DO UPDATE SET value = excluded.value, "rowDeletedAt" = NULL;
   ```
-  Admins can also change them at `/admin/settings` (see [Admin site](#admin-site)). A missing, soft-deleted or invalid value means disabled (invalid values are logged). While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs. `test/e2e/app-setting.test.ts` runs this statement against MySQL.
+  Admins can also change them at `/admin/settings` (see [Admin site](#admin-site)). A missing, soft-deleted or invalid value means disabled (invalid values are logged). While `enabled` is true, the cron skips `refreshStaleWorks` and `fetchMissingWorks`; notification dispatch still runs. `test/e2e/app-setting.test.ts` runs the equivalent statement against local Postgres.
 - Results go through the cron's own handlers: `parseWorkPageHtml`/`completeWorkData` parse the HTML, then `handleRefreshResult` (stored work) or `handleFetchResult` (missing work) apply it, so notifications, soft-deletes and failure backoff behave identically. A stored work's chapter growth returns `needs_chapter_index` instead of applying a page without chapter dates.
 - Backups: the checker downloads the formats the result response lists and uploads them; only the work's current `downloadUpdatedAt` revision is stored.
 - Down alerts ([lib/work-checker-alerts.ts](src/lib/work-checker-alerts.ts)): while `enabled` is true, the 5-minute cron emails every admin account from `SYSTEM_EMAIL_ADDRESS`, in one message, when a checker is down. Down means no status report within the dashboard's silence limit (two poll intervals plus five minutes), or no successful poll (`lastPoll.at`, or `startedAt` before the first) within it while reports still arrive. It sends once per outage and records `downAlertSentAt` on the checker's status row; status upserts leave that column alone. When the checker recovers, it sends one more email and clears the column, even while `enabled` is false. A failed send is logged and retried on the next run. Delete a retired checker's status row, or it is reported down once. Apply `20261125124239_work-checker-down-alert` before deploying this change.
@@ -160,7 +160,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 **Database Schema** (`src/db/schema/`):
 
-- All tables prefixed with `ao3track__` (defined in `src/const.ts`)
+- When writing schema or SQL, use `DB_TABLE_PREFIX` from `src/const.ts`. The [database prefix table](README.md#database-prefixes) lists build modes and migration settings.
 - Auth tables: `auth.user.ts`, `auth.session.ts`, `auth.account.ts`, `auth.passkey.ts`, `auth.twoFactor.ts`,
   `auth.verification.ts`
 - Work tables: `work.ts`, `work.chapter.ts`, `work.tag.ts`, `work.tag.link.ts`, `work.backup.ts`
@@ -188,45 +188,8 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 - Functions receive `TDatabase` as first parameter
 - Keep queries simple and composable - business logic belongs in routes/scheduled tasks
 - Use Drizzle query methods (`eq`, `and`, `lt`, etc.) instead of raw `sql` template literals
-- **ALL inserts MUST be upserts** - Never use plain `insert()`, always use `onDuplicateKeyUpdate()` for idempotency.
-  Exception: tables with auto-increment primary keys where you always want new records. Work notifications use an event key and must be upserted without changing an existing row.
-- **Upserts MUST exclude timestamp columns** - Always exclude `rowCreatedAt` and `rowUpdatedAt` from upsert SET clauses
-  to preserve creation time and let MySQL's `ON UPDATE CURRENT_TIMESTAMP` handle update time:
-  ```typescript
-  import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions";
-
-  // In schema: export timestamp exclusion array
-  export const tWorkTimestampExclude = [tWork.rowCreatedAt, tWork.rowUpdatedAt] as const;
-
-  // Simple table - exclude timestamp columns
-  await db
-    .insert(tWork)
-    .values(data)
-    .onDuplicateKeyUpdate(onDuplicateKeyUpdateConfig(tWork, { exclude: tWorkTimestampExclude }));
-
-  // Composite primary key - exclude both PK and timestamp columns
-  // In schema: export const tTrackWorkPK = [tTrackWork.userId, tTrackWork.workId] as const;
-  await db
-    .insert(tTrackWork)
-    .values(values)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tTrackWork, {
-        exclude: [...tTrackWorkPK, ...tTrackWorkTimestampExclude],
-      }),
-    );
-
-  // Table with unique constraint (not PK) - exclude auto-increment ID AND unique key
-  // Example: tWorkTag has auto-increment `id` PK but unique constraint on `tag`
-  // In schema: export const tWorkTagUpsertExclude = [tWorkTag.id, tWorkTag.tag] as const;
-  await db
-    .insert(tWorkTag)
-    .values(tags)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tWorkTag, {
-        exclude: tWorkTagUpsertExclude,
-      }),
-    );
-  ```
+- Use `onConflictDoUpdate` with the table's primary or unique key for idempotent writes. Use `onConflictDoNothing` when a repeated event must preserve its original row. Identity-keyed append-only records can use plain inserts.
+- Exclude key and audit columns from the update set. Use `excludedSet` for replacement values and `replaceWhenNewer` for conflict clocks. For bulk upserts that accept repeated keys, use `upsertBatches` to preserve arrival order.
 - Name insert functions with `upsert` prefix (e.g., `upsertWork`, `upsertBackup`) to clarify behavior
 - **Query types MUST derive from schema types** - Use `Pick`, `Omit`, or `Required` with schema types (`TTableS`, `TTableI`):
   ```typescript
@@ -257,7 +220,7 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 ### Configuration Files
 
 - `wrangler.json` - Cloudflare Workers config with env-specific settings
-- `.env.schema` - Tracked Varlock schema with one 1Password reference to a Secure Note containing the local dotenv text; see [setup](README.md#local-secrets-in-1password). Package scripts use `varlock run`; keep plaintext values in 1Password and declare new keys in the schema. Remove legacy `.dev.vars` files after verifying their secrets in 1Password, since Wrangler gives those files precedence over injected values. Keep `secrets.required` synchronized across Wrangler environments so generated types retain the secret bindings; deployments validate the names against existing Cloudflare secrets.
+- `.env.schema` - Tracked Varlock schema with one 1Password reference per local variable in the project item's `env` section; see [setup](README.md#local-secrets-in-1password). Package scripts use `varlock run`; keep plaintext values in 1Password and declare new keys in the schema. Remove legacy `.dev.vars` files after verifying their secrets in 1Password, since Wrangler gives those files precedence over injected values. Keep `secrets.required` synchronized across Wrangler environments so generated types retain the secret bindings; deployments validate the names against existing Cloudflare secrets.
 - `drizzle.config.ts` - Drizzle Kit config (reads from env vars via `src/env.ts`)
 - `better-auth.config.ts` - Better Auth configuration
 - `vitest.config.ts` - Vitest configuration with Cloudflare Workers pool
@@ -272,11 +235,9 @@ Review pending SQL before merging: migrations run before the new Worker is deplo
 
 ### Database dependency compatibility
 
-Drizzle ORM and Kit are pinned together at `1.0.0-rc.5`. Keep `@planetscale/database` on 1.x: driver 2.x removes the parameterized `execute` API the RC adapter still requires. RC.5 relational queries throw on `undefined` filter values; use `EmptyFilter` from `drizzle-orm/relations` for an intentionally absent filter. `test/db-client.test.ts` and `test/backup-queries.test.ts` exercise the real adapter with mocked HTTP responses; root migration tests exercise the real migrator. The `db:migrate` script uses the checked-in migration folders and `ao3track__migrations` ledger, with credential-redacted error causes.
+Drizzle ORM and Kit are pinned together at `1.0.0-rc.5`. RC.5 relational queries throw on `undefined` filter values. Use `EmptyFilter` from `drizzle-orm/relations` for an intentionally absent filter.
 
-Drizzle Kit RC renders `timestampCols`' `rowUpdatedAt` default as `DEFAULT (CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`, which MySQL rejects. When a generated `CREATE TABLE` uses `timestampCols`, edit its SQL to `DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP` (as in `20261028080354_app-setting`), and run `vp run test:e2e`, which applies every migration to MySQL 8.
-
-The first RC migration run, in CI or via local `vp run db:migrate`, upgrades a legacy ledger by adding `name` and `applied_at`, backfilling names, and then applying pending SQL. Deployment database credentials require DDL and write access for this runner. The repository format conversion preserves historical SQL. `drizzle.config.ts` forces UTC to avoid RC.4's mixed local-year/UTC migration-name bug at New Year.
+When adding a table with server-managed timestamps, include its `record_change` trigger in the migration. Run `vp run test:e2e` to exercise the migrations and built Worker against Postgres 18.
 
 ### Authentication dependency upgrades
 
@@ -320,9 +281,9 @@ The `/api/track/sync` endpoint uses cursor-based pagination for bidirectional sy
 - **POST /sync** - Send client changes: `works[]` and `chapters[]` arrays
 - Pagination on works only (default 50, max 50); all chapters for returned works included
 - Returns `nextWorkCursor` for pagination. `serverLastUpdated` is a database watermark captured **before** page reads and intentionally lags the database clock by 16 minutes; clients keep the **first page's** value and advance their pull cursor only after every page succeeds. Neither this cursor nor `latestWorkLastReadAt` filters pending uploads.
-- The replay window covers [PlanetScale's 900-second autocommit query timeout](https://planetscale.com/docs/vitess/scaling/planetscale-system-limits) plus 60 seconds. MySQL mutation timestamps record statement start, so writes waiting to commit must be replayed. This assumes UTC database clocks and primary reads. Increase the window if custom query/transaction limits allow longer writes. The tradeoff is repeated recent rows, with no delay in delivering new data.
+- The replay window covers the API client's 15-minute statement timeout plus one minute. The server timestamps writes at statement start and uses primary reads. Revisit the window if that timeout changes.
 - Incremental reads use server-managed `rowUpdatedAt >= lastSyncedAt`, including the boundary to replay concurrent writes in the same millisecond. Work eligibility includes chapter-tracking and shared work/chapter metadata changes; tag replacement advances its parent work's marker. Client event timestamps remain solely conflict-resolution clocks.
-- Sync timestamps use `datetime(3)`. Migration `20260930095035_sync-mutation-cursors/migration.sql` upgrades precision. Client storage migrations reset the old event-time cursor once. Full sync includes all tombstones so an existing client can safely reconcile after resetting its cursor.
+- Sync timestamps use `timestamptz(3)`. Client storage migrations reset the old event-time cursor once. Full sync includes all tombstones so an existing client can safely reconcile after resetting its cursor.
 
 **Per-Field Last-Write-Wins (LWW) Conflict Resolution**:
 
@@ -339,7 +300,7 @@ progress. Server wins on timestamp tie. See `src/db/helpers/lww.ts` for the `res
 
 Chapter uploads accept optional `deleted` (default `false`). A chapter tombstone or restore uses `lastReadAt` as its mutation clock, and only a strictly newer mutation replaces persisted state. Accepted chapter deletions retain the existing `accepted` response status. When a single-chapter work gains real chapter IDs, copy chapter zero to the first chapter under LWW and publish a zero tombstone with the original event timestamp. A later offline read or deletion of zero maps to the first chapter; replaying the migration tombstone cannot overwrite equal or newer canonical progress.
 
-All sync upserts enforce LWW in SQL at write time. Tombstones participate in work comparisons, including deletes arriving before their original insert. A newer reading event can restore a deleted work; older uploads cannot. MySQL evaluates assignments in order, and Drizzle uses schema column order: keep conflict-clock columns after fields that compare them. Post-write acknowledgements describe persisted field groups; an exact idempotent retry may return `accepted`.
+All sync upserts enforce LWW in SQL at write time. Tombstones participate in work comparisons, including deletes arriving before their original insert. A newer reading event can restore a deleted work; older uploads cannot. Post-write acknowledgements describe persisted field groups; an exact idempotent retry may return `accepted`.
 
 **Favourite Tag Filters** (per-row sync, separate from per-work `favourite`):
 

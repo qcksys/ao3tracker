@@ -1,18 +1,12 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import {
-  datetime,
-  index,
-  mysqlEnum,
-  mysqlTable,
-  primaryKey,
-  varchar,
-} from "drizzle-orm/mysql-core";
+import { index, pgEnum, pgTable, primaryKey, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, timestampCols } from "~/db/helpers/schema";
 
 /** Types of system-sent emails that we rate-limit per-recipient. */
 export const emailSendTypes = ["password_reset", "email_verification"] as const;
+export const emailSendType = pgEnum(`${DB_TABLE_PREFIX}email_send_type`, emailSendTypes);
 export type EmailSendType = (typeof emailSendTypes)[number];
 
 /**
@@ -22,17 +16,17 @@ export type EmailSendType = (typeof emailSendTypes)[number];
  * successful send. The auth layer checks this before invoking the email
  * binding and refuses to re-send within a configurable cooldown window.
  */
-export const tEmailSendLog = mysqlTable(
+export const tEmailSendLog = pgTable(
   `${DB_TABLE_PREFIX}email_send_log`,
   {
     email: varchar({ length: 255 }).notNull(),
-    type: mysqlEnum("type", emailSendTypes).notNull(),
-    lastSentAt: datetime().notNull(),
+    type: emailSendType().notNull(),
+    lastSentAt: timestamp({ withTimezone: true, precision: 0 }).notNull(),
     ...timestampCols,
   },
   (table) => [
     primaryKey({ columns: [table.email, table.type] }),
-    index("idx_email_send_log_lastSentAt").on(table.lastSentAt),
+    index(`${DB_TABLE_PREFIX}idx_email_send_log_lastSentAt`).on(table.lastSentAt),
   ],
 );
 

@@ -340,7 +340,7 @@ describe("backupChapterPage", () => {
 });
 
 describe("GET /backup/:workId/offline", () => {
-  const db = createDbConnection("mysql://test:test@database.example/test");
+  const db = createDbConnection("postgresql://test:test@database.example/test");
   const get = vi.fn();
   const app = new Hono<{
     Variables: { user: { id: string }; db: typeof db; env: CloudflareBindings };

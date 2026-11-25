@@ -125,7 +125,7 @@ describe("notification dispatch outbox", () => {
     await scheduled(
       { cron: "*/5 * * * *" } as ScheduledEvent,
       {
-        DATABASE_URL: "mysql://unused:unused@localhost/unused",
+        DATABASE_URL: "postgresql://unused:unused@localhost/unused",
         NOTIFICATION_QUEUE: queue,
       } as unknown as CloudflareBindings,
       {

@@ -9,8 +9,8 @@ const firefoxDevOrigin = "moz-extension://9f7fd2ce-5e43-4d3e-9d4e-92f89126df55";
 
 async function authRequest(environment: "dev" | "prod") {
   const vars = config.env[environment].vars;
-  const db = createDbConnection("mysql://test:test@localhost/origin-test");
-  vi.spyOn(db.$client, "execute").mockRejectedValue(
+  const db = createDbConnection("postgresql://test:test@localhost/origin-test");
+  vi.spyOn(db.$client, "query").mockRejectedValue(
     new Error("Origin and invalid-payload tests must not query the database"),
   );
   const instance = auth({

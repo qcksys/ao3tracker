@@ -6,7 +6,7 @@ import { upsertPushToken } from "~/db/queries/push-token";
 import { pushRouter } from "~/routes/api.push";
 
 vi.mock("~/db/queries/push-token", () => ({ upsertPushToken: vi.fn(), deletePushToken: vi.fn() }));
-const db = createDbConnection("mysql://test:test@database.example/test");
+const db = createDbConnection("postgresql://test:test@database.example/test");
 const app = new Hono<{ Variables: { user: { id: string }; db: typeof db } }>()
   .use("*", async (c, next) => {
     c.set("user", { id: "signed-in-user" });

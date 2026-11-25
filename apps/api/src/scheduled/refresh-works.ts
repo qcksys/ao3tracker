@@ -376,7 +376,7 @@ export async function handleRefreshResult(
  * Main scheduled handler for refreshing stale works
  */
 export async function refreshStaleWorks(env: CloudflareBindings): Promise<void> {
-  const db = createDbConnection(env.DATABASE_URL);
+  const db = createDbConnection(env);
   const startedAt = Date.now();
   let refreshed = 0;
 

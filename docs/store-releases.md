@@ -87,7 +87,7 @@ The account ID is already recorded in `apps/api/wrangler.json`. Provision the pr
 
 ### Database migrations
 
-The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations`. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.
+The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations` on main or `ao3track_dev__migrations` on dev. The release build mode and migration step select the same prefix. Each environment needs a Postgres connection string for the target branch. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.
 
 Migration or API deployment failures block both store releases.
 
@@ -95,15 +95,16 @@ Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The
 
 ### `api-development`
 
-| Secret                     | Value                                                                          |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| `DEV_DATABASE_URL`         | Connection with migration permissions to the dev Worker's PlanetScale database |
-| `DEV_CLOUDFLARE_API_TOKEN` | Optional token scoped to development Worker deployment and its bindings/domain |
-| `CLOUDFLARE_API_TOKEN`     | Existing deployment token, used when `DEV_CLOUDFLARE_API_TOKEN` is absent      |
+| Secret                     | Value                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `DEV_DATABASE_URL`         | Connection with migration permissions to the dev Worker's PlanetScale database                  |
+| `DEV_WORKER_DATABASE_URL`  | Runtime connection with DML on the dev application tables and usage on their identity sequences |
+| `DEV_CLOUDFLARE_API_TOKEN` | Optional token scoped to development Worker deployment and its bindings/domain                  |
+| `CLOUDFLARE_API_TOKEN`     | Existing deployment token, used when `DEV_CLOUDFLARE_API_TOKEN` is absent                       |
 
 Set these as repository secrets, or in the `api-development` environment if the repository's GitHub plan supports environment secrets. Dev migrations use only `DEV_DATABASE_URL`; they never fall back to the production `DATABASE_URL`. The selected Cloudflare token must be able to deploy `ao3tracker-api-dev` and its configured resources.
 
-Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment; the protected release applies pending migrations, deploys that artifact, then checks `https://dev.ao3tracker.com/ping`.
+Provision the dev Worker's other runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment. The protected release applies migrations using `DEV_DATABASE_URL`, deploys the artifact and its `DATABASE_URL` binding together using `DEV_WORKER_DATABASE_URL`, then checks `https://dev.ao3tracker.com/ping`. Grant the runtime role access when adding dev tables or identity sequences.
 
 ### `google-play`
 

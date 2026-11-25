@@ -1,6 +1,6 @@
-import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
 import { and, eq, isNull } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
+import { excludedSet } from "~/db/helpers/upsert";
 import {
   type TAppSettingS,
   tAppSetting,
@@ -34,9 +34,8 @@ export async function upsertAppSetting(
   await db
     .insert(tAppSetting)
     .values({ key, value, rowDeletedAt: null })
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tAppSetting, {
-        exclude: [tAppSetting.key, ...tAppSettingTimestampExclude],
-      }),
-    );
+    .onConflictDoUpdate({
+      target: tAppSetting.key,
+      set: excludedSet(tAppSetting, [tAppSetting.key, ...tAppSettingTimestampExclude]),
+    });
 }

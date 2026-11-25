@@ -15,8 +15,8 @@ const enabled = {
 /** The statement an operator runs to change the settings, with no deployment */
 function writeSettings(value: string) {
   return db.execute(
-    sql`INSERT INTO ao3track__app_setting (\`key\`, value) VALUES ('work_checker', ${value})
-      ON DUPLICATE KEY UPDATE value = VALUES(value), rowDeletedAt = NULL`,
+    sql`INSERT INTO ${tAppSetting} ("key", value) VALUES ('work_checker', ${value})
+      ON CONFLICT ("key") DO UPDATE SET value = excluded.value, "rowDeletedAt" = NULL`,
   );
 }
 
@@ -24,7 +24,7 @@ beforeEach(async () => {
   await db.delete(tAppSetting);
 });
 
-describe("work checker settings in MySQL", () => {
+describe("work checker settings in Postgres", () => {
   it("reads settings written with SQL, and picks up a later change", async () => {
     await writeSettings(JSON.stringify(enabled));
     expect(await workCheckerSettings(db)).toEqual(enabled);

@@ -1,6 +1,6 @@
-import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
+import { excludedSet } from "~/db/helpers/upsert";
 import {
   type TPushTokenI,
   type TPushTokenS,
@@ -22,17 +22,14 @@ export async function upsertPushToken(db: TDatabase, data: PushTokenRegister): P
   await db
     .insert(tPushToken)
     .values(data)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tPushToken, {
-        exclude: [
-          ...tPushTokenPK,
-          ...tPushTokenTimestampExclude,
-          ...(data.notificationPreferences === undefined
-            ? [tPushToken.notificationPreferences]
-            : []),
-        ],
-      }),
-    );
+    .onConflictDoUpdate({
+      target: [...tPushTokenPK],
+      set: excludedSet(tPushToken, [
+        ...tPushTokenPK,
+        ...tPushTokenTimestampExclude,
+        ...(data.notificationPreferences === undefined ? [tPushToken.notificationPreferences] : []),
+      ]),
+    });
 }
 
 /**

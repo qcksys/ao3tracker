@@ -309,6 +309,7 @@ for (const [name, environment, database, token, url] of [
     assert.equal(download.with["run-id"], undefined);
     const migrations = steps.find((step) => step.run?.includes("apps/api/scripts/migrate.mjs"));
     assert.ok(migrations, "deployment must apply pending migrations");
+    assert.equal(migrations.env.AO3_DB_ENV, environment === "api-production" ? "main" : "dev");
     assert.equal(migrations.env.DATABASE_URL, `\${{ secrets.${database} }}`);
     const guards = steps.filter((step) => step.run?.includes("assert-current-source"));
     assert.equal(
@@ -320,6 +321,11 @@ for (const [name, environment, database, token, url] of [
     assert.equal(beforeMigrations.env.RELEASE_SOURCE_REF, current.env.RELEASE_SOURCE_REF);
     const upload = steps.find((step) => step.run?.includes("wrangler deploy"));
     assert.equal(upload.env.CLOUDFLARE_API_TOKEN, token);
+    if (environment === "api-development") {
+      assert.equal(upload.env.DEV_WORKER_DATABASE_URL, "${{ secrets.DEV_WORKER_DATABASE_URL }}");
+      assert.match(upload.run, /DATABASE_URL: env\.DEV_WORKER_DATABASE_URL/);
+      assert.match(upload.run, /wrangler deploy[^\n]+--secrets-file "\$secrets_file"/);
+    }
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
     assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));
     assert.equal(steps.indexOf(beforeMigrations) + 1, steps.indexOf(migrations));

@@ -1,13 +1,13 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
+  bigint,
   boolean,
-  datetime,
   index,
-  int,
-  mysqlTable,
+  pgTable,
   primaryKey,
+  timestamp,
   varchar,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
@@ -22,14 +22,14 @@ import { type TTagTypeId, tagTypes } from "~/db/schema/work.tag";
  *
  * `tagType` matches the integer ids in `tagTypes` (and `TagType.id` on the KMP client).
  */
-export const tUserFavouriteTag = mysqlTable(
+export const tUserFavouriteTag = pgTable(
   `${DB_TABLE_PREFIX}user_favourite_tag`,
   {
     userId: varchar({ length: 36 }).notNull(),
-    tagType: int({ unsigned: true }).$type<TTagTypeId>().notNull(),
+    tagType: bigint({ mode: "number" }).$type<TTagTypeId>().notNull(),
     tag: varchar({ length: 191 }).notNull(),
     favourited: boolean().notNull().default(true),
-    updatedAt: datetime({ fsp: 3 }).notNull(),
+    updatedAt: timestamp({ withTimezone: true, precision: 3 }).notNull(),
     ...syncTimestampCols,
   },
   (table) => {
@@ -38,7 +38,10 @@ export const tUserFavouriteTag = mysqlTable(
         columns: [table.userId, table.tagType, table.tag],
       }),
       // Composite index supporting incremental delta queries
-      index("idx_user_favourite_tag_user_updatedAt").on(table.userId, table.updatedAt),
+      index(`${DB_TABLE_PREFIX}idx_user_favourite_tag_user_updatedAt`).on(
+        table.userId,
+        table.updatedAt,
+      ),
     ];
   },
 );

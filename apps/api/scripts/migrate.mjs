@@ -1,20 +1,40 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Client } from "@planetscale/database";
-import { drizzle } from "drizzle-orm/planetscale-serverless";
-import { migrate } from "drizzle-orm/planetscale-serverless/migrator";
-import { DB_TABLE_PREFIX } from "../src/const.ts";
+import { readMigrationFiles } from "drizzle-orm/migrator";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/pg-core/async/session";
+import pg from "pg";
+import { databasePrefix } from "../src/const.ts";
+import { nodePostgresUrl } from "../src/db/connection-url.ts";
 
-export async function runMigrations(url) {
+export function postgresMigrations(environment) {
+  const prefix = databasePrefix(environment);
+  const migrations = readMigrationFiles({
+    migrationsFolder: fileURLToPath(new URL("../src/db/postgres-migrations/", import.meta.url)),
+  });
+  for (const migration of migrations) {
+    migration.sql = migration.sql.map((statement) =>
+      statement.replaceAll('"ao3track_local__', `"${prefix}`),
+    );
+  }
+  return { migrations, migrationsTable: `${prefix}migrations` };
+}
+
+export async function runMigrations(url, environment = process.env.AO3_DB_ENV ?? "local") {
   if (!url) throw new Error("DATABASE_URL is required");
-  const client = new Client({
-    url,
-    fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(30_000) }),
+  if (!/^postgres(?:ql)?:\/\//i.test(url)) {
+    throw new Error("DATABASE_URL must be a Postgres connection string");
+  }
+  const { migrations, migrationsTable } = postgresMigrations(environment);
+  const client = new pg.Pool({
+    connectionString: nodePostgresUrl(url),
+    connectionTimeoutMillis: 10_000,
   });
-  await migrate(drizzle({ client }), {
-    migrationsFolder: fileURLToPath(new URL("../src/db/migrations/", import.meta.url)),
-    migrationsTable: `${DB_TABLE_PREFIX}migrations`,
-  });
+  try {
+    await migrate(migrations, drizzle({ client }), { migrationsSchema: "public", migrationsTable });
+  } finally {
+    await client.end();
+  }
 }
 
 export function formatMigrationError(error, url) {

@@ -1,5 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { boolean, datetime, index, mysqlTable, primaryKey, varchar } from "drizzle-orm/mysql-core";
+import { boolean, index, pgTable, primaryKey, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
@@ -16,7 +16,7 @@ import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/
  * `id` is a client-generated uuid (the stable row identity), so `name` and
  * `url` can be edited without changing the key.
  */
-export const tUserSavedSearch = mysqlTable(
+export const tUserSavedSearch = pgTable(
   `${DB_TABLE_PREFIX}user_saved_search`,
   {
     userId: varchar({ length: 36 }).notNull(),
@@ -24,7 +24,7 @@ export const tUserSavedSearch = mysqlTable(
     name: varchar({ length: 191 }).notNull(),
     url: varchar({ length: 8192 }).notNull(),
     deleted: boolean().notNull().default(false),
-    updatedAt: datetime({ fsp: 3 }).notNull(),
+    updatedAt: timestamp({ withTimezone: true, precision: 3 }).notNull(),
     ...syncTimestampCols,
   },
   (table) => {
@@ -33,7 +33,10 @@ export const tUserSavedSearch = mysqlTable(
         columns: [table.userId, table.id],
       }),
       // Composite index supporting incremental delta queries
-      index("idx_user_saved_search_user_updatedAt").on(table.userId, table.updatedAt),
+      index(`${DB_TABLE_PREFIX}idx_user_saved_search_user_updatedAt`).on(
+        table.userId,
+        table.updatedAt,
+      ),
     ];
   },
 );

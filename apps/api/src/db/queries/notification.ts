@@ -18,8 +18,8 @@ export type NotificationCreate = Pick<
  * Insert a new notification
  */
 export async function insertNotification(db: TDatabase, data: NotificationCreate): Promise<number> {
-  const result = await db.insert(tNotification).values(data);
-  return Number(result.insertId);
+  const [row] = await db.insert(tNotification).values(data).returning({ id: tNotification.id });
+  return row.id;
 }
 
 /**
@@ -33,8 +33,16 @@ export async function upsertNotifications(
   const result = await db
     .insert(tNotification)
     .values(data)
-    .onDuplicateKeyUpdate({ set: { id: sql`${tNotification.id}` } });
-  return result.rowsAffected;
+    .onConflictDoNothing({
+      target: [
+        tNotification.userId,
+        tNotification.workId,
+        tNotification.type,
+        tNotification.eventKey,
+      ],
+    })
+    .returning({ id: tNotification.id });
+  return result.length;
 }
 
 const availableDispatch = () =>
@@ -43,7 +51,7 @@ const availableDispatch = () =>
     isNull(tNotification.rowDeletedAt),
     or(
       isNull(tNotification.dispatchClaimedAt),
-      lt(tNotification.dispatchClaimedAt, sql`DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE)`),
+      lt(tNotification.dispatchClaimedAt, sql`statement_timestamp() - interval '5 minutes'`),
     ),
   );
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { datetime } from "drizzle-orm/mysql-core";
+import { timestamp } from "drizzle-orm/pg-core";
 import type { ZodObject, ZodRawShape } from "zod";
 
 /** All timestamp column names (for select type exclusion) */
@@ -22,22 +22,21 @@ export function omitTimestampCols<T extends ZodRawShape>(schema: ZodObject<T>) {
 }
 
 export const timestampCols = {
-  rowCreatedAt: datetime()
-    .default(sql`CURRENT_TIMESTAMP`)
+  rowCreatedAt: timestamp({ withTimezone: true, precision: 0 })
+    .default(sql`statement_timestamp()`)
     .notNull(),
-  rowUpdatedAt: datetime()
-    .default(sql`CURRENT_TIMESTAMP ON
-        UPDATE CURRENT_TIMESTAMP`)
+  rowUpdatedAt: timestamp({ withTimezone: true, precision: 0 })
+    .default(sql`statement_timestamp()`)
     .notNull(),
-  rowDeletedAt: datetime(),
+  rowDeletedAt: timestamp({ withTimezone: true, precision: 0 }),
 };
 
 export const syncTimestampCols = {
-  rowCreatedAt: datetime({ fsp: 3 })
-    .default(sql`CURRENT_TIMESTAMP(3)`)
+  rowCreatedAt: timestamp({ withTimezone: true, precision: 3 })
+    .default(sql`statement_timestamp()`)
     .notNull(),
-  rowUpdatedAt: datetime({ fsp: 3 })
-    .default(sql`CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)`)
+  rowUpdatedAt: timestamp({ withTimezone: true, precision: 3 })
+    .default(sql`statement_timestamp()`)
     .notNull(),
-  rowDeletedAt: datetime({ fsp: 3 }),
+  rowDeletedAt: timestamp({ withTimezone: true, precision: 3 }),
 };
