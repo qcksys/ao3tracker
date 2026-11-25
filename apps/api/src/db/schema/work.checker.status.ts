@@ -13,12 +13,18 @@ export const tWorkCheckerStatus = mysqlTable(`${DB_TABLE_PREFIX}work_checker_sta
   checkerId: varchar({ length: 64 }).notNull().primaryKey(),
   status: json().$type<WorkCheckerStatus>().notNull(),
   reportedAt: datetime({ fsp: 3 }).notNull(),
+  /** When the cron emailed the admins that this checker is down; null once it has recovered */
+  downAlertSentAt: datetime({ fsp: 3 }),
   ...timestampCols,
 });
 
-/** Columns to exclude from upserts (preserve creation time, let ON UPDATE handle update time) */
+/**
+ * Columns to exclude from upserts: preserve creation time, let ON UPDATE handle update time, and
+ * leave the alert state to the cron, so a new report does not clear it
+ */
 export const tWorkCheckerStatusUpsertExclude = [
   tWorkCheckerStatus.checkerId,
+  tWorkCheckerStatus.downAlertSentAt,
   tWorkCheckerStatus.rowCreatedAt,
   tWorkCheckerStatus.rowUpdatedAt,
 ] as const;
