@@ -1,8 +1,7 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { createDbConnection } from "~/db/db.client";
 import { findActiveBackupByR2Key, findBackupsByWorkId } from "~/db/queries/backup";
-
-afterEach(() => vi.unstubAllGlobals());
+import { mockQueries, result } from "./pg-query-mock";
 
 function database(withBackup = true) {
   const values = [
@@ -10,44 +9,18 @@ function database(withBackup = true) {
     "42",
     "epub",
     "4294967296",
-    "2026-09-30 10:00:00",
-    "2026-10-01 11:00:00",
-    "2026-10-01 11:00:00",
+    "2026-09-30T10:00:00Z",
+    "2026-10-01T11:00:00Z",
+    "2026-10-01T11:00:00Z",
     null,
   ];
-  const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () =>
-    Response.json({
-      result: {
-        fields: [
-          "r2Key",
-          "workId",
-          "format",
-          "fileSize",
-          "ao3UpdatedAt",
-          "rowCreatedAt",
-          "rowUpdatedAt",
-          "rowDeletedAt",
-        ].map((name) => ({
-          name,
-          type: name === "workId" ? "UINT32" : name === "fileSize" ? "UINT64" : "VARCHAR",
-        })),
-        rows: withBackup
-          ? [
-              {
-                lengths: values.map((value) => String(value?.length ?? -1)),
-                values: btoa(values.join("")),
-              },
-            ]
-          : [],
-      },
-    }),
-  );
-  vi.stubGlobal("fetch", fetchMock);
-  return { db: createDbConnection("mysql://test:test@database.example/test"), fetchMock };
+  const db = createDbConnection("postgresql://test:test@database.example/test");
+  const query = mockQueries(db).mockResolvedValue(result(withBackup ? [values] : []));
+  return { db, query };
 }
 
 it("lists active backups in creation order and maps database numbers and UTC dates", async () => {
-  const { db, fetchMock } = database();
+  const { db, query: execute } = database();
   expect(await findBackupsByWorkId(db, 42)).toEqual([
     {
       r2Key: "42/latest.epub",
@@ -60,22 +33,24 @@ it("lists active backups in creation order and maps database numbers and UTC dat
       rowDeletedAt: null,
     },
   ]);
-  const { query } = await new Response(fetchMock.mock.calls[0][1]?.body).json<{ query: string }>();
-  expect(query).toMatch(/`workId` = 42/);
-  expect(query).toMatch(/`rowDeletedAt` is null/i);
-  expect(query).toMatch(/order by .*`rowCreatedAt` desc/i);
+  const [query, params] = execute.mock.calls[0];
+  expect(query).toContain('"workId" = $1');
+  expect(params).toContain(42);
+  expect(query).toMatch(/"rowDeletedAt" is null/i);
+  expect(query).toMatch(/order by .*"rowCreatedAt" desc/i);
 });
 
 it("finds a backup by key while excluding soft-deleted backups", async () => {
-  const { db, fetchMock } = database();
+  const { db, query: execute } = database();
   expect(await findActiveBackupByR2Key(db, "42/latest.epub")).toMatchObject({
     workId: 42,
     format: "epub",
   });
-  const { query } = await new Response(fetchMock.mock.calls[0][1]?.body).json<{ query: string }>();
-  expect(query).toMatch(/`r2Key` = '42\/latest.epub'/);
-  expect(query).toMatch(/`rowDeletedAt` is null/i);
-  expect(query).toMatch(/limit 1/i);
+  const [query, params] = execute.mock.calls[0];
+  expect(query).toContain('"r2Key" = $1');
+  expect(params).toContain("42/latest.epub");
+  expect(query).toMatch(/"rowDeletedAt" is null/i);
+  expect(query).toMatch(/limit \$2/i);
 });
 
 it("returns null when a backup is missing or deleted", async () => {
@@ -88,6 +63,6 @@ it("resolves nested work tags through the central relations without column-name 
   const { sql } = db.query.tWork
     .findMany({ with: { tags: { with: { tagRecord: true } } } })
     .toSQL();
-  expect(sql).toContain("`ao3track__work_tag_link`");
-  expect(sql).toContain("`ao3track__work_tag`");
+  expect(sql).toContain('"ao3track_local__work_tag_link"');
+  expect(sql).toContain('"ao3track_local__work_tag"');
 });

@@ -38,11 +38,11 @@ checkerRouter.use(
 );
 
 checkerRouter.get("/settings", async (c) =>
-  c.json(await workCheckerSettings(createDbConnection(c.env.DATABASE_URL))),
+  c.json(await workCheckerSettings(createDbConnection(c.env))),
 );
 
 checkerRouter.post("/claim", async (c) => {
-  const db = createDbConnection(c.env.DATABASE_URL);
+  const db = createDbConnection(c.env);
   const settings = await workCheckerSettings(db);
   if (!settings.enabled) return c.json({ jobs: [] });
   return c.json({ jobs: await claimWorkCheckerJobs(db, settings.maxWorksPerPoll) });
@@ -51,14 +51,14 @@ checkerRouter.post("/claim", async (c) => {
 checkerRouter.post("/status", bodyLimit({ maxSize: 16 * 1024 }), async (c) => {
   const parsed = workCheckerStatusSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid status" }, 400);
-  await recordWorkCheckerStatus(createDbConnection(c.env.DATABASE_URL), parsed.data, new Date());
+  await recordWorkCheckerStatus(createDbConnection(c.env), parsed.data, new Date());
   return c.body(null, 204);
 });
 
 checkerRouter.post("/results", bodyLimit({ maxSize: MAX_RESULT_BYTES }), async (c) => {
   const parsed = workCheckerResultSchema.safeParse(await c.req.json().catch(() => null));
   if (!parsed.success) return c.json({ error: "Invalid result" }, 400);
-  const db = createDbConnection(c.env.DATABASE_URL);
+  const db = createDbConnection(c.env);
   return c.json(await applyWorkCheckerResult(db, c.env, parsed.data));
 });
 
@@ -80,7 +80,7 @@ checkerRouter.put(
     const fileContent = await c.req.arrayBuffer();
     if (fileContent.byteLength === 0) return c.json({ error: "Empty backup" }, 400);
 
-    const db = createDbConnection(c.env.DATABASE_URL);
+    const db = createDbConnection(c.env);
     const outcome = await storeWorkCheckerBackup(
       db,
       c.env,

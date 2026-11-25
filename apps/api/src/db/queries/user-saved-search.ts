@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import { replaceWhenNewer, sameDate } from "~/db/helpers/sync";
+import { upsertBatches } from "~/db/helpers/upsert";
 import {
   type TUserSavedSearchI,
   type TUserSavedSearchS,
@@ -129,17 +130,20 @@ export async function batchUpsertSavedSearches(
       deleted: u.deleted,
       updatedAt: u.updatedAt,
     }));
-    await db
-      .insert(tUserSavedSearch)
-      .values(rows)
-      .onDuplicateKeyUpdate({
-        set: {
-          name: replaceWhenNewer(tUserSavedSearch.name, tUserSavedSearch.updatedAt),
-          url: replaceWhenNewer(tUserSavedSearch.url, tUserSavedSearch.updatedAt),
-          deleted: replaceWhenNewer(tUserSavedSearch.deleted, tUserSavedSearch.updatedAt),
-          updatedAt: replaceWhenNewer(tUserSavedSearch.updatedAt, tUserSavedSearch.updatedAt),
-        },
-      });
+    for (const batch of upsertBatches(rows, (row) => row.id)) {
+      await db
+        .insert(tUserSavedSearch)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: [tUserSavedSearch.userId, tUserSavedSearch.id],
+          set: {
+            name: replaceWhenNewer(tUserSavedSearch.name, tUserSavedSearch.updatedAt),
+            url: replaceWhenNewer(tUserSavedSearch.url, tUserSavedSearch.updatedAt),
+            deleted: replaceWhenNewer(tUserSavedSearch.deleted, tUserSavedSearch.updatedAt),
+            updatedAt: replaceWhenNewer(tUserSavedSearch.updatedAt, tUserSavedSearch.updatedAt),
+          },
+        });
+    }
 
     const stored = await db
       .select()

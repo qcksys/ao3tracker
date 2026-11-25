@@ -71,6 +71,7 @@ jobs:
       - name: Apply development database migrations
         if: steps.release.outputs.eligible == 'true'
         env:
+          AO3_DB_ENV: dev
           DATABASE_URL: ${{ secrets.DEV_DATABASE_URL }}
         run: |
           if [[ -z "$DATABASE_URL" ]]; then
@@ -88,13 +89,19 @@ jobs:
         if: steps.release.outputs.eligible == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.DEV_CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}
+          DEV_WORKER_DATABASE_URL: ${{ secrets.DEV_WORKER_DATABASE_URL }}
           CHROME_BETA_EXTENSION_ID: ${{ vars.CHROME_BETA_EXTENSION_ID }}
         run: |
           if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
             echo "::error::Set DEV_CLOUDFLARE_API_TOKEN or CLOUDFLARE_API_TOKEN with development Worker deployment permissions."
             exit 1
           fi
-          vp exec --filter @qcksys/ao3tracker-api wrangler deploy --config dist/ssr/wrangler.json
+          : "${DEV_WORKER_DATABASE_URL:?Set the dev Worker Postgres connection secret}"
+          secrets_file=$(mktemp --suffix=.json)
+          trap 'rm -f -- "$secrets_file"' EXIT
+          jq -n '{DATABASE_URL: env.DEV_WORKER_DATABASE_URL}' > "$secrets_file"
+          unset DEV_WORKER_DATABASE_URL
+          vp exec --filter @qcksys/ao3tracker-api wrangler deploy --config dist/ssr/wrangler.json --secrets-file "$secrets_file"
       - name: Smoke test development API
         if: steps.release.outputs.eligible == 'true'
         run: |

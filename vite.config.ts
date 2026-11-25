@@ -10,6 +10,7 @@ export default defineConfig({
     ignorePatterns: [
       "apps/api/worker-configuration.d.ts",
       "apps/api/src/db/migrations/**/snapshot.json",
+      "apps/api/src/db/postgres-migrations/**/snapshot.json",
       "apps/native-kmp/composeApp/schemas/**",
     ],
   },

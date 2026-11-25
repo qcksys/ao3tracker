@@ -6,7 +6,7 @@ A Cloudflare Workers REST API for tracking Archive of Our Own (AO3) fanfiction w
 
 - **Runtime**: Cloudflare Workers (Node.js compatibility)
 - **Framework**: [Hono](https://hono.dev/) with OpenAPI support
-- **Database**: PlanetScale MySQL via Drizzle ORM
+- **Database**: PlanetScale Postgres via Drizzle ORM and `pg`
 - **Auth**: [Better Auth](https://better-auth.com/) (email/password, Google OAuth, passkeys, 2FA)
 - **Storage**: Cloudflare R2 for work backups
 - **Queue**: Cloudflare Queues for push notification delivery
@@ -56,7 +56,7 @@ vp install
 # Generate Cloudflare bindings types
 vp run types:cf
 
-# Configure the single 1Password reference in .env.schema as described below
+# Configure the 1Password fields in .env.schema as described below
 
 # Start local dev server
 vp run dev
@@ -67,19 +67,19 @@ vp run proxy
 
 ### Local secrets in 1Password
 
-Run the setup commands from `apps/api/`. [Varlock's 1Password plugin](https://varlock.dev/plugins/1password/) loads the complete local environment from one Secure Note. The tracked [`.env.schema`](.env.schema) contains one `op://.../notesPlain` reference and the expected variable names; it contains no secret values.
+Run the setup commands from `apps/api/`. [Varlock's 1Password plugin](https://varlock.dev/plugins/1password/) reads individual concealed fields from the project item. The tracked [`.env.schema`](.env.schema) maps each local variable to its field.
 
 1. Open and unlock the 1Password desktop app, enable **Settings → Developer → Integrate with 1Password CLI**, and check `op whoami` succeeds.
-2. The configured reference points to the `ao3tracker-api .dev.vars` Secure Note in the `QckSys` vault, which stores the entire local `.env` text. It uses vault/item IDs so renaming the note does not break the reference. To use a different note, replace the reference with its **Copy Secret Reference** value. Commit the reference in `.env.schema`, keeping the values in 1Password.
-3. Include `DATABASE_URL` and `BETTER_AUTH_SECRET` in the note. Use the development database connection. `GOOGLE_ID`, `GOOGLE_SECRET`, and `FCM_SERVICE_ACCOUNT` are optional locally. For FCM, put the JSON in a single-quoted dotenv value so its JSON escapes are preserved. Quote literal `$` characters with single quotes; bulk imports do not evaluate shell commands or variable references. Declare additional variable names in `.env.schema` when the API needs them; unknown keys in the note are ignored.
+2. Open `Work/QckSys → ao3tracker-api .dev.vars`. Under the `env` section, each field label matches its environment variable. The schema uses vault and item IDs, so renaming the item preserves the references.
+3. Set `env.DATABASE_URL` and `env.BETTER_AUTH_SECRET`. Store optional variables such as `GOOGLE_ID`, `GOOGLE_SECRET`, and `FCM_SERVICE_ACCOUNT` in their own concealed fields. Paste the raw value into each field, including the original JSON for FCM. The separate `PLANETSCALE_POSTGRES_URL` field holds the connection for the hosted schema migration. PlanetScale URLs containing `sslrootcert=system` can be used as issued. The Worker and migration runner verify the server certificate and hostname using the runtime's trusted roots.
 4. If migrating an existing checkout, verify the stored values in 1Password before removing the old `.dev.vars` and `.dev.vars.*` files. Wrangler loads those files ahead of the injected process environment. Remove any remaining plaintext secrets from `.env*` files too.
 5. Run `vp run dev` here or at the repository root. Approve the 1Password unlock prompt if shown.
 
-The dev server, preview, database commands, and Better Auth schema generator use [`varlock run`](https://varlock.dev/reference/cli/load-and-run/) with [`@setValuesBulk`](https://varlock.dev/reference/root-decorators/#setvaluesbulk). Varlock resolves the note through the installed 1Password CLI, parses its dotenv content, validates required variables, and injects the child process environment. No custom loader or plaintext secret file is needed. All values are marked sensitive. Existing process variables and local `.env` overrides take precedence, so clear stale overrides when switching to 1Password. `vp run preview` requires a prior local `vp run build`.
+The dev server, preview, database commands, and Better Auth schema generator use [`varlock run`](https://varlock.dev/reference/cli/load-and-run/). Varlock resolves the field references through the installed 1Password CLI, validates required variables, and injects the child process environment. No custom loader or plaintext secret file is needed. All values are marked sensitive. Existing process variables and local `.env` overrides take precedence, so clear stale overrides when switching to 1Password. `vp run preview` requires a prior local `vp run build`.
 
-The 1Password plugin caches the note for one hour (`cacheTtl=1h`). [`@cache=auto`](https://varlock.dev/guides/caching/) uses encrypted disk storage when a native encryption backend is available locally, so commands reuse the note across restarts. It falls back to memory when secure persistence is unavailable. CI uses memory unless `_VARLOCK_CACHE_KEY` is provided; builds and tests do not need that key. Disk cache entries live in the user's Varlock config directory, outside the checkout, and are shared across projects.
+The 1Password plugin caches each field for one hour (`cacheTtl=1h`). [`@cache=auto`](https://varlock.dev/guides/caching/) uses encrypted disk storage when a native encryption backend is available locally, so commands reuse the note across restarts. It falls back to memory when secure persistence is unavailable. CI uses memory unless `_VARLOCK_CACHE_KEY` is provided; builds and tests do not need that key. Disk cache entries live in the user's Varlock config directory, outside the checkout, and are shared across projects.
 
-After editing the note in 1Password, clear the plugin's cached values and restart the command. Run these commands from `apps/api/`:
+After editing a field in 1Password, clear the plugin's cached values and restart the command. Run these commands from `apps/api/`:
 
 ```bash
 vp exec varlock cache status
@@ -103,14 +103,14 @@ vp run types:tsc            # Run TypeScript type check
 
 # Testing
 vp run test                 # Run unit tests without Docker
-vp run test:e2e             # Build the Worker and run seeded MySQL sync tests (Docker required)
+vp run test:e2e             # Build the Worker and run seeded Postgres sync tests (Docker required)
 vp run test test/lww.test.ts              # Run specific test file
 vp run test -t "should parse"             # Run tests matching pattern
 
 # Database
 vp run db:generate          # Generate Drizzle migrations
 vp run db:migrate           # Run migrations
-vp run db:push              # Push schema directly (dev only)
+vp run db:push              # Apply checked-in migrations, including database triggers
 
 # Deployment
 vp run deploy:dev           # Deploy to dev environment
@@ -121,19 +121,31 @@ vp run biome:check:unsafe   # Fix linting issues
 vp run biome:ci             # CI linting check
 ```
 
+### Database prefixes
+
+The API build mode and migration command select tables on the same Postgres branch using these prefixes.
+
+| API build            | Migration `AO3_DB_ENV` | Table prefix       |
+| -------------------- | ---------------------- | ------------------ |
+| Main (`--mode prod`) | `main`                 | `ao3track__`       |
+| Dev (`--mode dev`)   | `dev`                  | `ao3track_dev__`   |
+| Local (default)      | `local` (default)      | `ao3track_local__` |
+
+Each prefix has its own tables, indexes, sequences, enums and migration ledger in the `public` schema. Generate migrations using the local prefix. The runner applies the checked-in SQL under `src/db/postgres-migrations/` to the selected prefix. It creates an empty schema on first use. Copying data from MySQL is a separate cutover step.
+
 ### Seeded sync end-to-end tests
 
-Start Docker Desktop (Linux containers) or another Docker-compatible runtime, then run `vp run test:e2e` from the repository root or this package. The command builds the API with Vite+, starts disposable MySQL 8.0 and [PlanetScale HTTP simulator](https://github.com/mattrobenolt/ps-http-sim) containers with Testcontainers, applies every checked-in migration through the normal migration script, and starts the built Worker locally with Wrangler's test harness. The shared sync client sends real HTTP requests through authentication, routing, validation, and the production PlanetScale/Drizzle adapter. No cloud or 1Password credentials are required.
+Start Docker Desktop (Linux containers) or another Docker-compatible runtime, then run `vp run test:e2e` from the repository root or this package. The command builds the API with Vite+, starts a disposable Postgres 18 container with Testcontainers, applies the Postgres migrations for all three environments, and starts the built Worker locally with Wrangler's Hyperdrive binding. The shared sync client sends real HTTP requests through authentication, routing, validation, and the production PlanetScale/Drizzle adapter. No cloud or 1Password credentials are required.
 
 Each test clears and reseeds its isolated database with two readers, sessions, tracked works and chapters, metadata, favourite tags, saved searches, and tombstones. Coverage includes full and paginated pulls, incremental discovery, offline pushes, per-field conflicts, mark-unread resets, deletion propagation, retries, legacy chapter IDs, account isolation, and invalid requests. Database reads also verify persisted state. Containers and the Worker are stopped after the suite, including on setup failure; Docker failures fail the suite rather than skipping it.
 
-The first run downloads the container images. CI runs this suite in the workspace checks job; `vp run -r test` remains Docker-free. Tests live in `test/e2e/` with a separate Node/DOM TypeScript configuration because the shared browser client and the Worker have different global types. `vp run types:tsc` checks both configurations. The simulator exercises real MySQL queries but does not reproduce PlanetScale's hosted Vitess infrastructure.
+The first run downloads the container images. CI runs this suite in the workspace checks job; `vp run -r test` remains Docker-free. Tests live in `test/e2e/` with a separate Node/DOM TypeScript configuration because the shared browser client and the Worker have different global types. `vp run types:tsc` checks both configurations.
 
 ### Environment Variables
 
 Loaded from 1Password for local development, or the Cloudflare dashboard for deployed Workers:
 
-- `DATABASE_URL` - PlanetScale connection string
+- `DATABASE_URL` - Postgres connection string for the target branch
 - `BETTER_AUTH_SECRET` - Auth secret key
 - `GOOGLE_ID` / `GOOGLE_SECRET` - For Google OAuth (optional)
 - `FCM_SERVICE_ACCOUNT` - Full Firebase service-account JSON for push notifications (optional locally)

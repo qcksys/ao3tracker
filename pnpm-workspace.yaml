@@ -23,17 +23,15 @@ catalog:
   "@cloudflare/vitest-plugin": ^1.4.7
   "@hono/zod-openapi": ^1.6.3
   "@hookform/resolvers": ^6.0.0
-  # Drizzle RC still requires the parameterized execute API removed in driver 2.x.
-  "@planetscale/database": ^1.20.2
   "@posthog/cli": ^0.18.12
-  "@qcksys/drizzle-extensions": ^0.3.0
   "@scalar/hono-api-reference": ^0.12.14
   "@scalar/openapi-to-markdown": ^1.7.0
   "@tailwindcss/vite": ^4.3.3
-  "@testcontainers/mysql": ^12.2.1
+  "@testcontainers/postgresql": ^12.2.2
   "@types/chrome": ^0.3.6
   "@types/css-tree": ^3.2.0
   "@types/node": ^26.6.5
+  "@types/pg": ^8.23.1
   "@types/react": ^19.3.0
   "@types/react-dom": ^19.3.0
   "@varlock/1password-plugin": ^2.0.5
@@ -55,6 +53,7 @@ catalog:
   lucide-react: ^1.61.0
   next-themes: ^0.4.6
   patchright: ^1.64.2
+  pg: ^8.23.1
   portless: ^0.15.12
   react: ^19.3.1
   react-dom: ^19.3.1
@@ -63,7 +62,6 @@ catalog:
   sonner: ^2.0.8
   tailwind-merge: ^3.7.0
   tailwindcss: ^4.3.3
-  testcontainers: ^12.2.1
   typescript: ^7.0.2
   varlock: ^1.23.0
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0

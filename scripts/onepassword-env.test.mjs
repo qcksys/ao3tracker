@@ -15,20 +15,39 @@ const apiRoot = new URL("../apps/api/", import.meta.url);
 const require = createRequire(new URL("package.json", apiRoot));
 const { internal } = await import(pathToFileURL(require.resolve("varlock")).href);
 
-async function resolveNote(t, content, { exitCode = 0, expectedCalls = 1, ...loadOptions } = {}) {
+async function resolveFields(t, fields, { exitCode = 0, expectedCalls = 1, ...loadOptions } = {}) {
   const calls = [];
   t.mock.method(childProcess, "spawn", (command, args) => {
     assert.equal(command, "op");
     assert.equal(args[0], "inject");
     const template = readFileSync(args[args.indexOf("-i") + 1], "utf8");
-    const references = template.match(/\{\{\s*op:\/\/[^}]+\}\}/g);
-    assert.equal(references.length, 1);
-    calls.push(references[0]);
+    assert.ok(args.includes("--account"));
+    const keys = [];
+    const injected = template.replace(
+      /\{\{\s*op:\/\/[^/]+\/[^/]+\/env\/(\w+)\s*\}\}/g,
+      (_, key) => {
+        keys.push(key);
+        return fields[key] ?? "";
+      },
+    );
+    assert.deepEqual(
+      keys.sort((left, right) => left.localeCompare(right)),
+      [
+        "BETTER_AUTH_SECRET",
+        "DATABASE_URL",
+        "FCM_SERVICE_ACCOUNT",
+        "GOOGLE_ID",
+        "GOOGLE_SECRET",
+        "POSTHOG_PROJECT_TOKEN",
+        "WORK_CHECKER_TOKEN",
+      ],
+    );
+    calls.push(keys);
     const child = new EventEmitter();
     child.stdout = new PassThrough();
     child.stderr = new PassThrough();
     queueMicrotask(() => {
-      if (exitCode === 0) child.stdout.end(template.replace(references[0], () => content));
+      if (exitCode === 0) child.stdout.end(injected);
       else child.stderr.end("Could not connect to the 1Password desktop app");
       child.emit("exit", exitCode);
     });
@@ -49,19 +68,18 @@ async function resolveNote(t, content, { exitCode = 0, expectedCalls = 1, ...loa
   return graph;
 }
 
-void test("Varlock and its 1Password plugin load one dotenv note into the API schema", async (t) => {
+void test("Varlock loads the individual 1Password fields into the API schema", async (t) => {
   const fcm = JSON.stringify({ private_key: "first line\nsecond line\n" }, null, 2);
-  const graph = await resolveNote(
-    t,
-    `DATABASE_URL='mysql://user:pass@database.example/dev'
-BETTER_AUTH_SECRET='test-secret-with-spaces # and $literal'
-GOOGLE_ID=test-google-id
-GOOGLE_SECRET=test-google-secret
-FCM_SERVICE_ACCOUNT='${fcm}'
-UNRELATED_SECRET=must-not-be-injected`,
-  );
+  const graph = await resolveFields(t, {
+    DATABASE_URL: "postgresql://user:pass@database.example/dev",
+    BETTER_AUTH_SECRET: "test-secret-with-spaces # and $literal",
+    GOOGLE_ID: "test-google-id",
+    GOOGLE_SECRET: "test-google-secret",
+    FCM_SERVICE_ACCOUNT: fcm,
+    UNRELATED_SECRET: "must-not-be-injected",
+  });
   const values = graph.getResolvedEnvStringObject();
-  assert.equal(values.DATABASE_URL, "mysql://user:pass@database.example/dev");
+  assert.equal(values.DATABASE_URL, "postgresql://user:pass@database.example/dev");
   assert.equal(values.BETTER_AUTH_SECRET, "test-secret-with-spaces # and $literal");
   assert.equal(values.FCM_SERVICE_ACCOUNT, fcm);
   assert.equal(values.UNRELATED_SECRET, undefined);
@@ -72,7 +90,9 @@ UNRELATED_SECRET=must-not-be-injected`,
 });
 
 void test("optional integrations may be omitted but the auth secret is required", async (t) => {
-  const graph = await resolveNote(t, "DATABASE_URL=mysql://user:pass@database.example/dev");
+  const graph = await resolveFields(t, {
+    DATABASE_URL: "postgresql://user:pass@database.example/dev",
+  });
   assert.equal(graph.configSchema.DATABASE_URL.isValid, true);
   assert.equal(graph.configSchema.BETTER_AUTH_SECRET.isValid, false);
   for (const key of ["GOOGLE_ID", "GOOGLE_SECRET", "FCM_SERVICE_ACCOUNT"]) {
@@ -81,12 +101,12 @@ void test("optional integrations may be omitted but the auth secret is required"
 });
 
 void test("1Password authentication failure leaves the required config invalid", async (t) => {
-  const graph = await resolveNote(t, "", { exitCode: 1 });
+  const graph = await resolveFields(t, {}, { exitCode: 1 });
   assert.equal(graph.configSchema.DATABASE_URL.isValid, false);
   assert.equal(graph.configSchema.BETTER_AUTH_SECRET.isValid, false);
 });
 
-void test("1Password notes use an encrypted one-hour cache with bypass and refresh support", async (t) => {
+void test("1Password fields use an encrypted one-hour cache with bypass and refresh support", async (t) => {
   const dir = await mkdtemp(join(tmpdir(), "ao3tracker-varlock-cache-"));
   const originalEnv = process.env;
   process.env = { ...process.env, XDG_CONFIG_HOME: dir };
@@ -98,9 +118,9 @@ void test("1Password notes use an encrypted one-hour cache with bypass and refre
     skipCache: false,
     processEnvOverride: { CI: "true", _VARLOCK_CACHE_KEY: randomBytes(32).toString("hex") },
   };
-  const databaseUrl = "mysql://cache-test:cache-password@database.example/dev";
-  const note = `DATABASE_URL=${databaseUrl}\nBETTER_AUTH_SECRET=cache-test-auth-secret`;
-  const first = await resolveNote(t, note, options);
+  const databaseUrl = "postgresql://cache-test:cache-password@database.example/dev";
+  const fields = { DATABASE_URL: databaseUrl, BETTER_AUTH_SECRET: "cache-test-auth-secret" };
+  const first = await resolveFields(t, fields, options);
   assert.equal(first._cacheMode, "disk");
   assert.equal(first.configSchema.DATABASE_URL.isValid, true);
 
@@ -109,34 +129,34 @@ void test("1Password notes use an encrypted one-hour cache with bypass and refre
   assert.equal(cacheText.includes(databaseUrl), false);
   assert.equal(cacheText.includes("cache-test-auth-secret"), false);
   const entries = Object.values(JSON.parse(cacheText));
-  assert.equal(entries.length, 1);
-  assert.equal(entries[0].e - entries[0].c, 60 * 60 * 1000);
+  assert.equal(entries.length, 7);
+  for (const entry of entries) assert.equal(entry.e - entry.c, 60 * 60 * 1000);
 
-  const cached = await resolveNote(t, "", { ...options, exitCode: 1, expectedCalls: 0 });
+  const cached = await resolveFields(t, {}, { ...options, exitCode: 1, expectedCalls: 0 });
   assert.deepEqual(cached.getResolvedEnvStringObject(), first.getResolvedEnvStringObject());
   assert.equal(cached.configSchema.BETTER_AUTH_SECRET.isSensitive, true);
 
-  const updatedNote = note.replace("cache-test-auth-secret", "updated-cache-test-secret");
-  const bypassed = await resolveNote(t, updatedNote, { ...options, skipCache: true });
+  const updatedFields = { ...fields, BETTER_AUTH_SECRET: "updated-cache-test-secret" };
+  const bypassed = await resolveFields(t, updatedFields, { ...options, skipCache: true });
   assert.equal(
     bypassed.getResolvedEnvStringObject().BETTER_AUTH_SECRET,
     "updated-cache-test-secret",
   );
   assert.equal(await readFile(cacheFile, "utf8"), cacheText);
 
-  const refreshed = await resolveNote(t, updatedNote, { ...options, clearCache: true });
+  const refreshed = await resolveFields(t, updatedFields, { ...options, clearCache: true });
   assert.equal(
     refreshed.getResolvedEnvStringObject().BETTER_AUTH_SECRET,
     "updated-cache-test-secret",
   );
-  const updated = await resolveNote(t, "", { ...options, exitCode: 1, expectedCalls: 0 });
+  const updated = await resolveFields(t, {}, { ...options, exitCode: 1, expectedCalls: 0 });
   assert.deepEqual(updated.getResolvedEnvStringObject(), refreshed.getResolvedEnvStringObject());
 
   t.mock.timers.enable({ apis: ["Date"], now: Date.now() + 60 * 60 * 1000 + 1 });
-  const expired = await resolveNote(t, "", { ...options, exitCode: 1 });
+  const expired = await resolveFields(t, {}, { ...options, exitCode: 1 });
   assert.equal(expired.configSchema.DATABASE_URL.isValid, false);
   assert.equal(expired.configSchema.BETTER_AUTH_SECRET.isValid, false);
 
-  const recovered = await resolveNote(t, note, options);
+  const recovered = await resolveFields(t, fields, options);
   assert.equal(recovered.configSchema.DATABASE_URL.isValid, true);
 });

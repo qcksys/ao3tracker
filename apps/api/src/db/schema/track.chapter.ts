@@ -1,42 +1,36 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import {
-  datetime,
-  float,
-  index,
-  int,
-  mysqlTable,
-  primaryKey,
-  varchar,
-} from "drizzle-orm/mysql-core";
+import { bigint, index, pgTable, primaryKey, real, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
 
-export const tTrackChapter = mysqlTable(
+export const tTrackChapter = pgTable(
   `${DB_TABLE_PREFIX}track_chapter`,
   {
     userId: varchar({ length: 36 }).notNull(),
-    workId: int({ unsigned: true }).notNull(),
-    chapterId: int({ unsigned: true }).notNull().default(0),
-    markedCompleteAt: datetime({ fsp: 3 }),
-    readProgress: float({ unsigned: true }).notNull().default(0),
+    workId: bigint({ mode: "number" }).notNull(),
+    chapterId: bigint({ mode: "number" }).notNull().default(0),
+    markedCompleteAt: timestamp({ withTimezone: true, precision: 3 }),
+    readProgress: real().notNull().default(0),
     ...syncTimestampCols,
-    // The LWW clock must be assigned after the fields that compare it.
-    lastReadAt: datetime({ fsp: 3 }).notNull(),
+    lastReadAt: timestamp({ withTimezone: true, precision: 3 }).notNull(),
   },
   (table) => {
     return [
       primaryKey({
         columns: [table.userId, table.workId, table.chapterId],
       }),
-      index("idx_track_chapter_lastReadAt").on(table.lastReadAt),
-      index("idx_track_chapter_rowCreatedAt").on(table.rowCreatedAt),
-      index("idx_track_chapter_rowUpdatedAt").on(table.rowUpdatedAt),
-      index("idx_track_chapter_rowDeletedAt").on(table.rowDeletedAt),
+      index(`${DB_TABLE_PREFIX}idx_track_chapter_lastReadAt`).on(table.lastReadAt),
+      index(`${DB_TABLE_PREFIX}idx_track_chapter_rowCreatedAt`).on(table.rowCreatedAt),
+      index(`${DB_TABLE_PREFIX}idx_track_chapter_rowUpdatedAt`).on(table.rowUpdatedAt),
+      index(`${DB_TABLE_PREFIX}idx_track_chapter_rowDeletedAt`).on(table.rowDeletedAt),
       // Composite index for incremental sync queries
-      index("idx_track_chapter_user_lastReadAt").on(table.userId, table.lastReadAt),
+      index(`${DB_TABLE_PREFIX}idx_track_chapter_user_lastReadAt`).on(
+        table.userId,
+        table.lastReadAt,
+      ),
       // Chapter-zero migration looks up every user's rows for one work
-      index("idx_track_chapter_work_chapter").on(table.workId, table.chapterId),
+      index(`${DB_TABLE_PREFIX}idx_track_chapter_work_chapter`).on(table.workId, table.chapterId),
     ];
   },
 );

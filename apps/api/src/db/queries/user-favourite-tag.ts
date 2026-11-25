@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import { replaceWhenNewer, sameDate } from "~/db/helpers/sync";
+import { upsertBatches } from "~/db/helpers/upsert";
 import {
   type TUserFavouriteTagI,
   type TUserFavouriteTagS,
@@ -143,15 +144,18 @@ export async function batchUpsertFavouriteTags(
       favourited: u.favourited,
       updatedAt: u.updatedAt,
     }));
-    await db
-      .insert(tUserFavouriteTag)
-      .values(rows)
-      .onDuplicateKeyUpdate({
-        set: {
-          favourited: replaceWhenNewer(tUserFavouriteTag.favourited, tUserFavouriteTag.updatedAt),
-          updatedAt: replaceWhenNewer(tUserFavouriteTag.updatedAt, tUserFavouriteTag.updatedAt),
-        },
-      });
+    for (const batch of upsertBatches(rows, (row) => `${row.tagType}:${row.tag}`)) {
+      await db
+        .insert(tUserFavouriteTag)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: [tUserFavouriteTag.userId, tUserFavouriteTag.tagType, tUserFavouriteTag.tag],
+          set: {
+            favourited: replaceWhenNewer(tUserFavouriteTag.favourited, tUserFavouriteTag.updatedAt),
+            updatedAt: replaceWhenNewer(tUserFavouriteTag.updatedAt, tUserFavouriteTag.updatedAt),
+          },
+        });
+    }
 
     const stored = await db
       .select()

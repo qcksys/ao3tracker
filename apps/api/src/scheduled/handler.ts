@@ -12,7 +12,7 @@ export const scheduled = async (
 ): Promise<void> => {
   switch (event.cron) {
     case "*/5 * * * *": {
-      const db = createDbConnection(env.DATABASE_URL);
+      const db = createDbConnection(env);
       ctx.waitUntil(dispatchPendingNotifications(db, env.NOTIFICATION_QUEUE));
       const settings = await workCheckerSettings(db);
       ctx.waitUntil(alertDownWorkCheckers(db, env, settings, new Date()));

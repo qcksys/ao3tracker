@@ -67,6 +67,7 @@ jobs:
         run: vp node scripts/release-main.mjs assert-current-source
       - name: Apply production database migrations
         env:
+          AO3_DB_ENV: main
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: vp node apps/api/scripts/migrate.mjs
       - name: Confirm source is still current main

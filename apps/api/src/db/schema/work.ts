@@ -1,55 +1,55 @@
 import { type InferInsertModel, type InferSelectModel, sql } from "drizzle-orm";
-import { datetime, index, int, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
+import { bigint, index, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
 
-export const tWork = mysqlTable(
+export const tWork = pgTable(
   `${DB_TABLE_PREFIX}work`,
   {
-    id: int({ unsigned: true }).notNull().primaryKey(),
+    id: bigint({ mode: "number" }).notNull().primaryKey(),
     title: varchar({ length: 255 }).notNull(),
     author: varchar({ length: 255 }).notNull(),
     authorUrl: varchar({ length: 255 }),
     summary: text(),
     language: varchar({ length: 50 }).notNull(),
-    wordCount: int({ unsigned: true }).notNull(),
-    currentChapters: int({ unsigned: true }).notNull(),
-    totalChapters: int({ unsigned: true }),
-    hits: int({ unsigned: true }).notNull().default(0),
-    kudos: int({ unsigned: true }).notNull().default(0),
-    bookmarks: int({ unsigned: true }).notNull().default(0),
-    comments: int({ unsigned: true }).notNull().default(0),
-    published: datetime().notNull(),
-    lastUpdated: datetime().notNull(),
-    lastRefreshed: datetime()
+    wordCount: bigint({ mode: "number" }).notNull(),
+    currentChapters: bigint({ mode: "number" }).notNull(),
+    totalChapters: bigint({ mode: "number" }),
+    hits: bigint({ mode: "number" }).notNull().default(0),
+    kudos: bigint({ mode: "number" }).notNull().default(0),
+    bookmarks: bigint({ mode: "number" }).notNull().default(0),
+    comments: bigint({ mode: "number" }).notNull().default(0),
+    published: timestamp({ withTimezone: true, precision: 0 }).notNull(),
+    lastUpdated: timestamp({ withTimezone: true, precision: 0 }).notNull(),
+    lastRefreshed: timestamp({ withTimezone: true, precision: 0 })
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     /** Consecutive failed scheduled refreshes; sets the retry backoff */
-    refreshFailures: int({ unsigned: true }).notNull().default(0),
+    refreshFailures: bigint({ mode: "number" }).notNull().default(0),
     downloadPath: varchar({ length: 255 }),
-    downloadUpdatedAt: datetime(),
+    downloadUpdatedAt: timestamp({ withTimezone: true, precision: 0 }),
     ...syncTimestampCols,
   },
   (table) => {
     return [
-      index("idx_works_title").on(table.title),
-      index("idx_works_author").on(table.author),
-      index("idx_works_language").on(table.language),
-      index("idx_works_wordCount").on(table.wordCount),
-      index("idx_works_published").on(table.published),
-      index("idx_works_lastUpdated").on(table.lastUpdated),
-      index("idx_works_lastRefreshed").on(table.lastRefreshed),
-      index("idx_works_rowCreatedAt").on(table.rowCreatedAt),
-      index("idx_works_rowUpdatedAt").on(table.rowUpdatedAt),
-      index("idx_works_rowDeletedAt").on(table.rowDeletedAt),
+      index(`${DB_TABLE_PREFIX}idx_works_title`).on(table.title),
+      index(`${DB_TABLE_PREFIX}idx_works_author`).on(table.author),
+      index(`${DB_TABLE_PREFIX}idx_works_language`).on(table.language),
+      index(`${DB_TABLE_PREFIX}idx_works_wordCount`).on(table.wordCount),
+      index(`${DB_TABLE_PREFIX}idx_works_published`).on(table.published),
+      index(`${DB_TABLE_PREFIX}idx_works_lastUpdated`).on(table.lastUpdated),
+      index(`${DB_TABLE_PREFIX}idx_works_lastRefreshed`).on(table.lastRefreshed),
+      index(`${DB_TABLE_PREFIX}idx_works_rowCreatedAt`).on(table.rowCreatedAt),
+      index(`${DB_TABLE_PREFIX}idx_works_rowUpdatedAt`).on(table.rowUpdatedAt),
+      index(`${DB_TABLE_PREFIX}idx_works_rowDeletedAt`).on(table.rowDeletedAt),
     ];
   },
 );
 
 export type TWorkS = InferSelectModel<typeof tWork>;
 export type TWorkI = OmitTimestampCols<InferInsertModel<typeof tWork>>;
-/** Columns to exclude from upserts (preserve creation time, let ON UPDATE handle update time) */
+/** Columns to exclude from upserts (preserve creation time and let the trigger record changes) */
 export const tWorkTimestampExclude = [tWork.rowCreatedAt, tWork.rowUpdatedAt] as const;
 
 export const sWorkS = createSelectSchema(tWork);

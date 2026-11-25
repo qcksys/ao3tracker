@@ -1,5 +1,5 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { bigint, int, mysqlTable, varchar } from "drizzle-orm/mysql-core";
+import { bigint, integer, pgTable, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 
@@ -9,10 +9,10 @@ import { DB_TABLE_PREFIX } from "~/const";
  * directly; Better Auth's drizzle adapter manages it. The schema must match
  * the shape Better Auth expects (id, key, count, lastRequest).
  */
-export const tAuthRateLimit = mysqlTable(`${DB_TABLE_PREFIX}auth_rate_limit`, {
+export const tAuthRateLimit = pgTable(`${DB_TABLE_PREFIX}auth_rate_limit`, {
   id: varchar({ length: 36 }).primaryKey(),
   key: varchar({ length: 255 }).notNull().unique(),
-  count: int().notNull().default(0),
+  count: integer().notNull().default(0),
   lastRequest: bigint({ mode: "number" }).notNull(),
 });
 

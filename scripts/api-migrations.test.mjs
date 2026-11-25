@@ -1,104 +1,38 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { formatMigrationError, runMigrations } from "../apps/api/scripts/migrate.mjs";
+import {
+  formatMigrationError,
+  postgresMigrations,
+  runMigrations,
+} from "../apps/api/scripts/migrate.mjs";
 
-const migrationsDirectory = new URL("../apps/api/src/db/migrations/", import.meta.url);
-
-async function readMigrationManifest() {
-  const folders = (await readdir(migrationsDirectory)).sort((a, b) => a.localeCompare(b));
-  const migrations = await Promise.all(
-    folders.map(async (tag) => {
-      const [, year, month, day, hour, minute, second] =
-        /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})_/.exec(tag);
-      const sql = await readFile(new URL(`${tag}/migration.sql`, migrationsDirectory), "utf8");
-      const lfSql = sql.replaceAll("\r\n", "\n");
-      return {
-        tag,
-        when: Date.UTC(year, month - 1, day, hour, minute, second),
-        hashes: [lfSql, lfSql.replaceAll("\n", "\r\n")].map((text) =>
-          createHash("sha256").update(text).digest("hex"),
-        ),
-      };
-    }),
-  );
-  return { migrations };
-}
-
-void test("the real migrator uses the existing ledger and parameterized driver API", async (t) => {
-  const queries = [];
-  t.mock.method(globalThis, "fetch", async (_input, init) => {
-    queries.push(JSON.parse(init.body).query);
-    return Response.json({ result: { fields: [], rows: [] } });
-  });
-
-  await runMigrations("mysql://test:test@database.example/test");
-
-  const { migrations } = await readMigrationManifest();
-  const inserts = queries.filter((query) => query.startsWith("insert into"));
-  assert.equal(inserts.length, migrations.length);
-  for (const [index, query] of inserts.entries()) {
-    assert.ok(query.includes("`ao3track__migrations`"));
-    assert.ok(query.includes(String(migrations[index].when)));
-    assert.ok(query.includes(migrations[index].tag));
-    assert.ok(migrations[index].hashes.some((hash) => query.includes(hash)));
-    assert.ok(!query.includes("?"));
+void test("the Postgres baseline isolates each environment's tables, types, indexes, sequences, triggers and migration ledger", () => {
+  for (const [environment, prefix] of Object.entries({
+    main: "ao3track__",
+    dev: "ao3track_dev__",
+    local: "ao3track_local__",
+  })) {
+    const { migrations, migrationsTable } = postgresMigrations(environment);
+    assert.equal(migrationsTable, prefix + "migrations");
+    const sql = migrations[0].sql.join("\n");
+    for (const name of [
+      "auth_user",
+      "notification_type",
+      "idx_notification_event",
+      "notification_id_seq",
+      "record_change",
+    ]) {
+      assert.ok(sql.includes('"' + prefix + name + '"'), name);
+    }
+    assert.ok([...sql.matchAll(/"(ao3track[^"]+)"/g)].every(([, name]) => name.startsWith(prefix)));
   }
-  assert.equal(queries.at(-1), "COMMIT");
-});
-
-void test("the RC migrator upgrades a legacy ledger without replaying applied SQL", async (t) => {
-  const { migrations } = await readMigrationManifest();
-  const queries = [];
-  let named = false;
-  t.mock.method(globalThis, "fetch", async (_input, init) => {
-    const query = JSON.parse(init.body).query;
-    queries.push(query);
-    let rows = [];
-    if (query.includes("information_schema.tables")) rows = [{ exists: "1" }];
-    else if (query.includes("information_schema.columns")) {
-      rows = ["id", "hash", "created_at"].map((column_name) => ({ column_name }));
-    } else if (/select.*from `ao3track__migrations`/i.test(query)) {
-      rows = migrations.map((migration, index) => ({
-        id: String(index + 1),
-        hash: migration.hashes[0],
-        created_at: String(migration.when + 543),
-        ...(named ? { name: migration.tag } : {}),
-      }));
-    } else if (query.startsWith("UPDATE `ao3track__migrations`")) named = true;
-    const names = Object.keys(rows[0] ?? {});
-    return Response.json({
-      result: {
-        fields: names.map((name) => ({ name, type: "VARCHAR" })),
-        rows: rows.map((row) => ({
-          lengths: names.map((name) => String(row[name].length)),
-          values: Buffer.from(names.map((name) => row[name]).join("")).toString("base64"),
-        })),
-      },
-    });
-  });
-
-  await runMigrations("mysql://test:test@database.example/test");
-
-  assert.equal(
-    queries.filter((query) => query.startsWith("ALTER TABLE `ao3track__migrations`")).length,
-    2,
-  );
-  assert.equal(
-    queries.filter((query) => query.startsWith("UPDATE `ao3track__migrations`")).length,
-    migrations.length,
-  );
-  for (const migration of migrations)
-    assert.ok(queries.some((query) => query.startsWith("UPDATE") && query.includes(migration.tag)));
-  assert.ok(!queries.some((query) => /^(create|insert|delete|drop)/i.test(query)));
-  assert.equal(queries.at(-1), "COMMIT");
+  assert.throws(() => postgresMigrations("staging"), /Unknown database environment/);
 });
 
 void test("migration errors include their cause without exposing connection credentials", () => {
-  const url = "mysql://db-user:secret%21@database.example/test";
+  const url = "postgresql://db-user:secret%21@database.example/test";
   const error = new Error(`Connection failed for ${url}`, {
     cause: new Error("Access denied for db-user using secret! or secret%21"),
   });
@@ -110,10 +44,16 @@ void test("migration errors include their cause without exposing connection cred
   assert.equal(
     formatMigrationError(
       new Error("Invalid credential bad%escape"),
-      "mysql://user:bad%escape@host",
+      "postgresql://user:bad%escape@host",
     ),
     "Invalid credential [REDACTED]",
   );
+});
+
+void test("migration CLI rejects the old MySQL connection string before connecting", async () => {
+  await assert.rejects(runMigrations("mysql://user:password@localhost/db"), {
+    message: "DATABASE_URL must be a Postgres connection string",
+  });
 });
 
 void test("the migration CLI prints the underlying failure and exits unsuccessfully", () => {
@@ -121,7 +61,10 @@ void test("the migration CLI prints the underlying failure and exits unsuccessfu
     process.execPath,
     [fileURLToPath(new URL("../apps/api/scripts/migrate.mjs", import.meta.url))],
     {
-      env: { ...process.env, DATABASE_URL: "http://fake-user:fake-password@127.0.0.1:1/test" },
+      env: {
+        ...process.env,
+        DATABASE_URL: "postgresql://fake-user:fake-password@127.0.0.1:1/test",
+      },
       encoding: "utf8",
       timeout: 10_000,
     },
@@ -129,7 +72,7 @@ void test("the migration CLI prints the underlying failure and exits unsuccessfu
   assert.equal(result.error, undefined);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Database migration failed/);
-  assert.match(result.stderr, /Caused by: fetch failed/);
+  assert.match(result.stderr, /Caused by: connect \w+ 127\.0\.0\.1:1/);
   assert.ok(!result.stderr.includes("fake-user"));
   assert.ok(!result.stderr.includes("fake-password"));
 });

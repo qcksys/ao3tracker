@@ -5,8 +5,8 @@ import config from "../wrangler.json";
 
 async function authInstance() {
   const vars = config.env.prod.vars;
-  const db = createDbConnection("mysql://test:test@localhost/session-test");
-  vi.spyOn(db.$client, "execute").mockRejectedValue(
+  const db = createDbConnection("postgresql://test:test@localhost/session-test");
+  vi.spyOn(db.$client, "query").mockRejectedValue(
     new Error("Session regression tests must not query the database"),
   );
   const instance = auth({

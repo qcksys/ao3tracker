@@ -1,47 +1,45 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
 import {
+  bigint,
   boolean,
-  datetime,
   index,
-  int,
-  mysqlTable,
+  pgTable,
   primaryKey,
+  timestamp,
   varchar,
-} from "drizzle-orm/mysql-core";
+} from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, syncTimestampCols } from "~/db/helpers/schema";
 
-export const tTrackWork = mysqlTable(
+export const tTrackWork = pgTable(
   `${DB_TABLE_PREFIX}track_work`,
   {
     userId: varchar({ length: 36 }).notNull(),
-    workId: int({ unsigned: true }).notNull(),
-    markedCompleteAt: datetime({ fsp: 3 }),
+    workId: bigint({ mode: "number" }).notNull(),
+    markedCompleteAt: timestamp({ withTimezone: true, precision: 3 }),
     private: boolean().notNull().default(false),
     subscribed: boolean().notNull().default(true),
     favourite: boolean().notNull().default(false),
     /** Per-field timestamp for LWW sync (null = use lastReadAt as fallback) */
-    subscribedUpdatedAt: datetime({ fsp: 3 }),
+    subscribedUpdatedAt: timestamp({ withTimezone: true, precision: 3 }),
     /** Per-field timestamp for LWW sync (null = use lastReadAt as fallback) */
-    favouriteUpdatedAt: datetime({ fsp: 3 }),
+    favouriteUpdatedAt: timestamp({ withTimezone: true, precision: 3 }),
     ...syncTimestampCols,
-    // Drizzle emits MySQL upsert assignments in schema order. Compare
-    // dependent fields against the old clock before assigning the new one.
-    lastReadAt: datetime({ fsp: 3 }).notNull(),
+    lastReadAt: timestamp({ withTimezone: true, precision: 3 }).notNull(),
   },
   (table) => {
     return [
       primaryKey({ columns: [table.userId, table.workId] }),
-      index("idx_track_work_lastReadAt").on(table.lastReadAt),
-      index("idx_track_work_private").on(table.private),
-      index("idx_track_work_rowCreatedAt").on(table.rowCreatedAt),
-      index("idx_track_work_rowUpdatedAt").on(table.rowUpdatedAt),
-      index("idx_track_work_rowDeletedAt").on(table.rowDeletedAt),
+      index(`${DB_TABLE_PREFIX}idx_track_work_lastReadAt`).on(table.lastReadAt),
+      index(`${DB_TABLE_PREFIX}idx_track_work_private`).on(table.private),
+      index(`${DB_TABLE_PREFIX}idx_track_work_rowCreatedAt`).on(table.rowCreatedAt),
+      index(`${DB_TABLE_PREFIX}idx_track_work_rowUpdatedAt`).on(table.rowUpdatedAt),
+      index(`${DB_TABLE_PREFIX}idx_track_work_rowDeletedAt`).on(table.rowDeletedAt),
       // Composite index for incremental sync queries
-      index("idx_track_work_user_lastReadAt").on(table.userId, table.lastReadAt),
-      index("idx_track_work_subscribed").on(table.subscribed),
-      index("idx_track_work_favourite").on(table.favourite),
+      index(`${DB_TABLE_PREFIX}idx_track_work_user_lastReadAt`).on(table.userId, table.lastReadAt),
+      index(`${DB_TABLE_PREFIX}idx_track_work_subscribed`).on(table.subscribed),
+      index(`${DB_TABLE_PREFIX}idx_track_work_favourite`).on(table.favourite),
     ];
   },
 );

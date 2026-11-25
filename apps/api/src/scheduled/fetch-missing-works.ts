@@ -19,7 +19,7 @@ const PARALLEL_REQUESTS = 4;
  * Main scheduled handler for fetching missing tracked works
  */
 export async function fetchMissingWorks(env: CloudflareBindings): Promise<void> {
-  const db = createDbConnection(env.DATABASE_URL);
+  const db = createDbConnection(env);
 
   // Find tracked works that don't exist in the works table
   const missingWorks = await findMissingTrackedWorks(db, MAX_WORKS_PER_RUN);

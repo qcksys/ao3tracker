@@ -12,10 +12,11 @@ import {
   or,
   sql,
 } from "drizzle-orm";
-import type { AnyMySqlColumn } from "drizzle-orm/mysql-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { TDatabase } from "~/db/db.client";
 import type { TAllTimestampColNames } from "~/db/helpers/schema";
 import { incoming, replaceWhen, replaceWhenNewer, sameDate } from "~/db/helpers/sync";
+import { upsertBatches } from "~/db/helpers/upsert";
 import { type TTrackChapterI, type TTrackChapterS, tTrackChapter } from "~/db/schema/track.chapter";
 import { type TTrackWorkI, type TTrackWorkS, tTrackWork } from "~/db/schema/track.work";
 import { type TWorkS, tWork } from "~/db/schema/work";
@@ -26,8 +27,8 @@ import { tWorkTagLink } from "~/db/schema/work.tag.link";
 /** Default page size for sync queries */
 export const DEFAULT_SYNC_LIMIT = 50;
 
-// PlanetScale autocommit queries can run for 900 seconds. Replay an extra minute
-// because CURRENT_TIMESTAMP records statement start, not the eventual commit.
+// Mutation statements have a 15-minute timeout. Replay an extra minute
+// because the mutation timestamp records statement start, not the eventual commit.
 const SYNC_REPLAY_WINDOW_SECONDS = 16 * 60;
 
 // ============================================================================
@@ -136,11 +137,10 @@ export async function getLatestWorkLastReadAt(db: TDatabase, userId: string): Pr
  * event times resolve conflicts; they never determine the ingestion cursor.
  */
 export async function getServerLastUpdated(db: TDatabase): Promise<Date> {
-  const result = await db.execute(
-    sql`SELECT DATE_FORMAT(DATE_SUB(CURRENT_TIMESTAMP(3), INTERVAL ${SYNC_REPLAY_WINDOW_SECONDS} SECOND), '%Y-%m-%dT%H:%i:%s.%fZ') AS watermark`,
+  const result = await db.execute<{ watermark: number }>(
+    sql`SELECT (extract(epoch FROM statement_timestamp()) * 1000)::bigint - ${SYNC_REPLAY_WINDOW_SECONDS * 1000} AS watermark`,
   );
-  const row = result.rows[0];
-  return new Date(String(Array.isArray(row) ? row[0] : row.watermark));
+  return new Date(Number(result.rows[0].watermark));
 }
 
 /**
@@ -415,7 +415,7 @@ export async function batchProcessWorks(
     or(isNull(tTrackWork.rowDeletedAt), newerRead),
   )}`;
   const readingWins = sql`${and(live, newerRead)}`;
-  const newerField = (timestamp: AnyMySqlColumn) =>
+  const newerField = (timestamp: AnyPgColumn) =>
     sql`${and(
       live,
       or(
@@ -439,21 +439,24 @@ export async function batchProcessWorks(
     rowDeletedAt: work.deleted ? work.lastReadAt : null,
   }));
 
-  await db
-    .insert(tTrackWork)
-    .values(rows)
-    .onDuplicateKeyUpdate({
-      set: {
-        markedCompleteAt: replaceWhen(tTrackWork.markedCompleteAt, readingWins),
-        private: replaceWhen(tTrackWork.private, readingWins),
-        subscribed: replaceWhen(tTrackWork.subscribed, subscribedWins),
-        favourite: replaceWhen(tTrackWork.favourite, favouriteWins),
-        subscribedUpdatedAt: sql`IF(${subscribedWins}, COALESCE(${incoming(tTrackWork.subscribedUpdatedAt)}, ${incoming(tTrackWork.lastReadAt)}), ${tTrackWork.subscribedUpdatedAt})`,
-        favouriteUpdatedAt: sql`IF(${favouriteWins}, COALESCE(${incoming(tTrackWork.favouriteUpdatedAt)}, ${incoming(tTrackWork.lastReadAt)}), ${tTrackWork.favouriteUpdatedAt})`,
-        rowDeletedAt: replaceWhen(tTrackWork.rowDeletedAt, newerRead),
-        lastReadAt: replaceWhen(tTrackWork.lastReadAt, newerRead),
-      },
-    });
+  for (const batch of upsertBatches(rows, (row) => row.workId)) {
+    await db
+      .insert(tTrackWork)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [tTrackWork.userId, tTrackWork.workId],
+        set: {
+          markedCompleteAt: replaceWhen(tTrackWork.markedCompleteAt, readingWins),
+          private: replaceWhen(tTrackWork.private, readingWins),
+          subscribed: replaceWhen(tTrackWork.subscribed, subscribedWins),
+          favourite: replaceWhen(tTrackWork.favourite, favouriteWins),
+          subscribedUpdatedAt: sql`CASE WHEN ${subscribedWins} THEN COALESCE(${incoming(tTrackWork.subscribedUpdatedAt)}, ${incoming(tTrackWork.lastReadAt)}) ELSE ${tTrackWork.subscribedUpdatedAt} END`,
+          favouriteUpdatedAt: sql`CASE WHEN ${favouriteWins} THEN COALESCE(${incoming(tTrackWork.favouriteUpdatedAt)}, ${incoming(tTrackWork.lastReadAt)}) ELSE ${tTrackWork.favouriteUpdatedAt} END`,
+          rowDeletedAt: replaceWhen(tTrackWork.rowDeletedAt, newerRead),
+          lastReadAt: replaceWhen(tTrackWork.lastReadAt, newerRead),
+        },
+      });
+  }
 
   const stored = await db
     .select()
@@ -549,17 +552,23 @@ export async function batchProcessChapters(
   });
   if (retiredRows.length > 0) {
     const retirementWins = gte(incoming(tTrackChapter.lastReadAt), tTrackChapter.lastReadAt);
-    await db
-      .insert(tTrackChapter)
-      .values(retiredRows)
-      .onDuplicateKeyUpdate({
-        set: {
-          markedCompleteAt: replaceWhen(tTrackChapter.markedCompleteAt, retirementWins),
-          readProgress: replaceWhen(tTrackChapter.readProgress, retirementWins),
-          rowDeletedAt: replaceWhen(tTrackChapter.rowDeletedAt, retirementWins),
-          lastReadAt: replaceWhen(tTrackChapter.lastReadAt, retirementWins),
-        },
-      });
+    for (const batch of upsertBatches(
+      retiredRows,
+      (row) => `${row.userId}:${row.workId}:${row.chapterId}`,
+    )) {
+      await db
+        .insert(tTrackChapter)
+        .values(batch)
+        .onConflictDoUpdate({
+          target: [tTrackChapter.userId, tTrackChapter.workId, tTrackChapter.chapterId],
+          set: {
+            markedCompleteAt: replaceWhen(tTrackChapter.markedCompleteAt, retirementWins),
+            readProgress: replaceWhen(tTrackChapter.readProgress, retirementWins),
+            rowDeletedAt: replaceWhen(tTrackChapter.rowDeletedAt, retirementWins),
+            lastReadAt: replaceWhen(tTrackChapter.lastReadAt, retirementWins),
+          },
+        });
+    }
   }
 
   const stored = await db
@@ -608,20 +617,26 @@ async function upsertChapterRows(
     >
   >,
 ): Promise<void> {
-  await db
-    .insert(tTrackChapter)
-    .values(rows)
-    .onDuplicateKeyUpdate({
-      set: {
-        markedCompleteAt: replaceWhenNewer(
-          tTrackChapter.markedCompleteAt,
-          tTrackChapter.lastReadAt,
-        ),
-        readProgress: replaceWhenNewer(tTrackChapter.readProgress, tTrackChapter.lastReadAt),
-        rowDeletedAt: replaceWhenNewer(tTrackChapter.rowDeletedAt, tTrackChapter.lastReadAt),
-        lastReadAt: replaceWhenNewer(tTrackChapter.lastReadAt, tTrackChapter.lastReadAt),
-      },
-    });
+  for (const batch of upsertBatches(
+    rows,
+    (row) => `${row.userId}:${row.workId}:${row.chapterId}`,
+  )) {
+    await db
+      .insert(tTrackChapter)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [tTrackChapter.userId, tTrackChapter.workId, tTrackChapter.chapterId],
+        set: {
+          markedCompleteAt: replaceWhenNewer(
+            tTrackChapter.markedCompleteAt,
+            tTrackChapter.lastReadAt,
+          ),
+          readProgress: replaceWhenNewer(tTrackChapter.readProgress, tTrackChapter.lastReadAt),
+          rowDeletedAt: replaceWhenNewer(tTrackChapter.rowDeletedAt, tTrackChapter.lastReadAt),
+          lastReadAt: replaceWhenNewer(tTrackChapter.lastReadAt, tTrackChapter.lastReadAt),
+        },
+      });
+  }
 }
 
 // ============================================================================
