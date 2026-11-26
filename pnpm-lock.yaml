@@ -191,6 +191,9 @@ catalogs:
     '@hookform/resolvers':
       specifier: ^6.0.0
       version: 6.0.0
+    '@planetscale/database':
+      specifier: 1.20.2
+      version: 1.20.2
     '@posthog/cli':
       specifier: ^0.18.12
       version: 0.18.12
@@ -419,6 +422,9 @@ importers:
       '@cloudflare/vitest-plugin':
         specifier: 'catalog:'
         version: 1.4.7(@types/node@26.6.5)(vitest@5.0.5)
+      '@planetscale/database':
+        specifier: 'catalog:'
+        version: 1.20.2
       '@qcksys/ao3tracker-sync-client':
         specifier: workspace:*
         version: link:../../packages/ao3-sync-client
@@ -7764,8 +7770,7 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@planetscale/database@1.20.2':
-    optional: true
+  '@planetscale/database@1.20.2': {}
 
   '@planetscale/database@2.0.0':
     optional: true
@@ -11681,7 +11686,7 @@ snapshots:
 
   tsx@4.23.15:
     dependencies:
-      esbuild: 0.28.1
+      esbuild: 0.28.2
     optionalDependencies:
       fsevents: 2.3.3
     optional: true

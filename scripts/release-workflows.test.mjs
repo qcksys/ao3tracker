@@ -325,6 +325,14 @@ for (const [name, environment, database, token, url] of [
       environment === "api-production" ? "WORKER_DATABASE_URL" : "DEV_WORKER_DATABASE_URL";
     assert.equal(upload.env[runtime], "${{ secrets." + runtime + " }}");
     assert.ok(upload.run.includes("DATABASE_URL: env." + runtime));
+    if (environment === "api-production") {
+      assert.equal(upload.env.POSTGRES_CUTOVER_URL, "${{ secrets.POSTGRES_MIGRATION_URL }}");
+      assert.equal(
+        upload.env.MYSQL_SOURCE_URL,
+        "${{ vars.IMPORT_PRODUCTION_MYSQL == 'true' && secrets.DATABASE_URL || '' }}",
+      );
+      assert.match(upload.run, /cutover-mysql\.mjs vp exec/);
+    }
     assert.match(upload.run, /wrangler deploy[^\n]+--secrets-file "\$secrets_file"/);
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
     assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));

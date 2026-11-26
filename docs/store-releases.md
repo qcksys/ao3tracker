@@ -86,6 +86,8 @@ Configure the following in [repository settings](https://github.com/qcksys/ao3tr
 
 The account ID is recorded in `apps/api/wrangler.json`. The production deploy installs the Worker and its `DATABASE_URL` binding together using `WORKER_DATABASE_URL`. Grant the runtime role access when adding production tables or identity sequences. Provision the other Worker secrets and configured Cloudflare resources separately. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
 
+For the initial production copy, set the environment variable `IMPORT_PRODUCTION_MYSQL=true`. The protected job reads MySQL through the existing `DATABASE_URL` secret, verifies all 21 tables against Postgres and holds Postgres writes until the new Worker is serving and two source snapshots agree. The `ao3track__mysql_cutover` ledger records completion. Clear the variable after the first release. Later releases check the ledger and deploy without a MySQL connection.
+
 ### Database migrations
 
 The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations` on main or `ao3track_dev__migrations` on dev. The release build mode and migration step select the same prefix. Each environment needs a Postgres connection string for the target branch. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.

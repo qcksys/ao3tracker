@@ -41,6 +41,7 @@
     "@biomejs/biome": "catalog:",
     "@cloudflare/vite-plugin": "catalog:",
     "@cloudflare/vitest-plugin": "catalog:",
+    "@planetscale/database": "catalog:",
     "@qcksys/ao3tracker-sync-client": "workspace:*",
     "@tailwindcss/vite": "catalog:",
     "@testcontainers/postgresql": "catalog:",

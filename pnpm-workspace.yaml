@@ -23,6 +23,7 @@ catalog:
   "@cloudflare/vitest-plugin": ^1.4.7
   "@hono/zod-openapi": ^1.6.3
   "@hookform/resolvers": ^6.0.0
+  "@planetscale/database": 1.20.2
   "@posthog/cli": ^0.18.12
   "@scalar/hono-api-reference": ^0.12.14
   "@scalar/openapi-to-markdown": ^1.7.0
