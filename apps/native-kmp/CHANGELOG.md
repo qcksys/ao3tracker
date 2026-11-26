@@ -1,5 +1,75 @@
 # @qcksys/ao3tracker-native-kmp
 
+## 0.7.0
+
+### Minor Changes
+
+- 1a739ad: Show chapters saved with Download from backup the way AO3 shows them, including in dark mode.
+
+  The API now rebuilds each backup chapter in AO3's chapter layout, with the work's tags, summary, notes, chapter titles, end notes and previous/next chapter links, so your AO3 site skin styles it like the live page. Until the app has saved your site skin from AO3, backup chapters use AO3's default skin, switching to AO3's dark Reversi skin when your device is in dark mode. The backup response adds `skins`; the older `styles`, `preface` and `afterword` fields remain for earlier app releases.
+
+  Download from backup no longer asks a signed-in reader to sign in when the app was opened without a connection. Copies saved from a backup before this change keep their old layout until you remove the download and download it from the backup again.
+
+- b3d7a0c: Download works for offline reading without opening them first.
+
+  Save whole work now starts downloading straight away, even the first time: the app checks which AO3 account you're signed in to in the background instead of opening the work in Read. Works rated Mature, Explicit or Not Rated download without stopping at AO3's adult content warning, which the app accepts for you as AO3's Proceed link would; AO3 then also skips that warning in Read for the rest of your AO3 session. If AO3 turns out to be signed in to a different account than your queued downloads, they continue under that account instead of failing.
+
+- e5e59d8: Export and import downloaded works.
+
+  Settings → Export & import saves downloaded works to a file of your choice: an archive you can import on this or another device, or EPUB books for e-book apps. Export every saved work, choose works from a list, or export one work from its offline reading section. Importing adds the chapters to the current AO3 account's downloads and keeps chapters already saved at the same or a newer revision. EPUB books cannot be imported.
+
+- 3c57ddb: Back up your library to Google Drive on Android, and import exported JSON files.
+
+  Settings → Account adds Sign in with Google. While signed in, the app backs up the current library to your Google Drive about a minute after tracking changes, in the same JSON format as Export Data. You choose whether the backup is a file you can see in My Drive or is kept in Drive's hidden app folder. Backups go one way: each device and library keeps its own file, nothing syncs between devices, and Restore brings a backup back on any device when you ask. Library & data adds Import Data from JSON for exported files. Restoring and importing let you merge with newer progress winning, add only missing works, or replace the library's works.
+
+### Patch Changes
+
+- 669e994: Keep downloads going when AO3 asks to check that you're not a robot.
+
+  When AO3 shows its Cloudflare check, background downloads now wait for it to pass by itself. If it doesn't, they pause instead of failing, and the app tells you in Read, Downloads and a notification. Tap Open on AO3, complete the check, and the downloads continue without using up their retries.
+
+- 6911949: Confirm saved-search deletion, count completed chapters consistently, and clear offline availability with the other library filters. Make filter states accessible and keep search results and reading actions usable with a landscape keyboard or large text.
+
+  On Android, offer Retry and Downloads when a reader connection fails, and ask for notification permission when you enable alerts in Settings.
+
+- 6e69c82: Return to where you left the Read and Works tabs.
+
+  Tapping Read from another tab reopens the page you were reading at your last position; tapping Read again opens the AO3 home page. The Works list keeps its scroll position when you open a work or its details, and tapping Works on the list scrolls it to the top.
+
+## 0.6.0
+
+### Minor Changes
+
+- 8a7160e: Download a tracked work for offline reading from its latest backup, even while AO3 is down.
+
+  Work Details, Downloads and the reader's offline menu have a Download from backup action for signed-in readers. It saves every chapter of the work's latest HTML backup from the tracker server without loading AO3, and the chapters open in the offline reader like other saved chapters. Backup copies have no author work skin or images. The API adds `GET /api/backup/{workId}/offline`, which returns the backup's sanitized chapters labelled with their AO3 chapter IDs.
+
+## 0.5.0
+
+### Minor Changes
+
+- c027642: Update downloaded works in the background and show clearer download status.
+
+  Downloaded works now fetch new and revised chapters automatically when sync reports an update; turn this off under Settings → Offline reading. The Works screen shows an overall download status beside Downloads, and the download notification shows the chapter currently being saved or updated. Tapping the notification opens a new Download queue section at the top of Downloads. Chapter progress bars on the Works screen use separate colours for downloaded chapters. A work's offline reading section starts collapsed to its status, and queued downloads offer Open on AO3 to reconnect.
+
+### Patch Changes
+
+- 71286b8: Fix offline saves getting stuck waiting for AO3 access when the reader restores or updates its scroll position.
+- 47c2328: Stop downloads flashing "queued" between chapters.
+
+  Downloads keep showing as in progress during the short pause between chapters, and only show as waiting after 5 seconds without activity. The download notification now shows how many works are in the queue and an overall progress bar. The download status on the Works screen no longer wraps the Downloads button.
+
+- 4a9cf43: Show the local time of the last successful sync instead of the delayed server cursor, and keep the elapsed-time label updated while the Works screen is open.
+
+## 0.4.1
+
+### Patch Changes
+
+- a39a420: updated cicd release process
+- 8a7126b: Keep Android content clear of system bars, display cutouts, and the keyboard, and use readable system-bar icons with the app's dark theme.
+- 8a7126b: Update Android 17 support and native UI, image-loading, and networking dependencies while preserving server selection and reading behavior.
+- 8a7126b: Prevent saved-reader crashes when switching chapters or accounts on older Android WebViews, and preserve reading progress across rotation and theme changes.
+
 ## 0.4.0
 
 ### Minor Changes

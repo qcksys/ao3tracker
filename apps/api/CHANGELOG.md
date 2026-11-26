@@ -1,5 +1,78 @@
 # @qcksys/ao3tracker-api
 
+## 0.4.0
+
+### Minor Changes
+
+- 1a739ad: Show chapters saved with Download from backup the way AO3 shows them, including in dark mode.
+
+  The API now rebuilds each backup chapter in AO3's chapter layout, with the work's tags, summary, notes, chapter titles, end notes and previous/next chapter links, so your AO3 site skin styles it like the live page. Until the app has saved your site skin from AO3, backup chapters use AO3's default skin, switching to AO3's dark Reversi skin when your device is in dark mode. The backup response adds `skins`; the older `styles`, `preface` and `afterword` fields remain for earlier app releases.
+
+  Download from backup no longer asks a signed-in reader to sign in when the app was opened without a connection. Copies saved from a backup before this change keep their old layout until you remove the download and download it from the backup again.
+
+### Patch Changes
+
+- 7ecbc17: Show chapters downloaded from a backup with the same layout as AO3's chapter pages.
+
+  Backup chapters now show full chapter titles where AO3's chapter menu shortened them, list translations under the work's notes, and end the last chapter with the work's series and the works inspired by it. Chapter notes and single-chapter works are spaced as on AO3. Copies already saved from a backup keep their old layout until you download them from the backup again.
+
+- f065731: Describe the Android Google Drive backup in the privacy policy.
+
+  The policy now covers what the app reads from your Google account, what backups contain, that they go straight from your device to your Drive, how to revoke access and delete backups, and compliance with Google's Limited Use requirements.
+
+## 0.3.0
+
+### Minor Changes
+
+- 8a7160e: Download a tracked work for offline reading from its latest backup, even while AO3 is down.
+
+  Work Details, Downloads and the reader's offline menu have a Download from backup action for signed-in readers. It saves every chapter of the work's latest HTML backup from the tracker server without loading AO3, and the chapters open in the offline reader like other saved chapters. Backup copies have no author work skin or images. The API adds `GET /api/backup/{workId}/offline`, which returns the backup's sanitized chapters labelled with their AO3 chapter IDs.
+
+### Patch Changes
+
+- 659219f: Speed up sync and work refreshes by indexing chapter and tag lookups by work.
+
+  Sync, tag replacement and moving single-chapter reading progress to real chapter IDs no longer scan whole tables. Two redundant indexes are dropped. Migration `20261029184713_db-insights-indexes` only adds and drops indexes, so it is compatible with the currently deployed API.
+
+- 4a40a8b: Sign out every other session when a password is reset.
+
+  Resetting your password now ends all existing sessions and app sign-ins, so anyone holding an old session loses access. The unused session-listing endpoint is disabled, because it returned other sessions' sign-in tokens.
+
+- 2a38a2b: Keep unrevealed AO3 works on their normal refresh schedule instead of treating them as failures.
+
+  AO3 hides works in an ongoing challenge behind a "Mystery Work" placeholder until they are revealed. Refreshes now recognise that page, keep the work's stored details and check again later, rather than backing off as if the fetch had failed.
+
+## 0.2.0
+
+### Minor Changes
+
+- b94046f: Add an admin dashboard and settings page to the website.
+
+  Administrators sign in at `/admin` with their password (and authenticator code) or a passkey. The dashboard shows users, tracked works, refresh health, notifications, backups and the browser work checker's latest status, which the checker now reports after every poll. The settings page turns the work checker on or off and tunes its polling without a deployment.
+
+- cfdb574: Check AO3 works from a self-hosted browser so work updates keep arriving when AO3 blocks the server.
+
+  A new Docker container runs Google Chrome, polls the API for works to check, and posts the pages and backup downloads back. The API applies them exactly as its own refresh does. Each API release publishes the container image, which deploys automatically on the self-hosted server. The development API hands its AO3 checks to the container; production keeps fetching from the Worker until its `work_checker` setting is enabled in the database.
+
+### Patch Changes
+
+- 93a20c4: Reduce load on AO3 while it is failing: stop each refresh run at the first AO3 server error or timeout, fetch one work at a time, and back off failed works from 30 minutes up to the normal 6 hours.
+- 0ddec53: Stop saving "Unknown" titles and zero chapter counts when AO3 serves a maintenance or other non-work page.
+
+  Scheduled fetches now treat a successful response without a work title or chapter count as a failed fetch and retry it later, instead of overwriting the work's metadata.
+
+- Updated dependencies [b94046f]
+- Updated dependencies [cfdb574]
+  - @qcksys/ao3tracker-core@0.4.0
+
+## 0.1.3
+
+### Patch Changes
+
+- 16f65e8: Link the landing page to the Chrome Web Store listing for the browser extension.
+- eabbf88: Prevent repeated work updates from creating duplicate notification history entries and stop overlapping refreshes from dispatching the same pending alert. Preserve notifications for distinct chapter updates and retry failed deliveries.
+- 568524c: Detect new chapters sooner by fetching the lighter first-chapter AO3 page, retrying failed refreshes after 30 minutes instead of 6 hours, and refreshing the longest-waiting works first. Restore chapter list updates and stop overlapping refresh runs from fetching the same work twice.
+
 ## 0.1.2
 
 ### Patch Changes
