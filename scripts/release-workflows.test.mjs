@@ -68,12 +68,10 @@ test("main pushes release after CI and forward verified Changesets tags", async 
   const ci = await workflow("ci");
   const tags = ci.jobs.changesets;
   assert.deepEqual(tags.needs, ["workspace", "android"]);
-  assert.equal(tags.if, "github.event_name == 'push' && github.ref == 'refs/heads/main'");
   assert.deepEqual(tags.permissions, { contents: "write", "pull-requests": "write" });
   assert.equal(tags.uses, "./.github/workflows/changesets.yml");
   const release = ci.jobs["release-main"];
   assert.equal(release.needs, "changesets");
-  assert.equal(release.if, "github.event_name == 'push' && github.ref == 'refs/heads/main'");
   assert.equal(release.uses, "./.github/workflows/release-main.yml");
   assert.equal(release.with.source_ref, "${{ github.sha }}");
   assert.equal(release.with.tagged, "${{ needs.changesets.outputs.tagged == 'true' }}");
@@ -83,6 +81,31 @@ test("main pushes release after CI and forward verified Changesets tags", async 
   assert.equal(entry.on.workflow_call.inputs.tagged.type, "boolean");
   assert.equal(entry.on.workflow_call.inputs.tagged.default, false);
   assert.equal(entry.jobs.deploy.with.tagged, "${{ inputs.tagged }}");
+});
+
+test("pushes release when android verified a skipped native matrix", async () => {
+  // GitHub skips every job downstream of a skipped job unless the job's `if` has a status
+  // function, so the native matrix being skipped would skip each release.
+  const ci = await workflow("ci");
+  assert.deepEqual(ci.jobs.android.needs, ["workspace", "native"]);
+  for (const [name, branch] of [
+    ["changesets", "main"],
+    ["release-main", "main"],
+    ["release-dev", "dev"],
+  ]) {
+    const job = ci.jobs[name];
+    assert.match(job.if, /^!cancelled\(\) && /, `${name} needs a status function`);
+    for (const need of [job.needs].flat()) {
+      assert.ok(
+        job.if.includes(`needs.${need}.result == 'success'`),
+        `${name} runs only after ${need} succeeds`,
+      );
+    }
+    assert.ok(
+      job.if.endsWith(`github.event_name == 'push' && github.ref == 'refs/heads/${branch}'`),
+      `${name} releases only ${branch} pushes`,
+    );
+  }
 });
 
 test("main always uploads Android to Internal and adds Alpha only for new tags", async () => {
@@ -263,7 +286,7 @@ for (const [name, environment, database, token, url] of [
   [
     "deploy-api",
     "api-production",
-    "DATABASE_URL",
+    "POSTGRES_MIGRATION_URL",
     "${{ secrets.CLOUDFLARE_API_TOKEN }}",
     "https://ao3tracker.com/ping",
   ],
@@ -286,6 +309,7 @@ for (const [name, environment, database, token, url] of [
     assert.equal(download.with["run-id"], undefined);
     const migrations = steps.find((step) => step.run?.includes("apps/api/scripts/migrate.mjs"));
     assert.ok(migrations, "deployment must apply pending migrations");
+    assert.equal(migrations.env.AO3_DB_ENV, environment === "api-production" ? "main" : "dev");
     assert.equal(migrations.env.DATABASE_URL, `\${{ secrets.${database} }}`);
     const guards = steps.filter((step) => step.run?.includes("assert-current-source"));
     assert.equal(
@@ -297,6 +321,19 @@ for (const [name, environment, database, token, url] of [
     assert.equal(beforeMigrations.env.RELEASE_SOURCE_REF, current.env.RELEASE_SOURCE_REF);
     const upload = steps.find((step) => step.run?.includes("wrangler deploy"));
     assert.equal(upload.env.CLOUDFLARE_API_TOKEN, token);
+    const runtime =
+      environment === "api-production" ? "WORKER_DATABASE_URL" : "DEV_WORKER_DATABASE_URL";
+    assert.equal(upload.env[runtime], "${{ secrets." + runtime + " }}");
+    assert.ok(upload.run.includes("DATABASE_URL: env." + runtime));
+    if (environment === "api-production") {
+      assert.equal(upload.env.POSTGRES_CUTOVER_URL, "${{ secrets.POSTGRES_MIGRATION_URL }}");
+      assert.equal(
+        upload.env.MYSQL_SOURCE_URL,
+        "${{ vars.IMPORT_PRODUCTION_MYSQL == 'true' && secrets.DATABASE_URL || '' }}",
+      );
+      assert.match(upload.run, /cutover-mysql\.mjs vp exec/);
+    }
+    assert.match(upload.run, /wrangler deploy[^\n]+--secrets-file "\$secrets_file"/);
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
     assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));
     assert.equal(steps.indexOf(beforeMigrations) + 1, steps.indexOf(migrations));

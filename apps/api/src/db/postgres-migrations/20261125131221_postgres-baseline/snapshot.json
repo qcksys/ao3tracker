@@ -1,0 +1,5679 @@
+{
+  "type": "base",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "e218358f-9b20-48d5-b99c-58b209eebba3",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "ao3track_local__email_send_type"
+      ],
+      "writes": [
+        "s|enum|public.ao3track_local__email_send_type",
+        "n|enum|public.ao3track_local__email_send_type",
+        "e|enum|public.ao3track_local__email_send_type",
+        "n|type|public.ao3track_local__email_send_type"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "ao3track_local__notification_status"
+      ],
+      "writes": [
+        "s|enum|public.ao3track_local__notification_status",
+        "n|enum|public.ao3track_local__notification_status",
+        "e|enum|public.ao3track_local__notification_status",
+        "n|type|public.ao3track_local__notification_status"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "ao3track_local__notification_type"
+      ],
+      "writes": [
+        "s|enum|public.ao3track_local__notification_type",
+        "n|enum|public.ao3track_local__notification_type",
+        "e|enum|public.ao3track_local__notification_type",
+        "n|type|public.ao3track_local__notification_type"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_enum",
+      "statementTarget": [
+        "enum",
+        "public",
+        "ao3track_local__backup_format"
+      ],
+      "writes": [
+        "s|enum|public.ao3track_local__backup_format",
+        "n|enum|public.ao3track_local__backup_format",
+        "e|enum|public.ao3track_local__backup_format",
+        "n|type|public.ao3track_local__backup_format"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__app_setting"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__app_setting",
+        "n|tbl|public.ao3track_local__app_setting",
+        "e|tbl|public.ao3track_local__app_setting",
+        "n|rel|public.ao3track_local__app_setting",
+        "n|type|public.ao3track_local__app_setting",
+        "n|rel|public.ao3track_local__app_setting_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_account"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_account",
+        "n|tbl|public.ao3track_local__auth_account",
+        "e|tbl|public.ao3track_local__auth_account",
+        "n|rel|public.ao3track_local__auth_account",
+        "n|type|public.ao3track_local__auth_account",
+        "n|rel|public.ao3track_local__auth_account_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__email_send_log"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__email_send_log",
+        "n|tbl|public.ao3track_local__email_send_log",
+        "e|tbl|public.ao3track_local__email_send_log",
+        "n|rel|public.ao3track_local__email_send_log",
+        "n|type|public.ao3track_local__email_send_log",
+        "n|rel|public.ao3track_local__email_send_log_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.ao3track_local__email_send_type"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_passkey"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_passkey",
+        "n|tbl|public.ao3track_local__auth_passkey",
+        "e|tbl|public.ao3track_local__auth_passkey",
+        "n|rel|public.ao3track_local__auth_passkey",
+        "n|type|public.ao3track_local__auth_passkey",
+        "n|rel|public.ao3track_local__auth_passkey_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_rate_limit"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_rate_limit",
+        "n|tbl|public.ao3track_local__auth_rate_limit",
+        "e|tbl|public.ao3track_local__auth_rate_limit",
+        "n|rel|public.ao3track_local__auth_rate_limit",
+        "n|type|public.ao3track_local__auth_rate_limit",
+        "n|rel|public.ao3track_local__auth_rate_limit_pkey",
+        "n|rel|public.ao3track_local__auth_rate_limit_key_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_session"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_session",
+        "n|tbl|public.ao3track_local__auth_session",
+        "e|tbl|public.ao3track_local__auth_session",
+        "n|rel|public.ao3track_local__auth_session",
+        "n|type|public.ao3track_local__auth_session",
+        "n|rel|public.ao3track_local__auth_session_pkey",
+        "n|rel|public.ao3track_local__auth_session_token_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_two_factor"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_two_factor",
+        "n|tbl|public.ao3track_local__auth_two_factor",
+        "e|tbl|public.ao3track_local__auth_two_factor",
+        "n|rel|public.ao3track_local__auth_two_factor",
+        "n|type|public.ao3track_local__auth_two_factor",
+        "n|rel|public.ao3track_local__auth_two_factor_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_user"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_user",
+        "n|tbl|public.ao3track_local__auth_user",
+        "e|tbl|public.ao3track_local__auth_user",
+        "n|rel|public.ao3track_local__auth_user",
+        "n|type|public.ao3track_local__auth_user",
+        "n|rel|public.ao3track_local__auth_user_pkey",
+        "n|rel|public.ao3track_local__auth_user_email_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__auth_verification"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__auth_verification",
+        "n|tbl|public.ao3track_local__auth_verification",
+        "e|tbl|public.ao3track_local__auth_verification",
+        "n|rel|public.ao3track_local__auth_verification",
+        "n|type|public.ao3track_local__auth_verification",
+        "n|rel|public.ao3track_local__auth_verification_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__notification"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__notification",
+        "n|tbl|public.ao3track_local__notification",
+        "e|tbl|public.ao3track_local__notification",
+        "n|rel|public.ao3track_local__notification",
+        "n|type|public.ao3track_local__notification",
+        "n|rel|public.ao3track_local__notification_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.ao3track_local__notification_type",
+        "n|enum|public.ao3track_local__notification_status"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__push_token"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__push_token",
+        "n|tbl|public.ao3track_local__push_token",
+        "e|tbl|public.ao3track_local__push_token",
+        "n|rel|public.ao3track_local__push_token",
+        "n|type|public.ao3track_local__push_token",
+        "n|rel|public.ao3track_local__push_token_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__track_chapter"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__track_chapter",
+        "n|tbl|public.ao3track_local__track_chapter",
+        "e|tbl|public.ao3track_local__track_chapter",
+        "n|rel|public.ao3track_local__track_chapter",
+        "n|type|public.ao3track_local__track_chapter",
+        "n|rel|public.ao3track_local__track_chapter_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__track_work"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__track_work",
+        "n|tbl|public.ao3track_local__track_work",
+        "e|tbl|public.ao3track_local__track_work",
+        "n|rel|public.ao3track_local__track_work",
+        "n|type|public.ao3track_local__track_work",
+        "n|rel|public.ao3track_local__track_work_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__user_favourite_tag"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__user_favourite_tag",
+        "n|tbl|public.ao3track_local__user_favourite_tag",
+        "e|tbl|public.ao3track_local__user_favourite_tag",
+        "n|rel|public.ao3track_local__user_favourite_tag",
+        "n|type|public.ao3track_local__user_favourite_tag",
+        "n|rel|public.ao3track_local__user_favourite_tag_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__user_saved_search"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__user_saved_search",
+        "n|tbl|public.ao3track_local__user_saved_search",
+        "e|tbl|public.ao3track_local__user_saved_search",
+        "n|rel|public.ao3track_local__user_saved_search",
+        "n|type|public.ao3track_local__user_saved_search",
+        "n|rel|public.ao3track_local__user_saved_search_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__work_backup"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__work_backup",
+        "n|tbl|public.ao3track_local__work_backup",
+        "e|tbl|public.ao3track_local__work_backup",
+        "n|rel|public.ao3track_local__work_backup",
+        "n|type|public.ao3track_local__work_backup",
+        "n|rel|public.ao3track_local__work_backup_pkey"
+      ],
+      "reads": [
+        "n|sch|public",
+        "n|enum|public.ao3track_local__backup_format"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__work_chapter"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__work_chapter",
+        "n|tbl|public.ao3track_local__work_chapter",
+        "e|tbl|public.ao3track_local__work_chapter",
+        "n|rel|public.ao3track_local__work_chapter",
+        "n|type|public.ao3track_local__work_chapter",
+        "n|rel|public.ao3track_local__work_chapter_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__work_checker_status"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__work_checker_status",
+        "n|tbl|public.ao3track_local__work_checker_status",
+        "e|tbl|public.ao3track_local__work_checker_status",
+        "n|rel|public.ao3track_local__work_checker_status",
+        "n|type|public.ao3track_local__work_checker_status",
+        "n|rel|public.ao3track_local__work_checker_status_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__work_tag_link"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__work_tag_link",
+        "n|tbl|public.ao3track_local__work_tag_link",
+        "e|tbl|public.ao3track_local__work_tag_link",
+        "n|rel|public.ao3track_local__work_tag_link",
+        "n|type|public.ao3track_local__work_tag_link",
+        "n|rel|public.ao3track_local__work_tag_link_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__work_tag"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__work_tag",
+        "n|tbl|public.ao3track_local__work_tag",
+        "e|tbl|public.ao3track_local__work_tag",
+        "n|rel|public.ao3track_local__work_tag",
+        "n|type|public.ao3track_local__work_tag",
+        "n|rel|public.ao3track_local__work_tag_pkey",
+        "n|rel|public.ao3track_local__work_tag_tag_key"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "ao3track_local__work"
+      ],
+      "writes": [
+        "s|tbl|public.ao3track_local__work",
+        "n|tbl|public.ao3track_local__work",
+        "e|tbl|public.ao3track_local__work",
+        "n|rel|public.ao3track_local__work",
+        "n|type|public.ao3track_local__work",
+        "n|rel|public.ao3track_local__work_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_account",
+        "ao3track_local__account_userId_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__account_userId_idx",
+        "n|idx|public.ao3track_local__account_userId_idx",
+        "e|idx|public.ao3track_local__account_userId_idx",
+        "n|rel|public.ao3track_local__account_userId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_account",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_account.userId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__email_send_log",
+        "ao3track_local__idx_email_send_log_lastSentAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_email_send_log_lastSentAt",
+        "n|idx|public.ao3track_local__idx_email_send_log_lastSentAt",
+        "e|idx|public.ao3track_local__idx_email_send_log_lastSentAt",
+        "n|rel|public.ao3track_local__idx_email_send_log_lastSentAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__email_send_log",
+        "n|sch|public",
+        "n|col|public.ao3track_local__email_send_log.lastSentAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_passkey",
+        "ao3track_local__passkey_userId_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__passkey_userId_idx",
+        "n|idx|public.ao3track_local__passkey_userId_idx",
+        "e|idx|public.ao3track_local__passkey_userId_idx",
+        "n|rel|public.ao3track_local__passkey_userId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_passkey",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_passkey.userId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_passkey",
+        "ao3track_local__passkey_credentialID_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__passkey_credentialID_idx",
+        "n|idx|public.ao3track_local__passkey_credentialID_idx",
+        "e|idx|public.ao3track_local__passkey_credentialID_idx",
+        "n|rel|public.ao3track_local__passkey_credentialID_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_passkey",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_passkey.credentialID"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_session",
+        "ao3track_local__session_userId_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__session_userId_idx",
+        "n|idx|public.ao3track_local__session_userId_idx",
+        "e|idx|public.ao3track_local__session_userId_idx",
+        "n|rel|public.ao3track_local__session_userId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_session",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_session.userId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_two_factor",
+        "ao3track_local__twoFactor_secret_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__twoFactor_secret_idx",
+        "n|idx|public.ao3track_local__twoFactor_secret_idx",
+        "e|idx|public.ao3track_local__twoFactor_secret_idx",
+        "n|rel|public.ao3track_local__twoFactor_secret_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_two_factor",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_two_factor.secret"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_two_factor",
+        "ao3track_local__twoFactor_userId_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__twoFactor_userId_idx",
+        "n|idx|public.ao3track_local__twoFactor_userId_idx",
+        "e|idx|public.ao3track_local__twoFactor_userId_idx",
+        "n|rel|public.ao3track_local__twoFactor_userId_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_two_factor",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_two_factor.userId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__auth_verification",
+        "ao3track_local__verification_identifier_idx"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__verification_identifier_idx",
+        "n|idx|public.ao3track_local__verification_identifier_idx",
+        "e|idx|public.ao3track_local__verification_identifier_idx",
+        "n|rel|public.ao3track_local__verification_identifier_idx"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__auth_verification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__auth_verification.identifier"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_event"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_event",
+        "n|idx|public.ao3track_local__idx_notification_event",
+        "e|idx|public.ao3track_local__idx_notification_event",
+        "n|rel|public.ao3track_local__idx_notification_event"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.userId",
+        "n|col|public.ao3track_local__notification.workId",
+        "n|col|public.ao3track_local__notification.type",
+        "n|col|public.ao3track_local__notification.eventKey"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_workId"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_workId",
+        "n|idx|public.ao3track_local__idx_notification_workId",
+        "e|idx|public.ao3track_local__idx_notification_workId",
+        "n|rel|public.ao3track_local__idx_notification_workId"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.workId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_status"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_status",
+        "n|idx|public.ao3track_local__idx_notification_status",
+        "e|idx|public.ao3track_local__idx_notification_status",
+        "n|rel|public.ao3track_local__idx_notification_status"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_dispatch"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_dispatch",
+        "n|idx|public.ao3track_local__idx_notification_dispatch",
+        "e|idx|public.ao3track_local__idx_notification_dispatch",
+        "n|rel|public.ao3track_local__idx_notification_dispatch"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.dispatchPending",
+        "n|col|public.ao3track_local__notification.rowUpdatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_type"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_type",
+        "n|idx|public.ao3track_local__idx_notification_type",
+        "e|idx|public.ao3track_local__idx_notification_type",
+        "n|rel|public.ao3track_local__idx_notification_type"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.type"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_user_status"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_user_status",
+        "n|idx|public.ao3track_local__idx_notification_user_status",
+        "e|idx|public.ao3track_local__idx_notification_user_status",
+        "n|rel|public.ao3track_local__idx_notification_user_status"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.userId",
+        "n|col|public.ao3track_local__notification.status"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__notification",
+        "ao3track_local__idx_notification_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_notification_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_notification_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_notification_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_notification_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__notification",
+        "n|sch|public",
+        "n|col|public.ao3track_local__notification.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__push_token",
+        "ao3track_local__idx_push_token_token"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_push_token_token",
+        "n|idx|public.ao3track_local__idx_push_token_token",
+        "e|idx|public.ao3track_local__idx_push_token_token",
+        "n|rel|public.ao3track_local__idx_push_token_token"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__push_token",
+        "n|sch|public",
+        "n|col|public.ao3track_local__push_token.token"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__push_token",
+        "ao3track_local__idx_push_token_rowDeletedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_push_token_rowDeletedAt",
+        "n|idx|public.ao3track_local__idx_push_token_rowDeletedAt",
+        "e|idx|public.ao3track_local__idx_push_token_rowDeletedAt",
+        "n|rel|public.ao3track_local__idx_push_token_rowDeletedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__push_token",
+        "n|sch|public",
+        "n|col|public.ao3track_local__push_token.rowDeletedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_chapter",
+        "ao3track_local__idx_track_chapter_lastReadAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_chapter_lastReadAt",
+        "n|idx|public.ao3track_local__idx_track_chapter_lastReadAt",
+        "e|idx|public.ao3track_local__idx_track_chapter_lastReadAt",
+        "n|rel|public.ao3track_local__idx_track_chapter_lastReadAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_chapter.lastReadAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_chapter",
+        "ao3track_local__idx_track_chapter_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_chapter_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_track_chapter_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_track_chapter_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_track_chapter_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_chapter.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_chapter",
+        "ao3track_local__idx_track_chapter_rowUpdatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_chapter_rowUpdatedAt",
+        "n|idx|public.ao3track_local__idx_track_chapter_rowUpdatedAt",
+        "e|idx|public.ao3track_local__idx_track_chapter_rowUpdatedAt",
+        "n|rel|public.ao3track_local__idx_track_chapter_rowUpdatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_chapter.rowUpdatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_chapter",
+        "ao3track_local__idx_track_chapter_rowDeletedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_chapter_rowDeletedAt",
+        "n|idx|public.ao3track_local__idx_track_chapter_rowDeletedAt",
+        "e|idx|public.ao3track_local__idx_track_chapter_rowDeletedAt",
+        "n|rel|public.ao3track_local__idx_track_chapter_rowDeletedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_chapter.rowDeletedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_chapter",
+        "ao3track_local__idx_track_chapter_user_lastReadAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_chapter_user_lastReadAt",
+        "n|idx|public.ao3track_local__idx_track_chapter_user_lastReadAt",
+        "e|idx|public.ao3track_local__idx_track_chapter_user_lastReadAt",
+        "n|rel|public.ao3track_local__idx_track_chapter_user_lastReadAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_chapter.userId",
+        "n|col|public.ao3track_local__track_chapter.lastReadAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_chapter",
+        "ao3track_local__idx_track_chapter_work_chapter"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_chapter_work_chapter",
+        "n|idx|public.ao3track_local__idx_track_chapter_work_chapter",
+        "e|idx|public.ao3track_local__idx_track_chapter_work_chapter",
+        "n|rel|public.ao3track_local__idx_track_chapter_work_chapter"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_chapter.workId",
+        "n|col|public.ao3track_local__track_chapter.chapterId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_lastReadAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_lastReadAt",
+        "n|idx|public.ao3track_local__idx_track_work_lastReadAt",
+        "e|idx|public.ao3track_local__idx_track_work_lastReadAt",
+        "n|rel|public.ao3track_local__idx_track_work_lastReadAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.lastReadAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_private"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_private",
+        "n|idx|public.ao3track_local__idx_track_work_private",
+        "e|idx|public.ao3track_local__idx_track_work_private",
+        "n|rel|public.ao3track_local__idx_track_work_private"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.private"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_track_work_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_track_work_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_track_work_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_rowUpdatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_rowUpdatedAt",
+        "n|idx|public.ao3track_local__idx_track_work_rowUpdatedAt",
+        "e|idx|public.ao3track_local__idx_track_work_rowUpdatedAt",
+        "n|rel|public.ao3track_local__idx_track_work_rowUpdatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.rowUpdatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_rowDeletedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_rowDeletedAt",
+        "n|idx|public.ao3track_local__idx_track_work_rowDeletedAt",
+        "e|idx|public.ao3track_local__idx_track_work_rowDeletedAt",
+        "n|rel|public.ao3track_local__idx_track_work_rowDeletedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.rowDeletedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_user_lastReadAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_user_lastReadAt",
+        "n|idx|public.ao3track_local__idx_track_work_user_lastReadAt",
+        "e|idx|public.ao3track_local__idx_track_work_user_lastReadAt",
+        "n|rel|public.ao3track_local__idx_track_work_user_lastReadAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.userId",
+        "n|col|public.ao3track_local__track_work.lastReadAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_subscribed"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_subscribed",
+        "n|idx|public.ao3track_local__idx_track_work_subscribed",
+        "e|idx|public.ao3track_local__idx_track_work_subscribed",
+        "n|rel|public.ao3track_local__idx_track_work_subscribed"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.subscribed"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__track_work",
+        "ao3track_local__idx_track_work_favourite"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_track_work_favourite",
+        "n|idx|public.ao3track_local__idx_track_work_favourite",
+        "e|idx|public.ao3track_local__idx_track_work_favourite",
+        "n|rel|public.ao3track_local__idx_track_work_favourite"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__track_work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__track_work.favourite"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__user_favourite_tag",
+        "ao3track_local__idx_user_favourite_tag_user_updatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_user_favourite_tag_user_updatedAt",
+        "n|idx|public.ao3track_local__idx_user_favourite_tag_user_updatedAt",
+        "e|idx|public.ao3track_local__idx_user_favourite_tag_user_updatedAt",
+        "n|rel|public.ao3track_local__idx_user_favourite_tag_user_updatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__user_favourite_tag",
+        "n|sch|public",
+        "n|col|public.ao3track_local__user_favourite_tag.userId",
+        "n|col|public.ao3track_local__user_favourite_tag.updatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__user_saved_search",
+        "ao3track_local__idx_user_saved_search_user_updatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_user_saved_search_user_updatedAt",
+        "n|idx|public.ao3track_local__idx_user_saved_search_user_updatedAt",
+        "e|idx|public.ao3track_local__idx_user_saved_search_user_updatedAt",
+        "n|rel|public.ao3track_local__idx_user_saved_search_user_updatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__user_saved_search",
+        "n|sch|public",
+        "n|col|public.ao3track_local__user_saved_search.userId",
+        "n|col|public.ao3track_local__user_saved_search.updatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_backup",
+        "ao3track_local__idx_work_backup_workId"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_work_backup_workId",
+        "n|idx|public.ao3track_local__idx_work_backup_workId",
+        "e|idx|public.ao3track_local__idx_work_backup_workId",
+        "n|rel|public.ao3track_local__idx_work_backup_workId"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_backup",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_backup.workId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_backup",
+        "ao3track_local__idx_work_backup_format"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_work_backup_format",
+        "n|idx|public.ao3track_local__idx_work_backup_format",
+        "e|idx|public.ao3track_local__idx_work_backup_format",
+        "n|rel|public.ao3track_local__idx_work_backup_format"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_backup",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_backup.workId",
+        "n|col|public.ao3track_local__work_backup.format"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_backup",
+        "ao3track_local__idx_work_backup_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_work_backup_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_work_backup_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_work_backup_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_work_backup_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_backup",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_backup.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_backup",
+        "ao3track_local__idx_work_backup_rowDeletedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_work_backup_rowDeletedAt",
+        "n|idx|public.ao3track_local__idx_work_backup_rowDeletedAt",
+        "e|idx|public.ao3track_local__idx_work_backup_rowDeletedAt",
+        "n|rel|public.ao3track_local__idx_work_backup_rowDeletedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_backup",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_backup.rowDeletedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_chapter",
+        "ao3track_local__idx_chapters_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_chapters_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_chapters_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_chapters_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_chapters_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_chapter.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_chapter",
+        "ao3track_local__idx_chapters_rowUpdatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_chapters_rowUpdatedAt",
+        "n|idx|public.ao3track_local__idx_chapters_rowUpdatedAt",
+        "e|idx|public.ao3track_local__idx_chapters_rowUpdatedAt",
+        "n|rel|public.ao3track_local__idx_chapters_rowUpdatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_chapter.rowUpdatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_chapter",
+        "ao3track_local__idx_chapters_rowDeletedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_chapters_rowDeletedAt",
+        "n|idx|public.ao3track_local__idx_chapters_rowDeletedAt",
+        "e|idx|public.ao3track_local__idx_chapters_rowDeletedAt",
+        "n|rel|public.ao3track_local__idx_chapters_rowDeletedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_chapter.rowDeletedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_chapter",
+        "ao3track_local__idx_chapters_workId_number"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_chapters_workId_number",
+        "n|idx|public.ao3track_local__idx_chapters_workId_number",
+        "e|idx|public.ao3track_local__idx_chapters_workId_number",
+        "n|rel|public.ao3track_local__idx_chapters_workId_number"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_chapter",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_chapter.workId",
+        "n|col|public.ao3track_local__work_chapter.number"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_tag_link",
+        "ao3track_local__idx_tags_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_tags_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_tags_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_tags_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_tags_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_tag_link",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_tag_link.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_tag_link",
+        "ao3track_local__idx_tags_work"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_tags_work",
+        "n|idx|public.ao3track_local__idx_tags_work",
+        "e|idx|public.ao3track_local__idx_tags_work",
+        "n|rel|public.ao3track_local__idx_tags_work"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_tag_link",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_tag_link.work"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work_tag",
+        "ao3track_local__idx_tags_typeId"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_tags_typeId",
+        "n|idx|public.ao3track_local__idx_tags_typeId",
+        "e|idx|public.ao3track_local__idx_tags_typeId",
+        "n|rel|public.ao3track_local__idx_tags_typeId"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work_tag",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work_tag.typeId"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_title"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_title",
+        "n|idx|public.ao3track_local__idx_works_title",
+        "e|idx|public.ao3track_local__idx_works_title",
+        "n|rel|public.ao3track_local__idx_works_title"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.title"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_author"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_author",
+        "n|idx|public.ao3track_local__idx_works_author",
+        "e|idx|public.ao3track_local__idx_works_author",
+        "n|rel|public.ao3track_local__idx_works_author"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.author"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_language"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_language",
+        "n|idx|public.ao3track_local__idx_works_language",
+        "e|idx|public.ao3track_local__idx_works_language",
+        "n|rel|public.ao3track_local__idx_works_language"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.language"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_wordCount"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_wordCount",
+        "n|idx|public.ao3track_local__idx_works_wordCount",
+        "e|idx|public.ao3track_local__idx_works_wordCount",
+        "n|rel|public.ao3track_local__idx_works_wordCount"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.wordCount"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_published"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_published",
+        "n|idx|public.ao3track_local__idx_works_published",
+        "e|idx|public.ao3track_local__idx_works_published",
+        "n|rel|public.ao3track_local__idx_works_published"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.published"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_lastUpdated"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_lastUpdated",
+        "n|idx|public.ao3track_local__idx_works_lastUpdated",
+        "e|idx|public.ao3track_local__idx_works_lastUpdated",
+        "n|rel|public.ao3track_local__idx_works_lastUpdated"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.lastUpdated"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_lastRefreshed"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_lastRefreshed",
+        "n|idx|public.ao3track_local__idx_works_lastRefreshed",
+        "e|idx|public.ao3track_local__idx_works_lastRefreshed",
+        "n|rel|public.ao3track_local__idx_works_lastRefreshed"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.lastRefreshed"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_rowCreatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_rowCreatedAt",
+        "n|idx|public.ao3track_local__idx_works_rowCreatedAt",
+        "e|idx|public.ao3track_local__idx_works_rowCreatedAt",
+        "n|rel|public.ao3track_local__idx_works_rowCreatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.rowCreatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_rowUpdatedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_rowUpdatedAt",
+        "n|idx|public.ao3track_local__idx_works_rowUpdatedAt",
+        "e|idx|public.ao3track_local__idx_works_rowUpdatedAt",
+        "n|rel|public.ao3track_local__idx_works_rowUpdatedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.rowUpdatedAt"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "ao3track_local__work",
+        "ao3track_local__idx_works_rowDeletedAt"
+      ],
+      "writes": [
+        "s|idx|public.ao3track_local__idx_works_rowDeletedAt",
+        "n|idx|public.ao3track_local__idx_works_rowDeletedAt",
+        "e|idx|public.ao3track_local__idx_works_rowDeletedAt",
+        "n|rel|public.ao3track_local__idx_works_rowDeletedAt"
+      ],
+      "reads": [
+        "n|tbl|public.ao3track_local__work",
+        "n|sch|public",
+        "n|col|public.ao3track_local__work.rowDeletedAt"
+      ]
+    }
+  ],
+  "ddl": [
+    {
+      "schema": "public",
+      "name": "ao3track_local__app_setting",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_account",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__email_send_log",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_passkey",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_rate_limit",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_session",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_two_factor",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_user",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__auth_verification",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__notification",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__push_token",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__track_chapter",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__track_work",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__user_favourite_tag",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__user_saved_search",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__work_backup",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__work_chapter",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__work_checker_status",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__work_tag_link",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__work_tag",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__work",
+      "isRlsEnabled": false,
+      "entityType": "tables"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__email_send_type",
+      "values": [
+        "password_reset",
+        "email_verification"
+      ],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__notification_status",
+      "values": [
+        "pending",
+        "sent",
+        "failed"
+      ],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__notification_type",
+      "values": [
+        "new_chapters",
+        "work_completed",
+        "work_restricted",
+        "work_deleted"
+      ],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "name": "ao3track_local__backup_format",
+      "values": [
+        "html",
+        "pdf",
+        "mobi",
+        "epub",
+        "azw3"
+      ],
+      "entityType": "enums"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__app_setting",
+      "name": "key",
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__app_setting",
+      "name": "value",
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__app_setting",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__app_setting",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__app_setting",
+      "name": "rowDeletedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "accountId",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "providerId",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "accessToken",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "refreshToken",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "idToken",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "accessTokenExpiresAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "refreshTokenExpiresAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "scope",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "password",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "createdAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "CURRENT_TIMESTAMP",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "updatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "email",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "type",
+      "type": "ao3track_local__email_send_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "lastSentAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "rowDeletedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "name",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "publicKey",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "credentialID",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "counter",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "deviceType",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "backedUp",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "transports",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "createdAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "aaguid",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_rate_limit",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_rate_limit",
+      "name": "key",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_rate_limit",
+      "name": "count",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_rate_limit",
+      "name": "lastRequest",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "expiresAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "token",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "createdAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "CURRENT_TIMESTAMP",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "updatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "ipAddress",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "userAgent",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "secret",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "backupCodes",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "verified",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "failedVerificationCount",
+      "type": "integer",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "lockedUntil",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "name",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "email",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "emailVerified",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "image",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "createdAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "CURRENT_TIMESTAMP",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "updatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "two_factor_enabled",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "role",
+      "type": "varchar(32)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'user'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "identifier",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "value",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "expiresAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "createdAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "CURRENT_TIMESTAMP",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "updatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "id",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "ao3track_local__notification_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "workId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "type",
+      "type": "ao3track_local__notification_type",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "eventKey",
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "status",
+      "type": "ao3track_local__notification_status",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'pending'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "dispatchPending",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "dispatchClaim",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "dispatchClaimedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "title",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "body",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "payload",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "sentAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "fcmMessageId",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "errorMessage",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "retryCount",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "rowDeletedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "deviceId",
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "token",
+      "type": "varchar(512)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "platform",
+      "type": "varchar(16)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'android'",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "lastValidatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "notificationPreferences",
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "rowDeletedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "workId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "chapterId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "markedCompleteAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "readProgress",
+      "type": "real",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "rowCreatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "rowDeletedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "lastReadAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "workId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "markedCompleteAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "private",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "subscribed",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "favourite",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "subscribedUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "favouriteUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "rowCreatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "rowDeletedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "lastReadAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "tagType",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "tag",
+      "type": "varchar(191)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "favourited",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "true",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "updatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "rowCreatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "rowDeletedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "userId",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "id",
+      "type": "varchar(36)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "name",
+      "type": "varchar(191)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "url",
+      "type": "varchar(8192)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "deleted",
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "updatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "rowCreatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "rowDeletedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "r2Key",
+      "type": "varchar(512)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "workId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "format",
+      "type": "ao3track_local__backup_format",
+      "typeSchema": "public",
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "fileSize",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "ao3UpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "rowDeletedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "id",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "workId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "number",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "title",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "dateUpdated",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "rowCreatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "rowDeletedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "checkerId",
+      "type": "varchar(64)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "status",
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "reportedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "downAlertSentAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "rowDeletedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag_link",
+      "name": "tag",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag_link",
+      "name": "work",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag_link",
+      "name": "rowCreatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "id",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": {
+        "type": "byDefault",
+        "name": "ao3track_local__work_tag_id_seq",
+        "increment": "1",
+        "startWith": "1",
+        "minValue": "1",
+        "maxValue": "9223372036854775807",
+        "cache": 1,
+        "cycle": false
+      },
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "tag",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "href",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "typeId",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "id",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "title",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "author",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "authorUrl",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "summary",
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "language",
+      "type": "varchar(50)",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "wordCount",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "currentChapters",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "totalChapters",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "hits",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "kudos",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "bookmarks",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "comments",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "published",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "lastUpdated",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "lastRefreshed",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "CURRENT_TIMESTAMP",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "refreshFailures",
+      "type": "bigint",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "0",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "downloadPath",
+      "type": "varchar(255)",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "downloadUpdatedAt",
+      "type": "timestamp(0) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "rowCreatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "rowUpdatedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "statement_timestamp()",
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "rowDeletedAt",
+      "type": "timestamp(3) with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "entityType": "columns"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "ao3track_local__account_userId_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "ao3track_local__idx_email_send_log_lastSentAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lastSentAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "ao3track_local__passkey_userId_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "ao3track_local__passkey_credentialID_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "credentialID",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "ao3track_local__session_userId_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "ao3track_local__twoFactor_secret_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "secret",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "ao3track_local__twoFactor_userId_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "ao3track_local__verification_identifier_idx",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "identifier",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_event",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "workId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "type",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "eventKey",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_workId",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_status",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_dispatch",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "dispatchPending",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_type",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "type",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_user_status",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "status",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__idx_notification_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "ao3track_local__idx_push_token_token",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "token",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "ao3track_local__idx_push_token_rowDeletedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__idx_track_chapter_lastReadAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lastReadAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__idx_track_chapter_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__idx_track_chapter_rowUpdatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__idx_track_chapter_rowDeletedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__idx_track_chapter_user_lastReadAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "lastReadAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__idx_track_chapter_work_chapter",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "chapterId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_lastReadAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lastReadAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_private",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "private",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_rowUpdatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_rowDeletedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_user_lastReadAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "lastReadAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_subscribed",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "subscribed",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__idx_track_work_favourite",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "favourite",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "ao3track_local__idx_user_favourite_tag_user_updatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "updatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "ao3track_local__idx_user_saved_search_user_updatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "userId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "updatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "ao3track_local__idx_work_backup_workId",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "ao3track_local__idx_work_backup_format",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "format",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "ao3track_local__idx_work_backup_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "ao3track_local__idx_work_backup_rowDeletedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "ao3track_local__idx_chapters_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "ao3track_local__idx_chapters_rowUpdatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "ao3track_local__idx_chapters_rowDeletedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "ao3track_local__idx_chapters_workId_number",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "workId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "number",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag_link",
+      "name": "ao3track_local__idx_tags_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag_link",
+      "name": "ao3track_local__idx_tags_work",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "work",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "ao3track_local__idx_tags_typeId",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "typeId",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_title",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "title",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_author",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "author",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_language",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "language",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_wordCount",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "wordCount",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_published",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "published",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_lastUpdated",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lastUpdated",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_lastRefreshed",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "lastRefreshed",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_rowCreatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowCreatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_rowUpdatedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowUpdatedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__idx_works_rowDeletedAt",
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "rowDeletedAt",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "entityType": "indexes"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__email_send_log",
+      "name": "ao3track_local__email_send_log_pkey",
+      "columns": [
+        "email",
+        "type"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__push_token",
+      "name": "ao3track_local__push_token_pkey",
+      "columns": [
+        "userId",
+        "deviceId"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_chapter",
+      "name": "ao3track_local__track_chapter_pkey",
+      "columns": [
+        "userId",
+        "workId",
+        "chapterId"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__track_work",
+      "name": "ao3track_local__track_work_pkey",
+      "columns": [
+        "userId",
+        "workId"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_favourite_tag",
+      "name": "ao3track_local__user_favourite_tag_pkey",
+      "columns": [
+        "userId",
+        "tagType",
+        "tag"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__user_saved_search",
+      "name": "ao3track_local__user_saved_search_pkey",
+      "columns": [
+        "userId",
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_chapter",
+      "name": "ao3track_local__work_chapter_pkey",
+      "columns": [
+        "id",
+        "workId"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag_link",
+      "name": "ao3track_local__work_tag_link_pkey",
+      "columns": [
+        "tag",
+        "work"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__app_setting",
+      "name": "ao3track_local__app_setting_pkey",
+      "columns": [
+        "key"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_account",
+      "name": "ao3track_local__auth_account_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_passkey",
+      "name": "ao3track_local__auth_passkey_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_rate_limit",
+      "name": "ao3track_local__auth_rate_limit_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "ao3track_local__auth_session_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_two_factor",
+      "name": "ao3track_local__auth_two_factor_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "ao3track_local__auth_user_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_verification",
+      "name": "ao3track_local__auth_verification_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__notification",
+      "name": "ao3track_local__notification_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_backup",
+      "name": "ao3track_local__work_backup_pkey",
+      "columns": [
+        "r2Key"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_checker_status",
+      "name": "ao3track_local__work_checker_status_pkey",
+      "columns": [
+        "checkerId"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "ao3track_local__work_tag_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work",
+      "name": "ao3track_local__work_pkey",
+      "columns": [
+        "id"
+      ],
+      "nameExplicit": false,
+      "entityType": "pks"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_rate_limit",
+      "name": "ao3track_local__auth_rate_limit_key_key",
+      "nameExplicit": false,
+      "columns": [
+        "key"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_session",
+      "name": "ao3track_local__auth_session_token_key",
+      "nameExplicit": false,
+      "columns": [
+        "token"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__auth_user",
+      "name": "ao3track_local__auth_user_email_key",
+      "nameExplicit": false,
+      "columns": [
+        "email"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    },
+    {
+      "schema": "public",
+      "table": "ao3track_local__work_tag",
+      "name": "ao3track_local__work_tag_tag_key",
+      "nameExplicit": false,
+      "columns": [
+        "tag"
+      ],
+      "nullsNotDistinct": false,
+      "entityType": "uniques"
+    }
+  ]
+}

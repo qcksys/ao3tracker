@@ -12,7 +12,7 @@ Node.js is pinned by `engines.node` in the root [package.json](package.json). Vi
 
 | Path                                                   | Stack                                                                                                       | Per-app guide                                                        |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| [apps/api/](apps/api/)                                 | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale MySQL, Better Auth, Vitest                               | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
+| [apps/api/](apps/api/)                                 | Cloudflare Workers, Hono, Drizzle ORM, PlanetScale Postgres, Better Auth, Vitest                            | [apps/api/AGENTS.md](apps/api/AGENTS.md)                             |
 | [apps/browser-extension/](apps/browser-extension/)     | WXT, React 19, Tailwind 4, shadcn/ui (Base UI variant), react-router                                        | [apps/browser-extension/AGENTS.md](apps/browser-extension/AGENTS.md) |
 | [apps/native-kmp/](apps/native-kmp/)                   | Kotlin Multiplatform, Compose Multiplatform, Gradle (Android/iOS/JVM); embedded WebView scripts use Vite+   | [apps/native-kmp/AGENTS.md](apps/native-kmp/AGENTS.md)               |
 | [apps/work-checker/](apps/work-checker/)               | Self-hosted Docker container: Node, Patchright driving headful Chrome; polls the API for AO3 work checks    | [apps/work-checker/AGENTS.md](apps/work-checker/AGENTS.md)           |

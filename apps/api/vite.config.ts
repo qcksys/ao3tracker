@@ -30,6 +30,21 @@ export default defineConfig(({ mode }) => {
     process.env.CLOUDFLARE_ENV = mode;
   }
   return {
+    define: {
+      "process.env.AO3_DB_ENV": JSON.stringify(mode === "prod" || mode === "dev" ? mode : "local"),
+    },
+    environments: {
+      ssr: {
+        build: {
+          rolldownOptions: {
+            output: {
+              banner:
+                'import { createRequire as createNodeRequire } from "node:module"; const require = createNodeRequire("file:///worker.js");',
+            },
+          },
+        },
+      },
+    },
     resolve: {
       tsconfigPaths: true,
       alias: {

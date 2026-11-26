@@ -1,8 +1,7 @@
 import { execFile } from "node:child_process";
 import { fileURLToPath, URL } from "node:url";
 import { promisify } from "node:util";
-import { MySqlContainer } from "@testcontainers/mysql";
-import { GenericContainer, Network, Wait } from "testcontainers";
+import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import type { TestProject } from "vitest/node";
 import { createTestHarness } from "wrangler";
 
@@ -17,54 +16,38 @@ export default async function setup(project: TestProject) {
   const { provide } = project;
   const resources = new AsyncDisposableStack();
   try {
-    const network = resources.use(await new Network().start());
-    const mysql = resources.use(
-      await new MySqlContainer("mysql:8.0.45")
-        .withDatabase("sync_e2e")
-        .withNetwork(network)
-        .withNetworkAliases("mysql")
-        .withCommand(["--default-time-zone=+00:00", "--max-connections=1000"])
-        .start(),
-    );
-    const proxy = resources.use(
-      await new GenericContainer("ghcr.io/mattrobenolt/ps-http-sim:v0.0.12")
-        .withNetwork(network)
-        .withCommand([
-          "-listen-addr=0.0.0.0",
-          "-listen-port=3900",
-          "-mysql-addr=mysql",
-          "-mysql-dbname=sync_e2e",
-          "-mysql-max-rows=100000",
-          "-mysql-idle-timeout=1s",
-          "-log-level=warn",
-        ])
-        .withExposedPorts(3900)
-        .withWaitStrategy(Wait.forHttp("/", 3900).forStatusCode(404))
-        .start(),
-    );
-
-    const databaseUrl = new URL(`http://${proxy.getHost()}:${proxy.getMappedPort(3900)}`);
-    databaseUrl.username = mysql.getUsername();
-    databaseUrl.password = mysql.getUserPassword();
-    await promisify(execFile)(
-      process.execPath,
-      [fileURLToPath(new URL("../../scripts/migrate.mjs", import.meta.url))],
-      {
-        env: { ...process.env, DATABASE_URL: databaseUrl.href },
-        timeout: 120_000,
-        windowsHide: true,
-      },
-    );
+    const postgres = resources.use(await new PostgreSqlContainer("postgres:18").start());
+    const databaseUrl = new URL(postgres.getConnectionUri());
+    if (databaseUrl.hostname === "localhost") databaseUrl.hostname = "127.0.0.1";
+    for (const environment of ["main", "dev", "local", "local"]) {
+      await promisify(execFile)(
+        process.execPath,
+        [fileURLToPath(new URL("../../scripts/migrate.mjs", import.meta.url))],
+        {
+          env: { ...process.env, AO3_DB_ENV: environment, DATABASE_URL: databaseUrl.href },
+          timeout: 120_000,
+          windowsHide: true,
+        },
+      );
+    }
     provide("databaseUrl", databaseUrl.href);
     const server = createTestHarness({
       root: fileURLToPath(new URL("../../", import.meta.url)),
       workers: [
         {
           config: {
+            hyperdrive: [
+              {
+                binding: "HYPERDRIVE",
+                id: "00000000000000000000000000000000",
+                localConnectionString: databaseUrl.href,
+              },
+            ],
             name: "sync-e2e",
             main: "dist/ssr/index.js",
             compatibility_date: "2025-11-18",
             compatibility_flags: ["nodejs_compat"],
+            r2_buckets: [{ binding: "WORK_BACKUPS_BUCKET", bucket_name: "e2e-backups" }],
             vars: {
               DATABASE_URL: databaseUrl.href,
               ENVIRONMENT: "local",
@@ -73,6 +56,7 @@ export default async function setup(project: TestProject) {
               ALLOWED_ORIGINS: "http://localhost",
               GOOGLE_ID: "",
               GOOGLE_SECRET: "",
+              WORK_CHECKER_TOKEN: "e2e-checker",
             },
           },
         },

@@ -180,7 +180,7 @@ export const auth = ({ env, db }: { env: CloudflareBindings; db: TDatabase }) =>
       bearer(),
     ],
     database: drizzleAdapter(db, {
-      provider: "mysql",
+      provider: "pg",
       schema: {
         account: tAuthAccount,
         passkey: tAuthPasskey,

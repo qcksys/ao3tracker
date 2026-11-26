@@ -12,7 +12,7 @@ vi.mock("~/db/queries/push-token", () => ({
   getTokensByUserIds: vi.fn(),
   invalidateToken: vi.fn(),
 }));
-const db = createDbConnection("mysql://test:test@database.example/test");
+const db = createDbConnection("postgresql://test:test@database.example/test");
 const token = (
   deviceId: string,
   preferences: TPushTokenS["notificationPreferences"],

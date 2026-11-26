@@ -1,21 +1,21 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { index, int, mysqlTable, primaryKey } from "drizzle-orm/mysql-core";
+import { bigint, index, pgTable, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 import { type OmitTimestampCols, omitTimestampCols, timestampCols } from "~/db/helpers/schema";
 
-export const tWorkTagLink = mysqlTable(
+export const tWorkTagLink = pgTable(
   `${DB_TABLE_PREFIX}work_tag_link`,
   {
-    tag: int({ unsigned: true }).notNull(),
-    work: int({ unsigned: true }).notNull(),
+    tag: bigint({ mode: "number" }).notNull(),
+    work: bigint({ mode: "number" }).notNull(),
     rowCreatedAt: timestampCols.rowCreatedAt,
   },
   (table) => {
     return [
       primaryKey({ columns: [table.tag, table.work] }),
-      index("idx_tags_rowCreatedAt").on(table.rowCreatedAt),
-      index("idx_tags_work").on(table.work),
+      index(`${DB_TABLE_PREFIX}idx_tags_rowCreatedAt`).on(table.rowCreatedAt),
+      index(`${DB_TABLE_PREFIX}idx_tags_work`).on(table.work),
     ];
   },
 );

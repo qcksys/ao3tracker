@@ -27,7 +27,7 @@ The deployment phase downloads the API artifact by ID from the same workflow run
 
 Workspace checks also select native work, avoiding a separate detection runner. Relevant PRs run JVM, shared Android host and debug application tests plus Android Debug. Gradle, dependency, manifest, ProGuard and unknown root build changes also run dev/release application tests and the minified Dev APK; add the `ci:android-minify` PR label to request these explicitly. Manual CI runs both native targets. Push CI runs the ordinary native checks when needed; store builds test their application variant and validate minification through the signed AAB without a preceding Dev APK build. Shrinker failures on ordinary source changes can therefore surface at release time. The required `Android and JVM checks` status still fails when a required native job fails or is cancelled.
 
-PR selection compares the complete merge-base diff. Push selection compares the current tree with the most recent successful ancestral push CI commit on the same branch, not the preceding push, so failed and cancelled intermediate commits remain covered. API-only, extension-only and documentation changes skip native work; shared packages, lockfiles and unknown inputs run it. Missing history, API errors and failed comparisons conservatively run checks.
+PR selection compares the complete merge-base diff. Push selection compares the current tree with the most recent successful ancestral push CI commit on the same branch, not the preceding push, so failed and cancelled intermediate commits remain covered. API-only, extension-only and documentation changes skip native work; shared packages, lockfiles and unknown inputs run it. Missing history, API errors and failed comparisons conservatively run checks. The release jobs in `ci.yml` (`changesets`, `release-main`, `release-dev`) start their `if` with `!cancelled()` and require each needed job's result to be `success`: GitHub skips every job downstream of a skipped job unless its `if` has a status function, so without one a push that skips native work never releases.
 
 Inside the protected deployment job, dev Android and Chrome compare against their own most recent successful automatic store job from successful same-branch CI history. Production Android runs regardless of its change comparison; production Chrome uses its comparison only when new tags were verified. Skipped jobs and deferred Chrome uploads never advance a store baseline, and manual/build-only runs are not used as baselines. Chrome jobs with a successful `Record deferred Chrome upload` step retain the previous upload baseline, so later dev pushes still select the unreleased changes. The lookup checks up to 1,000 successful CI runs, including paginated job lists; absent history rebuilds the affected store. This also conservatively rebuilds a store that succeeded in an otherwise failed CI run. API deployment, migrations and health checks still run before any selected stores. Automatic beta releases remain per relevant dev push; superseded validation can be cancelled, but an active protected release still finishes.
 
@@ -78,16 +78,19 @@ Configure the following in [repository settings](https://github.com/qcksys/ao3tr
 
 ### `api-production`
 
-| Secret                 | Value                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN` | Token scoped to the configured account/zone with Worker deployment and required binding/route permissions |
-| `DATABASE_URL`         | Connection with migration permissions to the same production PlanetScale database used by the Worker      |
+| Secret                   | Value                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`   | Token scoped to the configured account/zone with Worker deployment and required binding/route permissions |
+| `POSTGRES_MIGRATION_URL` | Postgres connection with migration permissions for the production tables                                  |
+| `WORKER_DATABASE_URL`    | Runtime connection with DML on the production application tables and usage on their identity sequences    |
 
-The account ID is already recorded in `apps/api/wrangler.json`. Provision the production Worker runtime secrets and configured Cloudflare resources separately; the workflow preserves existing Worker secrets and never uploads its migration database credential. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
+The account ID is recorded in `apps/api/wrangler.json`. The production deploy installs the Worker and its `DATABASE_URL` binding together using `WORKER_DATABASE_URL`. Grant the runtime role access when adding production tables or identity sequences. Provision the other Worker secrets and configured Cloudflare resources separately. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
+
+For the initial production copy, set the environment variable `IMPORT_PRODUCTION_MYSQL=true`. The protected job reads MySQL through the existing `DATABASE_URL` secret, verifies all 21 tables against Postgres and holds Postgres writes until the new Worker is serving and two source snapshots agree. The `ao3track__mysql_cutover` ledger records completion. Clear the variable after the first release. Later releases check the ledger and deploy without a MySQL connection.
 
 ### Database migrations
 
-The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations`. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.
+The protected deployment job runs `vp node apps/api/scripts/migrate.mjs` using its existing database secret before deploying the Worker. Drizzle applies pending SQL from the checked-out source commit and records it in `ao3track__migrations` on main or `ao3track_dev__migrations` on dev. The release build mode and migration step select the same prefix. Each environment needs a Postgres connection string for the target branch. Database credentials need DDL and write permissions. Release preparation and PR checks do not run migrations.
 
 Migration or API deployment failures block both store releases.
 
@@ -95,15 +98,16 @@ Drizzle RC migrations use timestamped folders containing SQL and a snapshot. The
 
 ### `api-development`
 
-| Secret                     | Value                                                                          |
-| -------------------------- | ------------------------------------------------------------------------------ |
-| `DEV_DATABASE_URL`         | Connection with migration permissions to the dev Worker's PlanetScale database |
-| `DEV_CLOUDFLARE_API_TOKEN` | Optional token scoped to development Worker deployment and its bindings/domain |
-| `CLOUDFLARE_API_TOKEN`     | Existing deployment token, used when `DEV_CLOUDFLARE_API_TOKEN` is absent      |
+| Secret                     | Value                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------------------------- |
+| `DEV_DATABASE_URL`         | Connection with migration permissions to the dev Worker's PlanetScale database                  |
+| `DEV_WORKER_DATABASE_URL`  | Runtime connection with DML on the dev application tables and usage on their identity sequences |
+| `DEV_CLOUDFLARE_API_TOKEN` | Optional token scoped to development Worker deployment and its bindings/domain                  |
+| `CLOUDFLARE_API_TOKEN`     | Existing deployment token, used when `DEV_CLOUDFLARE_API_TOKEN` is absent                       |
 
 Set these as repository secrets, or in the `api-development` environment if the repository's GitHub plan supports environment secrets. Dev migrations use only `DEV_DATABASE_URL`; they never fall back to the production `DATABASE_URL`. The selected Cloudflare token must be able to deploy `ao3tracker-api-dev` and its configured resources.
 
-Provision the dev Worker's runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment; the protected release applies pending migrations, deploys that artifact, then checks `https://dev.ao3tracker.com/ping`.
+Provision the dev Worker's other runtime secrets, R2 bucket, queues, and email sender separately. Release preparation builds with the `dev` Wrangler environment. The protected release applies migrations using `DEV_DATABASE_URL`, deploys the artifact and its `DATABASE_URL` binding together using `DEV_WORKER_DATABASE_URL`, then checks `https://dev.ao3tracker.com/ping`. Grant the runtime role access when adding dev tables or identity sequences.
 
 ### `google-play`
 

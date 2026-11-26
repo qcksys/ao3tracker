@@ -1,9 +1,9 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import { boolean, datetime, index, int, mysqlTable, text, varchar } from "drizzle-orm/mysql-core";
+import { boolean, index, integer, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-orm/zod";
 import { DB_TABLE_PREFIX } from "~/const";
 
-export const tAuthPasskey = mysqlTable(
+export const tAuthPasskey = pgTable(
   `${DB_TABLE_PREFIX}auth_passkey`,
   {
     id: varchar({ length: 36 }).primaryKey(),
@@ -11,16 +11,16 @@ export const tAuthPasskey = mysqlTable(
     publicKey: text().notNull(),
     userId: varchar({ length: 36 }).notNull(),
     credentialID: varchar({ length: 255 }).notNull(),
-    counter: int().notNull(),
+    counter: integer().notNull(),
     deviceType: text().notNull(),
     backedUp: boolean().notNull(),
     transports: text(),
-    createdAt: datetime(),
+    createdAt: timestamp({ withTimezone: true, precision: 0 }),
     aaguid: text(),
   },
   (table) => [
-    index("passkey_userId_idx").on(table.userId),
-    index("passkey_credentialID_idx").on(table.credentialID),
+    index(`${DB_TABLE_PREFIX}passkey_userId_idx`).on(table.userId),
+    index(`${DB_TABLE_PREFIX}passkey_credentialID_idx`).on(table.credentialID),
   ],
 );
 

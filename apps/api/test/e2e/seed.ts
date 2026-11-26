@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import { tAuthSession } from "~/db/schema/auth.session";
 import { tAuthUser } from "~/db/schema/auth.user";
@@ -47,7 +46,7 @@ export async function seedSyncDatabase(db: TDatabase) {
         emailVerified: true,
       })),
     )
-    .onDuplicateKeyUpdate({ set: { name: sql`${tAuthUser.name}` } });
+    .onConflictDoNothing();
   await db
     .insert(tAuthSession)
     .values(
@@ -58,7 +57,7 @@ export async function seedSyncDatabase(db: TDatabase) {
         expiresAt: new Date(Date.now() + 86_400_000),
       })),
     )
-    .onDuplicateKeyUpdate({ set: { token: sql`${tAuthSession.token}` } });
+    .onConflictDoNothing();
 
   await db
     .insert(tWork)
@@ -76,7 +75,7 @@ export async function seedSyncDatabase(db: TDatabase) {
         ...audit,
       })),
     )
-    .onDuplicateKeyUpdate({ set: { title: sql`${tWork.title}` } });
+    .onConflictDoNothing();
   await db
     .insert(tWorkChapter)
     .values([
@@ -86,7 +85,7 @@ export async function seedSyncDatabase(db: TDatabase) {
       { workId: 4, id: 41, number: 1, title: "Single chapter", ...audit },
       { workId: 99, id: 991, number: 1, title: "Other reader chapter", ...audit },
     ])
-    .onDuplicateKeyUpdate({ set: { title: sql`${tWorkChapter.title}` } });
+    .onConflictDoNothing();
   await db
     .insert(tWorkTag)
     .values({
@@ -95,7 +94,7 @@ export async function seedSyncDatabase(db: TDatabase) {
       href: "/tags/Fluff/works",
       typeId: 7,
     })
-    .onDuplicateKeyUpdate({ set: { href: sql`${tWorkTag.href}` } });
+    .onConflictDoNothing();
   await db
     .insert(tWorkTagLink)
     .values(
@@ -105,7 +104,7 @@ export async function seedSyncDatabase(db: TDatabase) {
         rowCreatedAt: seededAt,
       })),
     )
-    .onDuplicateKeyUpdate({ set: { tag: sql`${tWorkTagLink.tag}` } });
+    .onConflictDoNothing();
 
   await db
     .insert(tTrackWork)
@@ -117,7 +116,7 @@ export async function seedSyncDatabase(db: TDatabase) {
       { userId: "other", workId: 1, lastReadAt: seededAt, favourite: true, ...audit },
       { userId: "other", workId: 99, lastReadAt: seededAt, ...audit },
     ])
-    .onDuplicateKeyUpdate({ set: { lastReadAt: sql`${tTrackWork.lastReadAt}` } });
+    .onConflictDoNothing();
   await db
     .insert(tTrackChapter)
     .values([
@@ -171,7 +170,7 @@ export async function seedSyncDatabase(db: TDatabase) {
         ...audit,
       },
     ])
-    .onDuplicateKeyUpdate({ set: { lastReadAt: sql`${tTrackChapter.lastReadAt}` } });
+    .onConflictDoNothing();
   await db
     .insert(tUserFavouriteTag)
     .values([
@@ -200,7 +199,7 @@ export async function seedSyncDatabase(db: TDatabase) {
         ...audit,
       },
     ])
-    .onDuplicateKeyUpdate({ set: { favourited: sql`${tUserFavouriteTag.favourited}` } });
+    .onConflictDoNothing();
   await db
     .insert(tUserSavedSearch)
     .values([
@@ -230,5 +229,5 @@ export async function seedSyncDatabase(db: TDatabase) {
         ...audit,
       },
     ])
-    .onDuplicateKeyUpdate({ set: { name: sql`${tUserSavedSearch.name}` } });
+    .onConflictDoNothing();
 }

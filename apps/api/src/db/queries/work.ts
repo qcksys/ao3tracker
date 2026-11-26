@@ -1,7 +1,7 @@
-import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
 import { and, asc, eq, inArray, isNull, lt, notInArray, sql } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
 import type { OmitTimestampCols } from "~/db/helpers/schema";
+import { excludedSet, upsertBatches } from "~/db/helpers/upsert";
 import { tTrackWork } from "~/db/schema/track.work";
 import { type TWorkI, type TWorkS, tWork, tWorkTimestampExclude } from "~/db/schema/work";
 import {
@@ -12,11 +12,7 @@ import {
   tWorkChapterTimestampExclude,
 } from "~/db/schema/work.chapter";
 import { type TWorkTagI, tWorkTag, tWorkTagUpsertExclude } from "~/db/schema/work.tag";
-import {
-  tWorkTagLink,
-  tWorkTagLinkPK,
-  tWorkTagLinkTimestampExclude,
-} from "~/db/schema/work.tag.link";
+import { tWorkTagLink } from "~/db/schema/work.tag.link";
 
 /** Data for updating a work's metadata (excludes id and audit columns) */
 export type WorkUpdateData = OmitTimestampCols<Omit<TWorkI, "id" | "published">>;
@@ -65,7 +61,7 @@ export async function claimStaleWorks(
           isNull(tWork.rowDeletedAt),
         ),
       );
-    if (result.rowsAffected > 0) claimed.push(work);
+    if ((result.rowCount ?? 0) > 0) claimed.push(work);
   }
   return claimed;
 }
@@ -134,14 +130,15 @@ export async function upsertWorkTags(
   }
 
   // Upsert tags (exclude id and tag since tag is the unique key)
-  await db
-    .insert(tWorkTag)
-    .values(tags)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tWorkTag, {
-        exclude: tWorkTagUpsertExclude,
-      }),
-    );
+  for (const batch of upsertBatches(tags, (row) => row.tag)) {
+    await db
+      .insert(tWorkTag)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: tWorkTag.tag,
+        set: excludedSet(tWorkTag, tWorkTagUpsertExclude),
+      });
+  }
 
   // Look up the tag IDs by tag name
   const tagNames = tags.map((t) => t.tag);
@@ -174,15 +171,7 @@ export async function upsertWorkTags(
   );
 
   if (tagLinks.length > 0) {
-    await db
-      .insert(tWorkTagLink)
-      .values(tagLinks)
-      .onDuplicateKeyUpdate(
-        onDuplicateKeyUpdateConfig(tWorkTagLink, {
-          exclude: tWorkTagLinkTimestampExclude,
-          keep: tWorkTagLinkPK,
-        }),
-      );
+    await db.insert(tWorkTagLink).values(tagLinks).onConflictDoNothing();
   }
 
   // Tag-link removals have no tombstones; publish the completed replacement
@@ -199,14 +188,15 @@ export async function upsertWorkTags(
 export async function upsertWorkChapters(db: TDatabase, chapters: TWorkChapterI[]): Promise<void> {
   if (chapters.length === 0) return;
 
-  await db
-    .insert(tWorkChapter)
-    .values(chapters)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tWorkChapter, {
-        exclude: [...tWorkChapterPK, ...tWorkChapterTimestampExclude],
-      }),
-    );
+  for (const batch of upsertBatches(chapters, (row) => `${row.workId}:${row.id}`)) {
+    await db
+      .insert(tWorkChapter)
+      .values(batch)
+      .onConflictDoUpdate({
+        target: [...tWorkChapterPK],
+        set: excludedSet(tWorkChapter, [...tWorkChapterPK, ...tWorkChapterTimestampExclude]),
+      });
+  }
 }
 
 /** A stored chapter's AO3 ID and title, keyed by its position in the work */
@@ -246,11 +236,7 @@ export async function upsertWork(db: TDatabase, data: TWorkI): Promise<void> {
   await db
     .insert(tWork)
     .values(data)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tWork, {
-        exclude: tWorkTimestampExclude,
-      }),
-    );
+    .onConflictDoUpdate({ target: tWork.id, set: excludedSet(tWork, tWorkTimestampExclude) });
 }
 
 /**

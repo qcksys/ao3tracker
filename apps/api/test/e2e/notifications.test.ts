@@ -9,12 +9,15 @@ import {
   resetWorkAvailabilityNotifications,
 } from "~/db/queries/notification";
 import { tNotification } from "~/db/schema/notification";
+import { tPushToken } from "~/db/schema/push.token";
 import { tTrackWork } from "~/db/schema/track.work";
+import { FcmClient } from "~/lib/fcm-client";
 import {
   createWorkNotifications,
   dispatchPendingNotifications,
   type NotificationQueueMessage,
 } from "~/lib/notification-service";
+import { processNotificationQueue } from "~/queue/notification-consumer";
 import { seedSyncDatabase } from "./seed";
 
 const db = createDbConnection(inject("databaseUrl"));
@@ -35,7 +38,68 @@ beforeEach(async () => {
   await db.update(tTrackWork).set({ subscribed: true }).where(eq(tTrackWork.workId, 1));
 });
 
-describe("notification event identity in MySQL", () => {
+describe("notification event identity in Postgres", () => {
+  it("fans out queued notifications and retires only the device FCM rejects", async () => {
+    const userId = "queue-test-reader";
+    await db.delete(tPushToken).where(eq(tPushToken.userId, userId));
+    await db.insert(tPushToken).values(
+      ["valid", "expired", "retry"].map((deviceId) => ({
+        userId,
+        deviceId,
+        token: `queue-test-${deviceId}`,
+        lastValidatedAt: new Date(),
+      })),
+    );
+    const message: NotificationQueueMessage = {
+      type: "work_notification",
+      workId: 1,
+      notificationType: "new_chapters",
+      title: "Test",
+      body: "Chapter",
+      payload: "{}",
+      userIds: [userId],
+    };
+    const env = { NOTIFICATION_QUEUE: queue, FCM_SERVICE_ACCOUNT: "{}" } as CloudflareBindings;
+    async function deliver(body: NotificationQueueMessage) {
+      const ack = vi.fn(),
+        retry = vi.fn();
+      await processNotificationQueue(
+        { body, ack, retry } as unknown as Message<NotificationQueueMessage>,
+        env,
+        db,
+      );
+      return { ack, retry };
+    }
+    expect((await deliver(message)).ack).toHaveBeenCalledOnce();
+    const devices = sendBatch.mock.calls[0][0] as { body: NotificationQueueMessage }[];
+    expect(devices).toHaveLength(3);
+    expect(new Set(devices.map(({ body }) => body.deviceId))).toEqual(
+      new Set(["expired", "retry", "valid"]),
+    );
+    const send = vi
+      .spyOn(FcmClient.prototype, "sendMulticast")
+      .mockImplementation(async ([token]) => [
+        {
+          success: token === "queue-test-valid",
+          errorCode: token === "queue-test-expired" ? "UNREGISTERED" : "UNAVAILABLE",
+        },
+      ]);
+    try {
+      for (const { body } of devices) {
+        const delivery = await deliver(body);
+        if (body.deviceId === "retry")
+          expect(delivery.retry).toHaveBeenCalledWith({ delaySeconds: 60 });
+        else expect(delivery.ack).toHaveBeenCalledOnce();
+      }
+      const rows = await db.select().from(tPushToken).where(eq(tPushToken.userId, userId));
+      expect(rows.filter((row) => row.rowDeletedAt !== null).map((row) => row.deviceId)).toEqual([
+        "expired",
+      ]);
+    } finally {
+      send.mockRestore();
+    }
+  });
+
   it("creates one history record per subscriber when the same event overlaps", async () => {
     const created = await Promise.all(
       Array.from({ length: 4 }, () => createWorkNotifications(db, queue, event)),

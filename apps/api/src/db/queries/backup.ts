@@ -1,6 +1,6 @@
-import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
 import { and, desc, eq, isNull, max } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
+import { excludedSet } from "~/db/helpers/upsert";
 import {
   type TWorkBackupI,
   type TWorkBackupS,
@@ -21,11 +21,10 @@ export async function upsertBackup(db: TDatabase, data: TWorkBackupI): Promise<v
   await db
     .insert(tWorkBackup)
     .values(data)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tWorkBackup, {
-        exclude: tWorkBackupTimestampExclude,
-      }),
-    );
+    .onConflictDoUpdate({
+      target: tWorkBackup.r2Key,
+      set: excludedSet(tWorkBackup, tWorkBackupTimestampExclude),
+    });
 }
 
 /**

@@ -1,6 +1,6 @@
-import { onDuplicateKeyUpdateConfig } from "@qcksys/drizzle-extensions/onDuplicateKeyUpdate";
 import { asc, eq } from "drizzle-orm";
 import type { TDatabase } from "~/db/db.client";
+import { excludedSet } from "~/db/helpers/upsert";
 import {
   type TWorkCheckerStatusI,
   type TWorkCheckerStatusS,
@@ -18,9 +18,10 @@ export async function upsertWorkCheckerStatus(
   await db
     .insert(tWorkCheckerStatus)
     .values(data)
-    .onDuplicateKeyUpdate(
-      onDuplicateKeyUpdateConfig(tWorkCheckerStatus, { exclude: tWorkCheckerStatusUpsertExclude }),
-    );
+    .onConflictDoUpdate({
+      target: tWorkCheckerStatus.checkerId,
+      set: excludedSet(tWorkCheckerStatus, tWorkCheckerStatusUpsertExclude),
+    });
 }
 
 /**

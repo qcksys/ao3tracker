@@ -1,26 +1,27 @@
 import { sql } from "drizzle-orm";
-import { afterEach, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
+import { nodePostgresUrl } from "~/db/connection-url";
 import { createDbConnection } from "~/db/db.client";
+import { mockQueries, result } from "./pg-query-mock";
 
-afterEach(() => vi.unstubAllGlobals());
+it("uses trusted roots and hostname verification for PlanetScale system-root URLs", () => {
+  const raw =
+    "postgresql://user:p%40ss@example.test:6432/postgres?sslrootcert=system&application_name=api";
+  const url = new URL(nodePostgresUrl(raw));
+  expect(url.searchParams.has("sslrootcert")).toBe(false);
+  expect(url.searchParams.get("sslmode")).toBe("verify-full");
+  expect(url.searchParams.get("application_name")).toBe("api");
+  expect(url.password).toBe("p%40ss");
+  for (const suffix of ["", "?sslmode=disable", "?sslmode=verify-full&sslrootcert=custom.pem"]) {
+    const other = `postgresql://localhost/test${suffix}`;
+    expect(nodePostgresUrl(other)).toBe(other);
+  }
+});
 
-it("executes parameterized queries through the installed PlanetScale driver", async () => {
-  const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-    Response.json({
-      result: {
-        fields: [{ name: "answer", type: "INT32" }],
-        rows: [{ lengths: ["2"], values: btoa("42") }],
-      },
-    }),
-  );
-  vi.stubGlobal("fetch", fetchMock);
-
-  const db = createDbConnection("mysql://test:test@database.example/test");
-  const result = await db.execute(sql`SELECT ${42} AS answer`);
-
-  expect(result.rows).toEqual([{ answer: 42 }]);
-  expect(fetchMock).toHaveBeenCalledOnce();
-  const request = fetchMock.mock.calls[0][1];
-  expect(await new Response(request?.body).json()).toMatchObject({ query: "SELECT 42 AS answer" });
-  expect(request).not.toHaveProperty("cache");
+it("passes parameters separately to node-postgres", async () => {
+  const db = createDbConnection("postgresql://test@localhost/test");
+  const query = mockQueries(db).mockResolvedValue(result([{ answer: 42 }]));
+  const response = await db.execute<{ answer: number }>(sql`SELECT ${42} AS answer`);
+  expect(response.rows).toEqual([{ answer: 42 }]);
+  expect(query).toHaveBeenCalledWith("SELECT $1 AS answer", [42]);
 });

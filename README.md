@@ -11,13 +11,13 @@ The extension targets Chrome and Firefox. The Kotlin Multiplatform app targets A
 
 ## Repository layout
 
-| Path                                                  | Purpose                                             | Main technologies                                                 |
-| ----------------------------------------------------- | --------------------------------------------------- | ----------------------------------------------------------------- |
-| [apps/api](apps/api/)                                 | Authentication, sync, work updates, and backups     | Cloudflare Workers, Hono, Drizzle, PlanetScale MySQL, Better Auth |
-| [apps/browser-extension](apps/browser-extension/)     | AO3 page tracking and browser popup                 | WXT, React, Tailwind CSS, shadcn/ui                               |
-| [apps/native-kmp](apps/native-kmp/)                   | Android, iOS, and desktop app                       | Kotlin Multiplatform, Compose Multiplatform, Gradle               |
-| [packages/ao3-core](packages/ao3-core/)               | Shared AO3 DOM extraction, badges, and wire schemas | TypeScript, Zod                                                   |
-| [packages/ao3-sync-client](packages/ao3-sync-client/) | Shared typed authentication and sync client         | TypeScript                                                        |
+| Path                                                  | Purpose                                             | Main technologies                                                    |
+| ----------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
+| [apps/api](apps/api/)                                 | Authentication, sync, work updates, and backups     | Cloudflare Workers, Hono, Drizzle, PlanetScale Postgres, Better Auth |
+| [apps/browser-extension](apps/browser-extension/)     | AO3 page tracking and browser popup                 | WXT, React, Tailwind CSS, shadcn/ui                                  |
+| [apps/native-kmp](apps/native-kmp/)                   | Android, iOS, and desktop app                       | Kotlin Multiplatform, Compose Multiplatform, Gradle                  |
+| [packages/ao3-core](packages/ao3-core/)               | Shared AO3 DOM extraction, badges, and wire schemas | TypeScript, Zod                                                      |
+| [packages/ao3-sync-client](packages/ao3-sync-client/) | Shared typed authentication and sync client         | TypeScript                                                           |
 
 The native app's embedded browser scripts live in [apps/native-kmp/webview-scripts](apps/native-kmp/webview-scripts/) and also consume the shared packages.
 
@@ -72,16 +72,16 @@ The first command builds the Android debug APK; the second runs the desktop app.
 
 ## Checks and tests
 
-| Command                             | What it does                                                                                 |
-| ----------------------------------- | -------------------------------------------------------------------------------------------- |
-| `vp run ready`                      | Format, lint/type-check, test, and build the JavaScript/TypeScript workspace                 |
-| `vp fmt --check`                    | Check formatting without changing files                                                      |
-| `vp lint`                           | Run workspace lint and type checks                                                           |
-| `vp run -r test`                    | Run each workspace package's tests without Docker                                            |
-| `vp run -r build`                   | Build workspace packages; native binaries use Gradle                                         |
-| `vp run test:e2e`                   | Build the API and run seeded sync tests against disposable MySQL containers; requires Docker |
-| `vp node --test scripts/*.test.mjs` | Run release automation and tooling tests                                                     |
-| `git hook run pre-push`             | Run workspace/JVM tests, Android host and app unit tests, and shared/app device tests        |
+| Command                             | What it does                                                                             |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- |
+| `vp run ready`                      | Format, lint/type-check, test, and build the JavaScript/TypeScript workspace             |
+| `vp fmt --check`                    | Check formatting without changing files                                                  |
+| `vp lint`                           | Run workspace lint and type checks                                                       |
+| `vp run -r test`                    | Run each workspace package's tests without Docker                                        |
+| `vp run -r build`                   | Build workspace packages; native binaries use Gradle                                     |
+| `vp run test:e2e`                   | Build the API and run seeded sync tests against disposable Postgres 18 (requires Docker) |
+| `vp node --test scripts/*.test.mjs` | Run release automation and tooling tests                                                 |
+| `git hook run pre-push`             | Run workspace/JVM tests, Android host and app unit tests, and shared/app device tests    |
 
 The pre-push hook requires JDK 21, the Android SDK, and a running test emulator or connected test device. Any failure, including a missing device, blocks the push. `vp run ready` does not run the native or Docker-based suites.
 

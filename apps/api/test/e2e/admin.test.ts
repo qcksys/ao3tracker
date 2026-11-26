@@ -53,7 +53,54 @@ beforeEach(async () => {
   }
 });
 
-describe("admin dashboard stats in MySQL", () => {
+describe("admin dashboard stats in Postgres", () => {
+  it("checks session roles and saves checker settings through the admin site", async () => {
+    const url = inject("apiUrl");
+    for (const role of ["user", "admin"]) {
+      await db
+        .insert(tAuthUser)
+        .values({ id: role, name: role, email: `${role}@example.test`, role });
+      await db.insert(tAuthSession).values({
+        id: role,
+        token: `${role}-session`,
+        userId: role,
+        expiresAt: new Date(Date.now() + 3600000),
+      });
+    }
+    const headers = { authorization: "Bearer admin-session", origin: "http://localhost" };
+    const dashboard = await fetch(`${url}/admin`, { headers });
+    expect(dashboard.status).toBe(200);
+    expect(await dashboard.text()).toContain("Users and tracking");
+    expect(
+      (await fetch(`${url}/admin`, { headers: { authorization: "Bearer user-session" } })).status,
+    ).toBe(403);
+    const body = new URLSearchParams({
+      enabled: "on",
+      pollIntervalSeconds: "360",
+      maxWorksPerPoll: "4",
+      delayBetweenRequestsMs: "2500",
+    });
+    const settings = (origin: string) =>
+      fetch(`${url}/admin/settings`, {
+        method: "POST",
+        headers: { ...headers, origin },
+        body,
+        redirect: "manual",
+      });
+    expect((await settings("https://example.test")).status).toBe(403);
+    expect((await settings("http://localhost")).status).toBe(303);
+    expect(
+      await (
+        await fetch(`${url}/checker/settings`, { headers: { authorization: "Bearer e2e-checker" } })
+      ).json(),
+    ).toEqual({
+      enabled: true,
+      pollIntervalSeconds: 360,
+      maxWorksPerPoll: 4,
+      delayBetweenRequestsMs: 2500,
+    });
+  });
+
   it("counts each figure from its own rows", async () => {
     await db.insert(tAuthUser).values([
       {
@@ -136,7 +183,7 @@ describe("admin dashboard stats in MySQL", () => {
   });
 });
 
-describe("work checker status in MySQL", () => {
+describe("work checker status in Postgres", () => {
   it("keeps only each checker's latest report", async () => {
     const status = {
       checkerId: "hub-dev",
@@ -199,7 +246,7 @@ describe("work checker status in MySQL", () => {
   });
 });
 
-describe("admin emails in MySQL", () => {
+describe("admin emails in Postgres", () => {
   it("lists only admin accounts", async () => {
     await db.insert(tAuthUser).values([
       { id: "admin", name: "admin", email: "admin@example.test", role: "admin" },

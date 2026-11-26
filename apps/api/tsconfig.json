@@ -1,6 +1,6 @@
 {
   "include": ["src/**/*", "test/**/*", "*"],
-  "exclude": ["test/e2e/sync.test.ts"],
+  "exclude": ["test/e2e/sync.test.ts", "test/e2e/reader-services.test.ts"],
   "compilerOptions": {
     "types": ["vite/client"],
     "verbatimModuleSyntax": true,
