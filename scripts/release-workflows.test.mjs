@@ -286,7 +286,7 @@ for (const [name, environment, database, token, url] of [
   [
     "deploy-api",
     "api-production",
-    "DATABASE_URL",
+    "POSTGRES_MIGRATION_URL",
     "${{ secrets.CLOUDFLARE_API_TOKEN }}",
     "https://ao3tracker.com/ping",
   ],
@@ -321,11 +321,11 @@ for (const [name, environment, database, token, url] of [
     assert.equal(beforeMigrations.env.RELEASE_SOURCE_REF, current.env.RELEASE_SOURCE_REF);
     const upload = steps.find((step) => step.run?.includes("wrangler deploy"));
     assert.equal(upload.env.CLOUDFLARE_API_TOKEN, token);
-    if (environment === "api-development") {
-      assert.equal(upload.env.DEV_WORKER_DATABASE_URL, "${{ secrets.DEV_WORKER_DATABASE_URL }}");
-      assert.match(upload.run, /DATABASE_URL: env\.DEV_WORKER_DATABASE_URL/);
-      assert.match(upload.run, /wrangler deploy[^\n]+--secrets-file "\$secrets_file"/);
-    }
+    const runtime =
+      environment === "api-production" ? "WORKER_DATABASE_URL" : "DEV_WORKER_DATABASE_URL";
+    assert.equal(upload.env[runtime], "${{ secrets." + runtime + " }}");
+    assert.ok(upload.run.includes("DATABASE_URL: env." + runtime));
+    assert.match(upload.run, /wrangler deploy[^\n]+--secrets-file "\$secrets_file"/);
     assert.ok(steps.indexOf(download) < steps.indexOf(upload));
     assert.ok(steps.indexOf(download) < steps.indexOf(beforeMigrations));
     assert.equal(steps.indexOf(beforeMigrations) + 1, steps.indexOf(migrations));

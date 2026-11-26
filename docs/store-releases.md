@@ -78,12 +78,13 @@ Configure the following in [repository settings](https://github.com/qcksys/ao3tr
 
 ### `api-production`
 
-| Secret                 | Value                                                                                                     |
-| ---------------------- | --------------------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_API_TOKEN` | Token scoped to the configured account/zone with Worker deployment and required binding/route permissions |
-| `DATABASE_URL`         | Connection with migration permissions to the same production PlanetScale database used by the Worker      |
+| Secret                   | Value                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_API_TOKEN`   | Token scoped to the configured account/zone with Worker deployment and required binding/route permissions |
+| `POSTGRES_MIGRATION_URL` | Postgres connection with migration permissions for the production tables                                  |
+| `WORKER_DATABASE_URL`    | Runtime connection with DML on the production application tables and usage on their identity sequences    |
 
-The account ID is already recorded in `apps/api/wrangler.json`. Provision the production Worker runtime secrets and configured Cloudflare resources separately; the workflow preserves existing Worker secrets and never uploads its migration database credential. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
+The account ID is recorded in `apps/api/wrangler.json`. The production deploy installs the Worker and its `DATABASE_URL` binding together using `WORKER_DATABASE_URL`. Grant the runtime role access when adding production tables or identity sequences. Provision the other Worker secrets and configured Cloudflare resources separately. See [API deployment readiness](../apps/api/AGENTS.md#production-deployment-readiness).
 
 ### Database migrations
 

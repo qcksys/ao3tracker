@@ -46,7 +46,7 @@ vp run biome:ci               # CI linting check (used in GitHub Actions)
 
 ### Production deployment readiness
 
-The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN` and a `DATABASE_URL` with migration permissions pointing to the same production database used by the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and Worker runtime secrets (`DATABASE_URL`, `BETTER_AUTH_SECRET`, `GOOGLE_ID`, `GOOGLE_SECRET`, `FCM_SERVICE_ACCOUNT`) separately. Wrangler preserves existing Worker secrets; the GitHub database credential is used for migrations and is not uploaded.
+The `api-production` GitHub environment needs `CLOUDFLARE_API_TOKEN`, `POSTGRES_MIGRATION_URL` for schema migrations and `WORKER_DATABASE_URL` for the Worker's `DATABASE_URL` binding. Scope the runtime role to the production application tables and identity sequences. The release deploys the binding with the Worker. The Cloudflare account ID is already in `wrangler.json`. Scope the token to the configured account and production zone with Worker deployment and required binding/route permissions. Provision the production R2 bucket, notification/dead-letter queues, email sender, and other runtime secrets separately.
 
 The workflow rejects a source SHA that is no longer current `main`, including reruns of failed deployment jobs. After deployment it checks the public `/ping` response. This smoke test checks routing and Worker startup; it does not identify the deployed revision or test authenticated database operations.
 

@@ -68,7 +68,7 @@ jobs:
       - name: Apply production database migrations
         env:
           AO3_DB_ENV: main
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.POSTGRES_MIGRATION_URL }}
         run: vp node apps/api/scripts/migrate.mjs
       - name: Confirm source is still current main
         env:
@@ -78,12 +78,18 @@ jobs:
       - name: Deploy production Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WORKER_DATABASE_URL: ${{ secrets.WORKER_DATABASE_URL }}
         run: |
           if [[ -z "$CLOUDFLARE_API_TOKEN" ]]; then
             echo "::error::Set CLOUDFLARE_API_TOKEN in the api-production environment."
             exit 1
           fi
-          vp exec --filter @qcksys/ao3tracker-api wrangler deploy --config dist/ssr/wrangler.json
+          : "${WORKER_DATABASE_URL:?Set the production Worker Postgres connection secret}"
+          secrets_file=$(mktemp --suffix=.json)
+          trap 'rm -f -- "$secrets_file"' EXIT
+          jq -n '{DATABASE_URL: env.WORKER_DATABASE_URL}' > "$secrets_file"
+          unset WORKER_DATABASE_URL
+          vp exec --filter @qcksys/ao3tracker-api wrangler deploy --config dist/ssr/wrangler.json --secrets-file "$secrets_file"
       - name: Smoke test production API
         run: |
           curl --fail --silent --show-error --retry 3 --retry-all-errors --retry-delay 2 --max-time 20 \
